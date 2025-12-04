@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import axios from 'axios'
 
 const vendorOptions = [
   { label: 'OpenAI', value: 'openai' },
@@ -12,7 +13,8 @@ const vendorOptions = [
 const form = ref({
   vendor: 'openai',
   apiKey: '',
-  model: ''
+  model: '',
+  apiEndpoint: ''
 })
 
 const STORAGE_KEY = 'mm_llm_settings'
@@ -25,7 +27,8 @@ const loadSettings = () => {
       form.value = {
         vendor: parsed.vendor || 'openai',
         apiKey: parsed.apiKey || '',
-        model: parsed.model || ''
+        model: parsed.model || '',
+        apiEndpoint: parsed.apiEndpoint || ''
       }
     }
   } catch (e) {
@@ -36,6 +39,20 @@ const loadSettings = () => {
 const saveSettings = () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(form.value))
   ElMessage.success('已保存大模型配置（存于本地浏览器）')
+}
+
+const testConnection = async () => {
+  try {
+    if (form.value.vendor === 'custom' && !form.value.apiEndpoint) {
+      ElMessage.warning('请填写自定义供应商的 API 地址')
+      return
+    }
+    const target = form.value.vendor === 'custom' ? form.value.apiEndpoint : '/api/health'
+    await axios.get(target)
+    ElMessage.success('测试成功，接口可用')
+  } catch (e: any) {
+    ElMessage.error(`测试失败：${e?.message || '请检查网络或接口地址'}`)
+  }
 }
 
 onMounted(() => loadSettings())
@@ -62,6 +79,14 @@ onMounted(() => loadSettings())
           </el-select>
         </el-form-item>
 
+        <el-form-item v-if="form.vendor === 'custom'" label="API 地址">
+          <el-input
+            v-model="form.apiEndpoint"
+            placeholder="请输入自定义供应商的 API 入口，例如：https://api.example.com/health"
+            style="max-width: 420px;"
+          />
+        </el-form-item>
+
         <el-form-item label="大模型密钥">
           <el-input
             v-model="form.apiKey"
@@ -82,6 +107,7 @@ onMounted(() => loadSettings())
         <el-form-item>
           <el-button type="primary" @click="saveSettings">保存</el-button>
           <el-button @click="loadSettings">恢复</el-button>
+          <el-button type="success" @click="testConnection">测试</el-button>
         </el-form-item>
       </el-form>
       <p class="tip">提示：当前设置仅存储在浏览器本地，如需服务端持久化请后续接入后端。</p>
