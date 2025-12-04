@@ -3,6 +3,8 @@
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from fastapi.responses import StreamingResponse
+import asyncio
 
 from backend.core.llm import load_config, save_config, test_connection
 
@@ -14,6 +16,10 @@ class LLMConfig(BaseModel):
     api_key: str
     model: str
     api_endpoint: str | None = None
+
+
+class ChatRequest(BaseModel):
+    prompt: str
 
 
 @router.get("/config")
@@ -43,3 +49,20 @@ async def test_llm(body: LLMConfig | None = None):
     if result.get("success"):
         return result
     raise HTTPException(status_code=500, detail=result.get("message", "测试失败"))
+
+
+@router.post("/chat")
+async def chat(body: ChatRequest):
+    """
+    原型聊天接口（流式）。目前为占位回声流，如需真实大模型可在此对接外部API。
+    """
+    prompt = body.prompt or ""
+
+    async def streamer():
+        yield "助手: "
+        # 模拟分段回复
+        for chunk in ["收到你的消息：", prompt[:50], " …（演示流式输出）"]:
+            await asyncio.sleep(0.1)
+            yield chunk
+
+    return StreamingResponse(streamer(), media_type="text/plain")
