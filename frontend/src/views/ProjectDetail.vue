@@ -251,6 +251,13 @@ const fmtDate = (dateStr?: string) => {
   return new Date(dateStr).toLocaleDateString('zh-CN')
 }
 
+// 跳转到商品推荐
+const goRecommend = () => {
+  if (project.value?.id) {
+    router.push(`/projects/${project.value.id}/recommend`)
+  }
+}
+
 // 主题切换
 const theme = ref<'light' | 'dark'>('light')
 const isDark = computed(() => theme.value === 'dark')
@@ -311,6 +318,9 @@ onBeforeUnmount(() => {
           @click="toggleTheme"
           :title="isDark ? '切换到明亮模式' : '切换到暗黑模式'"
         />
+        <el-button type="primary" plain @click="goRecommend">
+          🔗 商品推荐查询
+        </el-button>
         <el-button @click="reanalyze" :disabled="project.status === '处理中'">
           🔄 重新分析
         </el-button>
