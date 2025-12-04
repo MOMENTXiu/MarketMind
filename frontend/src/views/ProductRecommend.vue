@@ -26,6 +26,14 @@ const loading = ref(false)
 const result = ref<RecommendResult | null>(null)
 const detailVisible = ref(false)
 const detailRow = ref<RecommendRule | null>(null)
+const sortAnte = ref<{ prop: string; order: 'ascending' | 'descending' } | null>({
+  prop: 'confidence',
+  order: 'descending'
+})
+const sortCons = ref<{ prop: string; order: 'ascending' | 'descending' } | null>({
+  prop: 'confidence',
+  order: 'descending'
+})
 
 const formatPercent = (val: number) => `${(val * 100).toFixed(2)}%`
 const formatLift = (val: number) => val.toFixed(2)
@@ -63,6 +71,46 @@ const openDetail = (row: RecommendRule) => {
   detailRow.value = row
   detailVisible.value = true
 }
+
+const sortedAntecedent = computed(() => {
+  if (!result.value) return []
+  const data = [...result.value.as_antecedent]
+  if (!sortAnte.value) return data
+  const { prop, order } = sortAnte.value
+  return data.sort((a: any, b: any) => {
+    const va = a[prop] ?? 0
+    const vb = b[prop] ?? 0
+    return order === 'ascending' ? va - vb : vb - va
+  })
+})
+
+const sortedConsequent = computed(() => {
+  if (!result.value) return []
+  const data = [...result.value.as_consequent]
+  if (!sortCons.value) return data
+  const { prop, order } = sortCons.value
+  return data.sort((a: any, b: any) => {
+    const va = a[prop] ?? 0
+    const vb = b[prop] ?? 0
+    return order === 'ascending' ? va - vb : vb - va
+  })
+})
+
+const handleSortAnte = (opt: any) => {
+  if (opt.order) {
+    sortAnte.value = { prop: opt.prop, order: opt.order }
+  } else {
+    sortAnte.value = null
+  }
+}
+
+const handleSortCons = (opt: any) => {
+  if (opt.order) {
+    sortCons.value = { prop: opt.prop, order: opt.order }
+  } else {
+    sortCons.value = null
+  }
+}
 </script>
 
 <template>
@@ -95,7 +143,13 @@ const openDetail = (row: RecommendRule) => {
             </div>
           </template>
           <div v-if="result.as_antecedent.length">
-            <el-table :data="result.as_antecedent" style="width: 100%" stripe>
+            <el-table
+              :data="sortedAntecedent"
+              style="width: 100%"
+              stripe
+              @sort-change="handleSortAnte"
+              :default-sort="{ prop: sortAnte?.prop, order: sortAnte?.order }"
+            >
               <el-table-column label="前项" min-width="180">
                 <template #default="{ row }">
                   <el-tag type="info" size="small" v-for="(it, idx) in row.from_items" :key="idx" class="tag">
@@ -110,13 +164,13 @@ const openDetail = (row: RecommendRule) => {
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="支持度" width="100">
+              <el-table-column prop="support" label="支持度" width="100" sortable="custom">
                 <template #default="{ row }">{{ formatPercent(row.support) }}</template>
               </el-table-column>
-              <el-table-column label="置信度" width="100">
+              <el-table-column prop="confidence" label="置信度" width="100" sortable="custom">
                 <template #default="{ row }">{{ formatPercent(row.confidence) }}</template>
               </el-table-column>
-              <el-table-column label="提升度" width="90">
+              <el-table-column prop="lift" label="提升度" width="90" sortable="custom">
                 <template #default="{ row }">{{ formatLift(row.lift) }}</template>
               </el-table-column>
               <el-table-column label="策略建议" min-width="220" show-overflow-tooltip>
@@ -148,7 +202,13 @@ const openDetail = (row: RecommendRule) => {
             </div>
           </template>
           <div v-if="result.as_consequent.length">
-            <el-table :data="result.as_consequent" style="width: 100%" stripe>
+            <el-table
+              :data="sortedConsequent"
+              style="width: 100%"
+              stripe
+              @sort-change="handleSortCons"
+              :default-sort="{ prop: sortCons?.prop, order: sortCons?.order }"
+            >
               <el-table-column label="前项" min-width="180">
                 <template #default="{ row }">
                   <el-tag type="info" size="small" v-for="(it, idx) in row.from_items" :key="idx" class="tag">
@@ -163,13 +223,13 @@ const openDetail = (row: RecommendRule) => {
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="支持度" width="100">
+              <el-table-column prop="support" label="支持度" width="100" sortable="custom">
                 <template #default="{ row }">{{ formatPercent(row.support) }}</template>
               </el-table-column>
-              <el-table-column label="置信度" width="100">
+              <el-table-column prop="confidence" label="置信度" width="100" sortable="custom">
                 <template #default="{ row }">{{ formatPercent(row.confidence) }}</template>
               </el-table-column>
-              <el-table-column label="提升度" width="90">
+              <el-table-column prop="lift" label="提升度" width="90" sortable="custom">
                 <template #default="{ row }">{{ formatLift(row.lift) }}</template>
               </el-table-column>
               <el-table-column label="策略建议" min-width="220" show-overflow-tooltip>
