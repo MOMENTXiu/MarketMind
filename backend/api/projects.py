@@ -1,7 +1,7 @@
 """
 项目管理 API
 """
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks, Query
 from fastapi.responses import FileResponse
 from typing import Optional
 import shutil
