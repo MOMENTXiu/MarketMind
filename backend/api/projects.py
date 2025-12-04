@@ -18,6 +18,7 @@ from backend.models.project import (
 )
 from backend.core.storage import storage
 from backend.services.analysis_service import run_project_analysis
+from backend.core.recommend import query_item_relations
 
 router = APIRouter()
 
@@ -213,3 +214,14 @@ async def get_audio_file(project_id: str):
         filename=f"{project.name}_播报.mp3",
         media_type="audio/mpeg"
     )
+
+
+@router.get("/{project_id}/recommend")
+async def recommend_item(project_id: str, item: str = Query(..., description="商品名称，如：椅子")):
+    """
+    根据商品名称，返回与该商品相关的前项 / 后项关联规则。
+    暂时忽略 project_id，直接使用全局规则 DataFrame。
+    如需按项目区分，可在 load_rules 中扩展按 project_id 读取。
+    """
+    result = query_item_relations(item)
+    return result

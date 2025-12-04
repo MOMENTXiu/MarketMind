@@ -31,6 +31,7 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+node_modules/
 
 # Local data / outputs
 data/

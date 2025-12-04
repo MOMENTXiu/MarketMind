@@ -28,6 +28,11 @@ const router = createRouter({
       path: '/me/projects',
       name: 'my-projects',
       component: () => import('@/views/MyProjects.vue')
+    },
+    {
+      path: '/projects/:id/recommend',
+      name: 'product-recommend',
+      component: () => import('@/views/ProductRecommend.vue')
     }
   ]
 })
