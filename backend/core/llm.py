@@ -4,7 +4,7 @@
 import json
 import ssl
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Iterator
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
@@ -233,3 +233,67 @@ def chat_completion(prompt: str, cfg: Optional[Dict] = None, system_prompt: str 
         return _chat_openai(cfg, prompt, system_prompt)
     except Exception as e:
         return f"（调用大模型失败：{e}）"
+
+
+def _stream_openai(cfg: Dict, prompt: str, system_prompt: str) -> Iterator[str]:
+    import json
+    from urllib.request import Request, urlopen
+    from urllib.error import HTTPError
+
+    api_key = cfg.get("api_key", "")
+    model = cfg.get("model") or "gpt-4o"
+    endpoint = _normalize_chat_endpoint(cfg.get("api_endpoint") or "https://api.openai.com/v1/chat/completions")
+    body = json.dumps({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ],
+        "stream": True
+    }).encode("utf-8")
+    req = Request(
+        url=endpoint,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        },
+        method="POST"
+    )
+    try:
+        with urlopen(req, timeout=60) as resp:
+            for raw_line in resp:
+                line = raw_line.decode("utf-8").strip()
+                if not line.startswith("data:"):
+                    continue
+                payload = line[5:].strip()
+                if payload == "[DONE]":
+                    break
+                try:
+                    data = json.loads(payload)
+                    choice = data.get("choices", [{}])[0]
+                    delta = choice.get("delta") or choice.get("message") or {}
+                    content = delta.get("content") or ""
+                    if content:
+                        yield content
+                except Exception:
+                    continue
+    except HTTPError as e:
+        err_body = e.read().decode("utf-8") if hasattr(e, "read") else str(e)
+        yield f"（OpenAI 流式失败 HTTP {e.code}: {err_body}）"
+    except Exception as e:
+        yield f"（OpenAI 流式异常：{e}）"
+
+
+def chat_completion_stream(prompt: str, cfg: Optional[Dict] = None, system_prompt: str = "你是一个智慧助手，你要响应用户的请求") -> Iterator[str]:
+    """
+    返回迭代器用于流式输出；不支持流式的供应商自动退化为一次性输出。
+    """
+    cfg = cfg or load_config()
+    vendor = cfg.get("vendor", "openai")
+    if vendor == "openai":
+        return _stream_openai(cfg, prompt, system_prompt)
+    # fallback: 一次性输出
+    def _fallback():
+        yield chat_completion(prompt, cfg=cfg, system_prompt=system_prompt)
+    return _fallback()
