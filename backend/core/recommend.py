@@ -131,7 +131,8 @@ def query_item_relations(item_name: str, dataset_path: Optional[str] = None) -> 
             consequents = list(row["consequents"]) if not isinstance(row["consequents"], list) else row["consequents"]
 
             if current_in_antecedent:
-                from_items = [itm for itm in antecedents if itm != item] or antecedents
+                # 当前查询商品作为前项，前项统一显示当前商品即可
+                from_items = [item]
                 to_items = consequents
             else:
                 from_items = antecedents
