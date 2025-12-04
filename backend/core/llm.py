@@ -119,6 +119,7 @@ def test_connection(cfg: Optional[Dict] = None) -> Dict:
 def _chat_openai(cfg: Dict, prompt: str) -> str:
     import json
     from urllib.request import Request, urlopen
+    from urllib.error import HTTPError
 
     api_key = cfg.get("api_key", "")
     model = cfg.get("model") or "gpt-4o"
@@ -137,14 +138,25 @@ def _chat_openai(cfg: Dict, prompt: str) -> str:
         },
         method="POST"
     )
-    with urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-        return data["choices"][0]["message"]["content"]
+    try:
+        with urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode("utf-8")
+            try:
+                data = json.loads(raw)
+                if "choices" in data and data["choices"]:
+                    return data["choices"][0]["message"]["content"]
+                return raw
+            except json.JSONDecodeError:
+                return raw
+    except HTTPError as e:
+        err_body = e.read().decode("utf-8") if hasattr(e, "read") else str(e)
+        return f"（OpenAI 调用失败 HTTP {e.code}: {err_body}）"
 
 
 def _chat_anthropic(cfg: Dict, prompt: str) -> str:
     import json
     from urllib.request import Request, urlopen
+    from urllib.error import HTTPError
 
     api_key = cfg.get("api_key", "")
     model = cfg.get("model") or "claude-3-5-sonnet-20240620"
@@ -165,12 +177,21 @@ def _chat_anthropic(cfg: Dict, prompt: str) -> str:
         },
         method="POST"
     )
-    with urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-        content = data.get("content", [])
-        if content and isinstance(content, list) and "text" in content[0]:
-            return content[0]["text"]
-        return data.get("content", "")
+    try:
+        with urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode("utf-8")
+            try:
+                data = json.loads(raw)
+                content = data.get("content", [])
+                if content and isinstance(content, list):
+                    text_parts = [c.get("text", "") for c in content if isinstance(c, dict)]
+                    return "\n".join([t for t in text_parts if t])
+                return raw
+            except json.JSONDecodeError:
+                return raw
+    except HTTPError as e:
+        err_body = e.read().decode("utf-8") if hasattr(e, "read") else str(e)
+        return f"（Anthropic 调用失败 HTTP {e.code}: {err_body}）"
 
 
 def _chat_qwen(cfg: Dict, prompt: str) -> str:
