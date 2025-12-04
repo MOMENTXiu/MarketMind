@@ -6,7 +6,12 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
-from backend.core.recommend import load_rules, query_user_basket, customer_cluster_match
+from backend.core.recommend import (
+    load_rules,
+    query_user_basket,
+    customer_cluster_match,
+    query_item_relations,
+)
 
 
 def recommend_from_behavior(data_path: str, entity: str) -> Dict:
@@ -91,6 +96,7 @@ def recommend_from_behavior(data_path: str, entity: str) -> Dict:
     # 商品逆向：找以该商品为后项的规则，定位潜在客户
     item = entity.strip()
     matches = rules_df[rules_df["consequents"].apply(lambda s: item in s)]
+    rule_views = query_item_relations(item, dataset_path=str(dataset_path))
 
     target_customers: List[Dict] = []
     if not matches.empty:
@@ -121,6 +127,8 @@ def recommend_from_behavior(data_path: str, entity: str) -> Dict:
         "item": item,
         "recommends": [],
         "target_customers": target_customers,
+        "rules_as_antecedent": rule_views.get("as_antecedent", []),
+        "rules_as_consequent": rule_views.get("as_consequent", []),
         "speech": speech,
         "model_tries": model_tries,
         "human_fallback": human_fallback,
