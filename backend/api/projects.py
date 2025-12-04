@@ -220,8 +220,9 @@ async def get_audio_file(project_id: str):
 async def recommend_item(project_id: str, item: str = Query(..., description="商品名称，如：椅子")):
     """
     根据商品名称，返回与该商品相关的前项 / 后项关联规则。
-    暂时忽略 project_id，直接使用全局规则 DataFrame。
-    如需按项目区分，可在 load_rules 中扩展按 project_id 读取。
+    优先使用项目数据集现算关联规则（无需额外规则文件），如不存在则回退到 data/association_rules.*。
     """
-    result = query_item_relations(item)
+    project = storage.get_project(project_id)
+    dataset_path = project.dataset_path if project else None
+    result = query_item_relations(item, dataset_path=dataset_path)
     return result
