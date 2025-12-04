@@ -51,14 +51,16 @@ def recommend_from_behavior(data_path: str, entity: str) -> Dict:
         recommends: List[Dict] = []
         for _, row in candidates.sort_values("confidence", ascending=False).head(10).iterrows():
             consequents = list(row["consequents"])
+            antecedents = list(row["antecedents"]) if not isinstance(row["antecedents"], list) else row["antecedents"]
             recommends.append(
                 {
                     "items": consequents,
+                    "from_items": antecedents,
                     "support": float(row.get("support", 0)),
                     "confidence": float(row.get("confidence", 0)),
                     "lift": float(row.get("lift", 0)),
                     "reason": row.get("strategy", "")
-                    or f"您购买过{', '.join(set(row['antecedents']))}的顾客有{row.get('confidence', 0):.1%}概率再买{', '.join(consequents)}",
+                    or f"您购买过{', '.join(set(antecedents))}的顾客有{row.get('confidence', 0):.1%}概率再买{', '.join(consequents)}",
                 }
             )
 
@@ -102,6 +104,7 @@ def recommend_from_behavior(data_path: str, entity: str) -> Dict:
                 target_customers.append(
                     {
                         "from_items": list(antecedent_items),
+                        "to_items": [item],
                         "support": float(row.get("support", 0)),
                         "confidence": float(row.get("confidence", 0)),
                         "lift": float(row.get("lift", 0)),

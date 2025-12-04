@@ -6,6 +6,7 @@ import { ElMessage } from 'element-plus'
 type Mode = 'user' | 'product'
 
 interface RecommendItem {
+  from_items?: string[]
   items?: string[]
   support?: number
   confidence?: number
@@ -50,9 +51,25 @@ const placeholder = computed(() =>
   mode.value === 'user' ? '请输入用户ID，例如：U1001' : '请输入商品名称，例如：椅子'
 )
 
-const hasRules = computed(() => (data.value?.recommends?.length || 0) > 0)
+const hasRules = computed(() => (displayRecommends.value.length || 0) > 0)
 const hasTargets = computed(() => (data.value?.target_customers?.length || 0) > 0)
 const speechText = computed(() => data.value?.speech || '')
+
+const displayRecommends = computed(() => {
+  if (hasRules.value) return data.value?.recommends || []
+  // 逆向模式下，若无 recommends，尝试用 target_customers 生成一行展示
+  if (mode.value === 'product' && data.value?.target_customers?.length) {
+    return data.value.target_customers.map((t) => ({
+      from_items: t.from_items || [],
+      items: t.to_items || [data.value?.item],
+      support: t.support,
+      confidence: t.confidence,
+      lift: t.lift,
+      reason: '基于后项匹配的关联规则',
+    }))
+  }
+  return []
+})
 
 const formatPercent = (v?: number) =>
   typeof v === 'number' ? `${(v * 100).toFixed(2)}%` : '-'
@@ -167,14 +184,27 @@ const switchMode = (m: Mode) => {
         </template>
 
         <div v-if="hasRules" class="table-wrapper">
-          <el-table :data="data?.recommends" stripe style="min-width: 720px;">
-            <el-table-column label="推荐商品" min-width="160">
+          <el-table :data="displayRecommends" stripe style="min-width: 820px;">
+            <el-table-column label="前项" min-width="160">
+              <template #default="{ row }">
+                <el-tag
+                  v-for="(it, idx) in row.from_items || []"
+                  :key="idx"
+                  size="small"
+                  type="info"
+                  class="tag"
+                >
+                  {{ it }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="后项/推荐商品" min-width="160">
               <template #default="{ row }">
                 <el-tag
                   v-for="(it, idx) in row.items || row.to_items"
                   :key="idx"
                   size="small"
-                  type="info"
+                  type="success"
                   class="tag"
                 >
                   {{ it }}
@@ -207,7 +237,7 @@ const switchMode = (m: Mode) => {
         </template>
 
         <div v-if="hasTargets" class="table-wrapper">
-          <el-table :data="data?.target_customers" stripe style="min-width: 720px;">
+          <el-table :data="data?.target_customers" stripe style="min-width: 820px;">
             <el-table-column label="群体 / 客户" min-width="180">
               <template #default="{ row }">
                 <div v-if="row.cluster_name">
@@ -229,6 +259,20 @@ const switchMode = (m: Mode) => {
                   </div>
                 </div>
                 <div v-else>-</div>
+              </template>
+            </el-table-column>
+
+            <el-table-column v-if="mode === 'product'" label="后项" min-width="120">
+              <template #default="{ row }">
+                <el-tag
+                  v-for="(it, idx) in row.to_items || [data?.item]"
+                  :key="idx"
+                  type="success"
+                  size="small"
+                  class="tag"
+                >
+                  {{ it }}
+                </el-tag>
               </template>
             </el-table-column>
 
