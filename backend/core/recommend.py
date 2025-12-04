@@ -7,8 +7,11 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import pandas as pd
+import numpy as np
 from mlxtend.frequent_patterns import apriori, association_rules
 from mlxtend.preprocessing import TransactionEncoder
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 RULES_PATHS = [
     Path("data/association_rules.pkl"),
@@ -99,6 +102,82 @@ def load_rules(dataset_path: Optional[str] = None) -> pd.DataFrame:
         if path.exists():
             return _load_rules_from_dataset_cached(str(path.resolve()))
     return _load_rules_from_files()
+
+
+def query_user_basket(dataset_path: str, user_id: str) -> List[str]:
+    """读取用户的历史购物篮（去重后的商品列表）"""
+    df = pd.read_csv(dataset_path, encoding="utf-8")
+    if "客户 ID" not in df.columns or "子类别" not in df.columns:
+        return []
+    user_df = df[df["客户 ID"] == user_id]
+    if user_df.empty:
+        return []
+    orders = user_df.groupby("订单 ID")["子类别"].apply(list)
+    basket: List[str] = []
+    for items in orders:
+        basket.extend(items)
+    return list(dict.fromkeys(basket))  # 去重并保持顺序
+
+
+def customer_cluster_match(dataset_path: str, user_id: str) -> Optional[Dict]:
+    """简单 KMeans 聚类匹配用户群体"""
+    df = pd.read_csv(dataset_path, encoding="utf-8")
+    required_cols = {"客户 ID", "订单日期", "销售额", "订单 ID"}
+    if not required_cols.issubset(set(df.columns)):
+        return None
+
+    df["订单日期"] = pd.to_datetime(df["订单日期"])
+    reference_date = df["订单日期"].max() + pd.Timedelta(days=1)
+
+    customer_data = df.groupby("客户 ID").agg(
+        R_最近购买天数=("订单日期", lambda x: (reference_date - x.max()).days),
+        F_购买频次=("订单 ID", "nunique"),
+        M_消费金额=("销售额", "sum"),
+    ).reset_index()
+
+    if len(customer_data) < 2:
+        return None
+
+    # 填充防止除零
+    customer_data["F_购买频次"] = customer_data["F_购买频次"].replace(0, 1)
+    customer_data["客单价"] = customer_data["M_消费金额"] / customer_data["F_购买频次"]
+
+    features = customer_data[["R_最近购买天数", "F_购买频次", "M_消费金额", "客单价"]]
+    scaler = StandardScaler()
+    X = scaler.fit_transform(features)
+
+    n_clusters = max(2, min(6, len(customer_data)//20 or 2))
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    labels = kmeans.fit_predict(X)
+    customer_data["cluster"] = labels
+
+    def name_cluster(row, med_r, med_m):
+        if row["R_最近购买天数"] < med_r and row["M_消费金额"] > med_m:
+            return "高价值活跃客户"
+        if row["R_最近购买天数"] < med_r and row["M_消费金额"] <= med_m:
+            return "普通活跃客户"
+        if row["R_最近购买天数"] >= med_r and row["M_消费金额"] > med_m:
+            return "高价值流失预警"
+        return "低价值流失客户"
+
+    med_r = customer_data["R_最近购买天数"].median()
+    med_m = customer_data["M_消费金额"].median()
+    customer_data["cluster_name"] = customer_data.apply(lambda r: name_cluster(r, med_r, med_m), axis=1)
+
+    user_row = customer_data[customer_data["客户 ID"] == user_id]
+    if user_row.empty:
+        return None
+
+    row = user_row.iloc[0]
+    return {
+        "user_id": user_id,
+        "cluster_id": int(row["cluster"]),
+        "cluster_name": row["cluster_name"],
+        "recency": float(row["R_最近购买天数"]),
+        "frequency": float(row["F_购买频次"]),
+        "monetary": float(row["M_消费金额"]),
+        "aov": float(row["客单价"]),
+    }
 
 
 def query_item_relations(item_name: str, dataset_path: Optional[str] = None) -> Dict:
