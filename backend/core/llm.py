@@ -8,8 +8,13 @@ from typing import Dict, Optional
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
-CONFIG_PATH = Path("data/llm_config.json")
-CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+CONFIG_PATHS = [
+    Path("config/llm.yaml"),
+    Path("data/llm_config.json"),
+]
+
+for p in CONFIG_PATHS:
+    p.parent.mkdir(parents=True, exist_ok=True)
 
 DEFAULT_CONFIG = {
     "vendor": "openai",
@@ -20,17 +25,39 @@ DEFAULT_CONFIG = {
 
 
 def load_config() -> Dict:
-    if CONFIG_PATH.exists():
-        try:
-            return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        except Exception:
-            return DEFAULT_CONFIG.copy()
+    for path in CONFIG_PATHS:
+        if path.exists():
+            try:
+                if path.suffix.lower() == ".json":
+                    return json.loads(path.read_text(encoding="utf-8"))
+                # YAML 简易解析（不依赖额外库）
+                cfg: Dict[str, str] = {}
+                for line in path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#") or ":" not in line:
+                        continue
+                    k, v = line.split(":", 1)
+                    cfg[k.strip()] = v.strip().strip('"').strip("'")
+                return {
+                    "vendor": cfg.get("vendor", "openai"),
+                    "api_key": cfg.get("api_key", ""),
+                    "model": cfg.get("model", ""),
+                    "api_endpoint": cfg.get("api_endpoint", ""),
+                }
+            except Exception:
+                continue
     return DEFAULT_CONFIG.copy()
 
 
 def save_config(cfg: Dict):
-    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    json_path = next(p for p in CONFIG_PATHS if p.suffix == ".json")
+    yaml_path = next(p for p in CONFIG_PATHS if p.suffix == ".yaml")
+
+    json_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # 轻量写入 YAML（无外部依赖）
+    lines = [f"{k}: \"{str(v)}\"" for k, v in cfg.items() if v is not None]
+    yaml_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _default_endpoint(vendor: str) -> str:

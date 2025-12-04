@@ -116,7 +116,7 @@ onMounted(() => loadSettings())
           <el-button type="success" @click="testConnection">测试</el-button>
         </el-form-item>
       </el-form>
-      <p class="tip">提示：当前设置仅存储在浏览器本地，如需服务端持久化请后续接入后端。</p>
+      <p class="tip">提示：配置已保存在后端（config/llm.yaml / data/llm_config.json），可直接用于调用云端大模型。</p>
     </el-card>
   </div>
 </template>

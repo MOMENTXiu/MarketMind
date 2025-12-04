@@ -36,6 +36,9 @@ node_modules/
 # Local data / outputs
 data/
 outputs/
+config/llm.yaml
+config/*.yaml
+.env.llm
 
 # Data (可选，根据需要调整)
 # *.csv
