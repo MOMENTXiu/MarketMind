@@ -1,0 +1,96 @@
+/* Global base styles for MarketMind frontend */
+:root {
+    color-scheme: light;
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --text: #0f172a;
+    --muted: #475569;
+    --primary: #2563eb;
+    --border: #e2e8f0;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Inter", "SF Pro Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+}
+
+a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+#app {
+    min-height: 100vh;
+    background: var(--bg);
+}
+
+/* 暗黑模式变量覆盖 */
+body.dark-mode {
+    --bg: #0b1220;
+    --surface: #0f172a;
+    --text: #e2e8f0;
+    --muted: #cbd5e1;
+    --primary: #60a5fa;
+    --border: #1f2937;
+    color: var(--text);
+    background: var(--bg);
+}
+
+body.dark-mode a {
+    color: var(--primary);
+}
+
+/* Element Plus 适配暗黑模式的基础覆盖 */
+body.dark-mode .el-card {
+    background-color: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+}
+
+body.dark-mode .el-descriptions,
+body.dark-mode .el-descriptions__label,
+body.dark-mode .el-descriptions__content {
+    background-color: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+body.dark-mode .el-table,
+body.dark-mode .el-table th,
+body.dark-mode .el-table td,
+body.dark-mode .el-table__cell {
+    background-color: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+body.dark-mode .el-table--border,
+body.dark-mode .el-table--border th,
+body.dark-mode .el-table--border td {
+    border-color: var(--border);
+}
+
+body.dark-mode .el-pagination,
+body.dark-mode .el-pagination button,
+body.dark-mode .el-pagination .el-pager li {
+    background: transparent;
+    color: var(--text);
+}
+
+body.dark-mode .el-tag {
+    border-color: var(--border);
+}

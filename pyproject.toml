@@ -1,0 +1,64 @@
+[project]
+name = "marketmind"
+version = "1.0.0"
+description = "超市AI营销系统 - 数据分析与智能营销决策平台"
+authors = [
+    {name = "MarketMind Team", email = "team@marketmind.com"}
+]
+requires-python = ">=3.13,<3.14"
+license = "MIT"
+keywords = ["data-analysis", "machine-learning", "marketing", "retail", "ai"]
+
+dependencies = [
+    # 数据处理
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    # 机器学习
+    "scikit-learn>=1.4.0",
+    "mlxtend>=0.23.0",
+    # 可视化
+    "matplotlib>=3.8.0",
+    "seaborn>=0.13.0",
+    "plotly>=5.18.0",
+    # Web界面
+    "streamlit>=1.31.0",
+    # 语音合成
+    "edge-tts>=6.1.10",
+    # 时间序列
+    "statsmodels>=0.14.0",
+    # 工具库
+    "openpyxl>=3.1.0",
+    "python-dateutil>=2.8.2",
+    "fastapi>=0.123.5",
+    "uvicorn>=0.38.0",
+    "python-multipart>=0.0.20",
+    "aiofiles>=25.1.0",
+    "pydantic-settings>=2.12.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.12.0",
+    "ruff>=0.1.0",
+    "ipython>=8.20.0",
+    "jupyter>=1.0.0",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py313']
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

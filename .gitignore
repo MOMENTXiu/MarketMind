@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Local data / outputs
+data/
+outputs/
+
+# Data (可选，根据需要调整)
+# *.csv
+# *.xlsx
+# *.db
+
+# Generated files
+*.png
+*.mp3
+*.txt
+!requirements.txt
+!QUICKSTART.md
+!README.md
+!PROJECT_PLAN.md
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Temporary
+*.tmp
+*.bak
+*.log
