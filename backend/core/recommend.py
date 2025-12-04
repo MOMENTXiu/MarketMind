@@ -124,24 +124,48 @@ def query_item_relations(item_name: str, dataset_path: Optional[str] = None) -> 
     def _format_rules(df: pd.DataFrame, current_in_antecedent: bool) -> List[Dict]:
         if df.empty:
             return []
-        df_sorted = df.sort_values(by="confidence", ascending=False).head(20)
+        df_sorted = df.sort_values(by="confidence", ascending=False).head(200)
+
+        # 如果当前商品在前项，按后项去重，聚合所有共同前项组合
+        if current_in_antecedent:
+            grouped: Dict[tuple, Dict] = {}
+            for _, row in df_sorted.iterrows():
+                antecedents = list(row["antecedents"]) if not isinstance(row["antecedents"], list) else row["antecedents"]
+                consequents = list(row["consequents"]) if not isinstance(row["consequents"], list) else row["consequents"]
+                to_key = tuple(sorted(consequents))
+                co_items = [itm for itm in antecedents if itm != item]
+
+                if to_key not in grouped:
+                    grouped[to_key] = {
+                        "from_items": [item],
+                        "to_items": list(consequents),
+                        "support": float(row.get("support", 0)),
+                        "confidence": float(row.get("confidence", 0)),
+                        "lift": float(row.get("lift", 0)),
+                        "strategy": _extract_strategy(row, antecedents, consequents),
+                        "co_antecedents": [co_items] if co_items else [],
+                    }
+                else:
+                    # 收集合并共同前项组合，并保留最高置信度
+                    grouped[to_key]["co_antecedents"].append(co_items if co_items else [])
+                    if float(row.get("confidence", 0)) > grouped[to_key]["confidence"]:
+                        grouped[to_key]["support"] = float(row.get("support", 0))
+                        grouped[to_key]["confidence"] = float(row.get("confidence", 0))
+                        grouped[to_key]["lift"] = float(row.get("lift", 0))
+                        grouped[to_key]["strategy"] = _extract_strategy(row, antecedents, consequents)
+
+            # 返回按置信度排序的去重结果，最多 20 条
+            return sorted(grouped.values(), key=lambda x: x["confidence"], reverse=True)[:20]
+
+        # 当前商品在后项，按置信度排序取前 20 条
         formatted = []
-        for _, row in df_sorted.iterrows():
+        for _, row in df_sorted.head(20).iterrows():
             antecedents = list(row["antecedents"]) if not isinstance(row["antecedents"], list) else row["antecedents"]
             consequents = list(row["consequents"]) if not isinstance(row["consequents"], list) else row["consequents"]
-
-            if current_in_antecedent:
-                # 当前查询商品作为前项，前项统一显示当前商品即可
-                from_items = [item]
-                to_items = consequents
-            else:
-                from_items = antecedents
-                to_items = consequents
-
             formatted.append(
                 {
-                    "from_items": list(from_items),
-                    "to_items": list(to_items),
+                    "from_items": antecedents,
+                    "to_items": consequents,
                     "support": float(row.get("support", 0)),
                     "confidence": float(row.get("confidence", 0)),
                     "lift": float(row.get("lift", 0)),

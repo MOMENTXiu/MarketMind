@@ -11,6 +11,7 @@ interface RecommendRule {
   confidence: number
   lift: number
   strategy?: string
+  co_antecedents?: string[][]
 }
 
 interface RecommendResult {
@@ -23,6 +24,8 @@ const route = useRoute()
 const keyword = ref('')
 const loading = ref(false)
 const result = ref<RecommendResult | null>(null)
+const detailVisible = ref(false)
+const detailRow = ref<RecommendRule | null>(null)
 
 const formatPercent = (val: number) => `${(val * 100).toFixed(2)}%`
 const formatLift = (val: number) => val.toFixed(2)
@@ -54,6 +57,11 @@ const search = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const openDetail = (row: RecommendRule) => {
+  detailRow.value = row
+  detailVisible.value = true
 }
 </script>
 
@@ -114,6 +122,20 @@ const search = async () => {
               <el-table-column label="策略建议" min-width="220" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.strategy }}</template>
               </el-table-column>
+              <el-table-column label="组合详情" width="110">
+                <template #default="{ row }">
+                  <el-button
+                    v-if="row.co_antecedents && row.co_antecedents.length"
+                    type="primary"
+                    link
+                    size="small"
+                    @click="openDetail(row)"
+                  >
+                    查看
+                  </el-button>
+                  <span v-else style="color:#94a3b8;">-</span>
+                </template>
+              </el-table-column>
             </el-table>
           </div>
           <el-empty v-else description="暂无数据" />
@@ -164,6 +186,34 @@ const search = async () => {
         description="当前商品暂无关联规则，请尝试其他商品名称。"
         style="margin-top: 2rem;"
       />
+
+      <el-dialog v-model="detailVisible" title="共同前项组合" width="500px">
+        <div v-if="detailRow && detailRow.co_antecedents && detailRow.co_antecedents.length">
+          <p>当前前项：<el-tag type="info" size="small">{{ detailRow.from_items[0] }}</el-tag></p>
+          <p>后项：<el-tag type="success" size="small">{{ detailRow.to_items.join('、') }}</el-tag></p>
+          <p style="margin-top: 0.5rem;">与当前商品共同出现的其他前项组合：</p>
+          <div class="combo-list">
+            <div v-for="(combo, idx) in detailRow.co_antecedents" :key="idx" class="combo-row">
+              <el-tag v-if="!combo.length" size="small" type="info">（无其他商品）</el-tag>
+              <el-tag
+                v-for="(it, j) in combo"
+                :key="j"
+                size="small"
+                type="info"
+                class="tag"
+              >
+                {{ it }}
+              </el-tag>
+            </div>
+          </div>
+        </div>
+        <div v-else>
+          暂无其他组合
+        </div>
+        <template #footer>
+          <el-button @click="detailVisible = false">关闭</el-button>
+        </template>
+      </el-dialog>
     </div>
   </div>
 </template>
@@ -211,6 +261,19 @@ const search = async () => {
 .tag {
   margin-right: 6px;
   margin-bottom: 4px;
+}
+
+.combo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.combo-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 @media (max-width: 768px) {
