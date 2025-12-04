@@ -114,3 +114,86 @@ def test_connection(cfg: Optional[Dict] = None) -> Dict:
         return {"success": False, "message": f"网络错误: {e.reason}"}
     except Exception as e:
         return {"success": False, "message": f"连接异常: {e}"}
+
+
+def _chat_openai(cfg: Dict, prompt: str) -> str:
+    import json
+    from urllib.request import Request, urlopen
+
+    api_key = cfg.get("api_key", "")
+    model = cfg.get("model") or "gpt-4o"
+    endpoint = cfg.get("api_endpoint") or "https://api.openai.com/v1/chat/completions"
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False
+    }).encode("utf-8")
+    req = Request(
+        url=endpoint,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        },
+        method="POST"
+    )
+    with urlopen(req, timeout=30) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+        return data["choices"][0]["message"]["content"]
+
+
+def _chat_anthropic(cfg: Dict, prompt: str) -> str:
+    import json
+    from urllib.request import Request, urlopen
+
+    api_key = cfg.get("api_key", "")
+    model = cfg.get("model") or "claude-3-5-sonnet-20240620"
+    endpoint = cfg.get("api_endpoint") or "https://api.anthropic.com/v1/messages"
+    body = json.dumps({
+        "model": model,
+        "max_tokens": 1024,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False
+    }).encode("utf-8")
+    req = Request(
+        url=endpoint,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "x-anthropic-version": "2023-06-01"
+        },
+        method="POST"
+    )
+    with urlopen(req, timeout=30) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+        content = data.get("content", [])
+        if content and isinstance(content, list) and "text" in content[0]:
+            return content[0]["text"]
+        return data.get("content", "")
+
+
+def _chat_qwen(cfg: Dict, prompt: str) -> str:
+    # 兼容OpenAI格式
+    return _chat_openai(cfg, prompt)
+
+
+def chat_completion(prompt: str, cfg: Optional[Dict] = None) -> str:
+    """
+    使用已保存的 LLM 配置进行一次对话，返回文本。
+    """
+    cfg = cfg or load_config()
+    vendor = cfg.get("vendor", "openai")
+    if not prompt:
+        return ""
+    try:
+        if vendor == "openai":
+            return _chat_openai(cfg, prompt)
+        if vendor == "anthropic":
+            return _chat_anthropic(cfg, prompt)
+        if vendor == "qwen":
+            return _chat_qwen(cfg, prompt)
+        # 其他供应商按 openai 兼容模式尝试
+        return _chat_openai(cfg, prompt)
+    except Exception as e:
+        return f"（调用大模型失败：{e}）"

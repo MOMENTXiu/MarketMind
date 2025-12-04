@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 import asyncio
 
-from backend.core.llm import load_config, save_config, test_connection
+from backend.core.llm import load_config, save_config, test_connection, chat_completion
 
 router = APIRouter(prefix="/llm", tags=["LLM 设置"])
 
@@ -54,15 +54,15 @@ async def test_llm(body: LLMConfig | None = None):
 @router.post("/chat")
 async def chat(body: ChatRequest):
     """
-    原型聊天接口（流式）。目前为占位回声流，如需真实大模型可在此对接外部API。
+    聊天接口（简易流式），使用已保存的 LLM 配置调用外部大模型。
     """
     prompt = body.prompt or ""
 
     async def streamer():
-        yield "助手: "
-        # 模拟分段回复
-        for chunk in ["收到你的消息：", prompt[:50], " …（演示流式输出）"]:
-            await asyncio.sleep(0.1)
-            yield chunk
+        text = chat_completion(prompt)
+        # 简单分段输出，模拟流式
+        for i in range(0, len(text), 50):
+            await asyncio.sleep(0.02)
+            yield text[i : i + 50]
 
     return StreamingResponse(streamer(), media_type="text/plain")
