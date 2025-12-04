@@ -62,11 +62,11 @@ def save_config(cfg: Dict):
 
 def _default_endpoint(vendor: str) -> str:
     if vendor == "openai":
-        return "https://api.openai.com/v1/models"
+        return "https://api.openai.com/v1/chat/completions"
     if vendor == "anthropic":
-        return "https://api.anthropic.com/v1/models"
+        return "https://api.anthropic.com/v1/messages"
     if vendor == "qwen":
-        return "https://dashscope.aliyuncs.com/compatible-mode/v1/models"
+        return "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
     return ""
 
 
@@ -116,17 +116,32 @@ def test_connection(cfg: Optional[Dict] = None) -> Dict:
         return {"success": False, "message": f"连接异常: {e}"}
 
 
-def _chat_openai(cfg: Dict, prompt: str) -> str:
+def _normalize_chat_endpoint(endpoint: str) -> str:
+    if not endpoint:
+        return ""
+    low = endpoint.lower()
+    if "chat/completions" in low:
+        return endpoint
+    # 补全 OpenAI 兼容路径
+    if not endpoint.endswith("/"):
+        endpoint = endpoint + "/"
+    return endpoint + "v1/chat/completions"
+
+
+def _chat_openai(cfg: Dict, prompt: str, system_prompt: str) -> str:
     import json
     from urllib.request import Request, urlopen
     from urllib.error import HTTPError
 
     api_key = cfg.get("api_key", "")
     model = cfg.get("model") or "gpt-4o"
-    endpoint = cfg.get("api_endpoint") or "https://api.openai.com/v1/chat/completions"
+    endpoint = _normalize_chat_endpoint(cfg.get("api_endpoint") or "https://api.openai.com/v1/chat/completions")
     body = json.dumps({
         "model": model,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ],
         "stream": False
     }).encode("utf-8")
     req = Request(
@@ -196,10 +211,10 @@ def _chat_anthropic(cfg: Dict, prompt: str) -> str:
 
 def _chat_qwen(cfg: Dict, prompt: str) -> str:
     # 兼容OpenAI格式
-    return _chat_openai(cfg, prompt)
+    return _chat_openai(cfg, prompt, "你是一个智慧助手，你要响应用户的请求")
 
 
-def chat_completion(prompt: str, cfg: Optional[Dict] = None) -> str:
+def chat_completion(prompt: str, cfg: Optional[Dict] = None, system_prompt: str = "你是一个智慧助手，你要响应用户的请求") -> str:
     """
     使用已保存的 LLM 配置进行一次对话，返回文本。
     """
@@ -209,12 +224,12 @@ def chat_completion(prompt: str, cfg: Optional[Dict] = None) -> str:
         return ""
     try:
         if vendor == "openai":
-            return _chat_openai(cfg, prompt)
+            return _chat_openai(cfg, prompt, system_prompt)
         if vendor == "anthropic":
             return _chat_anthropic(cfg, prompt)
         if vendor == "qwen":
             return _chat_qwen(cfg, prompt)
         # 其他供应商按 openai 兼容模式尝试
-        return _chat_openai(cfg, prompt)
+        return _chat_openai(cfg, prompt, system_prompt)
     except Exception as e:
         return f"（调用大模型失败：{e}）"

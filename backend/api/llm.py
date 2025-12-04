@@ -59,7 +59,7 @@ async def chat(body: ChatRequest):
     prompt = body.prompt or ""
 
     async def streamer():
-        text = chat_completion(prompt)
+        text = chat_completion(prompt, system_prompt="你是一个智慧助手，你要响应用户的请求")
         # 简单分段输出，模拟流式
         for i in range(0, len(text), 50):
             await asyncio.sleep(0.02)
