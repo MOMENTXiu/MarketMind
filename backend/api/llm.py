@@ -19,14 +19,11 @@ class LLMConfig(BaseModel):
 @router.get("/config")
 async def get_config():
     cfg = load_config()
-    # 返回时不暴露完整密钥
-    preview = cfg.get("api_key", "")
-    masked = preview[:4] + "****" + preview[-4:] if preview else ""
     return {
         "vendor": cfg.get("vendor", ""),
         "api_endpoint": cfg.get("api_endpoint", ""),
         "model": cfg.get("model", ""),
-        "api_key_preview": masked,
+        "api_key": cfg.get("api_key", ""),
     }
 
 

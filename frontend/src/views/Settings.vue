@@ -23,7 +23,7 @@ const loadSettings = async () => {
     form.value.vendor = res.data.vendor || 'openai'
     form.value.model = res.data.model || ''
     form.value.apiEndpoint = res.data.api_endpoint || ''
-    // 密钥不回显完整，保持当前输入
+    form.value.apiKey = res.data.api_key || ''
   } catch (e) {
     // ignore
   }
