@@ -17,28 +17,30 @@ const form = ref({
   apiEndpoint: ''
 })
 
-const STORAGE_KEY = 'mm_llm_settings'
-
-const loadSettings = () => {
+const loadSettings = async () => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      form.value = {
-        vendor: parsed.vendor || 'openai',
-        apiKey: parsed.apiKey || '',
-        model: parsed.model || '',
-        apiEndpoint: parsed.apiEndpoint || ''
-      }
-    }
+    const res = await axios.get('/api/llm/config')
+    form.value.vendor = res.data.vendor || 'openai'
+    form.value.model = res.data.model || ''
+    form.value.apiEndpoint = res.data.api_endpoint || ''
+    // 密钥不回显完整，保持当前输入
   } catch (e) {
     // ignore
   }
 }
 
-const saveSettings = () => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(form.value))
-  ElMessage.success('已保存大模型配置（存于本地浏览器）')
+const saveSettings = async () => {
+  try {
+    await axios.post('/api/llm/config', {
+      vendor: form.value.vendor,
+      api_key: form.value.apiKey,
+      model: form.value.model,
+      api_endpoint: form.value.apiEndpoint
+    })
+    ElMessage.success('已保存大模型配置')
+  } catch (e: any) {
+    ElMessage.error(`保存失败：${e?.response?.data?.detail || e?.message || '请稍后重试'}`)
+  }
 }
 
 const testConnection = async () => {
@@ -47,11 +49,15 @@ const testConnection = async () => {
       ElMessage.warning('请填写自定义供应商的 API 地址')
       return
     }
-    const target = form.value.vendor === 'custom' ? form.value.apiEndpoint : '/api/health'
-    await axios.get(target)
-    ElMessage.success('测试成功，接口可用')
+    const res = await axios.post('/api/llm/test', {
+      vendor: form.value.vendor,
+      api_key: form.value.apiKey,
+      model: form.value.model,
+      api_endpoint: form.value.apiEndpoint
+    })
+    ElMessage.success(res.data?.message || '测试成功，接口可用')
   } catch (e: any) {
-    ElMessage.error(`测试失败：${e?.message || '请检查网络或接口地址'}`)
+    ElMessage.error(`测试失败：${e?.response?.data?.detail || e?.message || '请检查网络或接口地址'}`)
   }
 }
 
