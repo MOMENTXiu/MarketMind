@@ -1,42 +1,31 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
-type Mode = 'user' | 'product'
+type Mode = 'user' | 'item'
 
-interface Rule {
-  from_items: string[]
-  to_items: string[]
-  support?: number
-  confidence?: number
-  lift?: number
-  strategy?: string
+interface RecommendItem {
+  item?: string
+  category?: string
+  score?: number
   reason?: string
 }
 
 interface TargetCustomer {
-  cluster_id?: number
   cluster_name?: string
-  user_id?: string
-  recency?: number
-  frequency?: number
-  monetary?: number
-  aov?: number
-  from_items?: string[]
+  strategy?: string
+  buyer_count?: number
+  buy_ratio?: number
+  lift_index?: number
   to_items?: string[]
-  support?: number
-  confidence?: number
-  lift?: number
-  customers?: string[]
+  from_items?: string[]
 }
 
 interface RecommendResponse {
   item: string
-  recommends?: Rule[]
+  recommends?: RecommendItem[]
   target_customers?: TargetCustomer[]
-  rules_as_antecedent?: Rule[]
-  rules_as_consequent?: Rule[]
   speech?: string
   model_tries?: number
   human_fallback?: boolean
@@ -48,28 +37,20 @@ const loading = ref(false)
 const ttsLoading = ref(false)
 const audioUrl = ref('')
 const data = ref<RecommendResponse | null>(null)
+const audioRef = ref<HTMLAudioElement | null>(null)
 
 const placeholder = computed(() =>
   mode.value === 'user' ? '请输入用户ID，例如：U1001' : '请输入商品名称，例如：椅子'
 )
 
-const formatPercent = (v?: number) =>
-  typeof v === 'number' ? `${(v * 100).toFixed(2)}%` : '-'
-const formatLift = (v?: number) => (typeof v === 'number' ? v.toFixed(2) : '-')
-
-const hasRuleTables = computed(() => {
-  if (!data.value) return false
-  if (mode.value === 'product') {
-    return (
-      (data.value.rules_as_antecedent && data.value.rules_as_antecedent.length > 0) ||
-      (data.value.rules_as_consequent && data.value.rules_as_consequent.length > 0)
-    )
-  }
-  return (data.value.recommends?.length || 0) > 0
-})
-
+const hasRules = computed(() => (data.value?.recommends?.length || 0) > 0)
 const hasTargets = computed(() => (data.value?.target_customers?.length || 0) > 0)
 const speechText = computed(() => data.value?.speech || '')
+
+const formatPercent = (v?: number) =>
+  typeof v === 'number' ? `${(v * 100).toFixed(2)}%` : '-'
+const formatFloat = (v?: number, digits = 2) =>
+  typeof v === 'number' ? v.toFixed(digits) : '-'
 
 const search = async () => {
   if (!keyword.value.trim()) {
@@ -79,14 +60,14 @@ const search = async () => {
   loading.value = true
   audioUrl.value = ''
   try {
-    const url = mode.value === 'user' ? '/api/recommend/user' : '/api/recommend/product'
+    const url = mode.value === 'user' ? '/api/recommend/user' : '/api/recommend/item'
     const params =
       mode.value === 'user'
         ? { user_id: keyword.value.trim() }
         : { item: keyword.value.trim() }
     const res = await axios.get(url, { params })
     data.value = res.data
-    if (!hasRuleTables.value) {
+    if (!hasRules.value && !hasTargets.value) {
       ElMessage.info('暂无关联规则')
     }
   } catch (e) {
@@ -103,15 +84,20 @@ const playTTS = async () => {
   }
   ttsLoading.value = true
   try {
-    const res = await axios.post('/api/recommend/tts/play', { speech: speechText.value })
+    const res = await axios.post('/api/recommend/tts/play', {
+      speech: speechText.value,
+      project_id: 'recommend'
+    })
     const url = res.data?.audio_url
     if (url) {
       audioUrl.value = url
-      const audio = new Audio(url)
-      audio.play().catch(() => {})
+      // 自动播放
+      requestAnimationFrame(() => {
+        audioRef.value?.play().catch(() => {})
+      })
     }
-  } catch (e) {
-    ElMessage.error('语音生成失败')
+  } catch (e: any) {
+    ElMessage.error(`语音生成失败：${e?.response?.data?.detail || e?.message || '请稍后重试'}`)
   } finally {
     ttsLoading.value = false
   }
@@ -131,7 +117,7 @@ const switchMode = (m: Mode) => {
   <div class="page-container">
     <el-page-header @back="$router.push('/projects')" title="返回">
       <template #content>
-        <span class="page-title">🎯 商品推荐 / 用户匹配</span>
+        <span class="page-title">🎯 商品/用户推荐</span>
       </template>
     </el-page-header>
 
@@ -148,8 +134,8 @@ const switchMode = (m: Mode) => {
                 按用户推荐
               </el-button>
               <el-button
-                :type="mode === 'product' ? 'primary' : 'default'"
-                @click="switchMode('product')"
+                :type="mode === 'item' ? 'primary' : 'default'"
+                @click="switchMode('item')"
               >
                 按商品推荐
               </el-button>
@@ -176,107 +162,27 @@ const switchMode = (m: Mode) => {
           </div>
         </template>
 
-        <div v-if="mode === 'product'">
-          <div class="sub-title">作为前项（当前商品推后项）</div>
-          <div v-if="data?.rules_as_antecedent?.length" class="table-wrapper">
-            <el-table :data="data.rules_as_antecedent" stripe style="min-width: 820px;">
-              <el-table-column label="前项" min-width="160">
-                <template #default="{ row }">
-                  <el-tag type="info" size="small" v-for="(it, idx) in row.from_items" :key="idx" class="tag">
-                    {{ it }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="后项" min-width="160">
-                <template #default="{ row }">
-                  <el-tag type="success" size="small" v-for="(it, idx) in row.to_items" :key="idx" class="tag">
-                    {{ it }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="support" label="支持度" width="100">
-                <template #default="{ row }">{{ formatPercent(row.support) }}</template>
-              </el-table-column>
-              <el-table-column prop="confidence" label="置信度" width="100">
-                <template #default="{ row }">{{ formatPercent(row.confidence) }}</template>
-              </el-table-column>
-              <el-table-column prop="lift" label="提升度" width="90">
-                <template #default="{ row }">{{ formatLift(row.lift) }}</template>
-              </el-table-column>
-              <el-table-column label="推荐理由" min-width="220" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.strategy || '-' }}</template>
-              </el-table-column>
-            </el-table>
-          </div>
-          <el-empty v-else description="暂无关联规则（当前商品作为前项）" />
-
-          <div class="sub-title">作为后项（哪些组合导向当前商品）</div>
-          <div v-if="data?.rules_as_consequent?.length" class="table-wrapper">
-            <el-table :data="data.rules_as_consequent" stripe style="min-width: 820px;">
-              <el-table-column label="前项" min-width="160">
-                <template #default="{ row }">
-                  <el-tag type="info" size="small" v-for="(it, idx) in row.from_items" :key="idx" class="tag">
-                    {{ it }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="后项" min-width="160">
-                <template #default="{ row }">
-                  <el-tag type="success" size="small" v-for="(it, idx) in row.to_items" :key="idx" class="tag">
-                    {{ it }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="support" label="支持度" width="100">
-                <template #default="{ row }">{{ formatPercent(row.support) }}</template>
-              </el-table-column>
-              <el-table-column prop="confidence" label="置信度" width="100">
-                <template #default="{ row }">{{ formatPercent(row.confidence) }}</template>
-              </el-table-column>
-              <el-table-column prop="lift" label="提升度" width="90">
-                <template #default="{ row }">{{ formatLift(row.lift) }}</template>
-              </el-table-column>
-              <el-table-column label="推荐理由" min-width="220" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.strategy || '-' }}</template>
-              </el-table-column>
-            </el-table>
-          </div>
-          <el-empty v-else description="暂无关联规则（当前商品作为后项）" />
+        <div v-if="hasRules" class="table-wrapper">
+          <el-table :data="data?.recommends" stripe style="min-width: 820px;">
+            <el-table-column label="推荐商品" min-width="160">
+              <template #default="{ row }">
+                <el-tag type="success" size="small" class="tag">{{ row.item }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="所属类别" min-width="140">
+              <template #default="{ row }">
+                <el-tag type="info" size="small" class="tag">{{ row.category || '-' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="推荐分" width="120">
+              <template #default="{ row }">{{ formatFloat(row.score) }}</template>
+            </el-table-column>
+            <el-table-column label="推荐理由" min-width="240" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.reason || '-' }}</template>
+            </el-table-column>
+          </el-table>
         </div>
-
-        <div v-else>
-          <div v-if="hasRuleTables" class="table-wrapper">
-            <el-table :data="data?.recommends" stripe style="min-width: 820px;">
-              <el-table-column label="前项" min-width="160">
-                <template #default="{ row }">
-                  <el-tag type="info" size="small" v-for="(it, idx) in row.from_items || []" :key="idx" class="tag">
-                    {{ it }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="后项/推荐商品" min-width="160">
-                <template #default="{ row }">
-                  <el-tag type="success" size="small" v-for="(it, idx) in row.items || row.to_items" :key="idx" class="tag">
-                    {{ it }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="support" label="支持度" width="100">
-                <template #default="{ row }">{{ formatPercent(row.support) }}</template>
-              </el-table-column>
-              <el-table-column prop="confidence" label="置信度" width="100">
-                <template #default="{ row }">{{ formatPercent(row.confidence) }}</template>
-              </el-table-column>
-              <el-table-column prop="lift" label="提升度" width="90">
-                <template #default="{ row }">{{ formatLift(row.lift) }}</template>
-              </el-table-column>
-              <el-table-column label="推荐理由" min-width="220" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.reason || row.strategy || '-' }}</template>
-              </el-table-column>
-            </el-table>
-          </div>
-          <el-empty v-else description="暂无关联规则" />
-        </div>
+        <el-empty v-else description="暂无关联规则" />
       </el-card>
 
       <!-- 目标顾客对象卡片 -->
@@ -289,31 +195,12 @@ const switchMode = (m: Mode) => {
 
         <div v-if="hasTargets" class="table-wrapper">
           <el-table :data="data?.target_customers" stripe style="min-width: 820px;">
-            <el-table-column label="群体 / 客户" min-width="180">
+            <el-table-column label="群体" min-width="180">
               <template #default="{ row }">
-                <div v-if="row.cluster_name">
-                  <el-tag type="success" size="small" class="tag">{{ row.cluster_name }}</el-tag>
-                  <span class="muted">ID: {{ row.cluster_id ?? '-' }}</span>
-                </div>
-                <div v-else-if="row.customers">
-                  <el-tag type="success" size="small" class="tag">目标客户</el-tag>
-                  <div class="tag-wrap">
-                    <el-tag
-                      v-for="(c, idx) in row.customers"
-                      :key="idx"
-                      type="success"
-                      size="small"
-                      class="tag"
-                    >
-                      {{ c }}
-                    </el-tag>
-                  </div>
-                </div>
-                <div v-else>-</div>
+                <el-tag type="success" size="small" class="tag">{{ row.cluster_name || '目标群体' }}</el-tag>
               </template>
             </el-table-column>
-
-            <el-table-column v-if="mode === 'product'" label="后项" min-width="120">
+            <el-table-column v-if="mode === 'item'" label="后项" min-width="120">
               <template #default="{ row }">
                 <el-tag
                   v-for="(it, idx) in row.to_items || [data?.item]"
@@ -326,33 +213,30 @@ const switchMode = (m: Mode) => {
                 </el-tag>
               </template>
             </el-table-column>
-
-            <el-table-column v-if="mode === 'product'" label="前项组合" min-width="160">
+            <el-table-column v-if="mode === 'item'" label="前项组合" min-width="160">
               <template #default="{ row }">
                 <el-tag
                   v-for="(it, idx) in row.from_items || []"
                   :key="idx"
-                  size="small"
                   type="info"
+                  size="small"
                   class="tag"
                 >
                   {{ it }}
                 </el-tag>
               </template>
             </el-table-column>
-
-            <el-table-column prop="support" label="支持度" width="100">
-              <template #default="{ row }">{{ formatPercent(row.support) }}</template>
+            <el-table-column label="购买倾向/提升" width="140">
+              <template #default="{ row }">
+                <span>{{ formatFloat(row.lift_index || row.buy_ratio) }}</span>
+              </template>
             </el-table-column>
-            <el-table-column prop="confidence" label="置信度" width="100">
-              <template #default="{ row }">{{ formatPercent(row.confidence) }}</template>
-            </el-table-column>
-            <el-table-column prop="lift" label="提升度" width="90">
-              <template #default="{ row }">{{ formatLift(row.lift) }}</template>
+            <el-table-column label="策略" min-width="220" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.strategy || '-' }}</template>
             </el-table-column>
           </el-table>
         </div>
-        <el-empty v-else description="暂无目标顾客对象" />
+        <el-empty v-else description="暂无关联规则" />
       </el-card>
 
       <!-- 播报 -->
@@ -360,7 +244,7 @@ const switchMode = (m: Mode) => {
         <div class="speech-text">播报内容：{{ speechText }}</div>
         <div class="tts-actions">
           <el-button type="primary" :loading="ttsLoading" @click="playTTS">🔊 播放播报</el-button>
-          <audio v-if="audioUrl" :src="audioUrl" controls style="max-width: 320px; width: 100%;" />
+          <audio v-if="audioUrl" ref="audioRef" :src="audioUrl" controls autoplay style="max-width: 320px; width: 100%;" />
         </div>
       </div>
     </div>
@@ -427,21 +311,9 @@ const switchMode = (m: Mode) => {
   margin-bottom: 4px;
 }
 
-.tag-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
 .table-wrapper {
   width: 100%;
   overflow-x: auto;
-}
-
-.sub-title {
-  margin: 0.75rem 0 0.25rem;
-  font-weight: 600;
-  color: #475569;
 }
 
 .tts-bar {
