@@ -59,6 +59,9 @@ const goToMyProjects = () => {
         <el-button type="default" size="large" @click="goToMyProjects">
           📋 我的项目
         </el-button>
+        <el-button type="success" size="large" @click="$router.push('/settings')">
+          ⚙️ 设置
+        </el-button>
       </div>
 
       <div class="features-grid">
