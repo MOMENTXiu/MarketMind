@@ -4,9 +4,8 @@
    2025 Global Aesthetic System - Core Variables
    ========================================================================== */
 :root {
-  /* 基础色板 - 极致冷淡与高级灰 */
-  --color-bg-base: #FAFAFA; /* 极浅灰哑光底 */
-  --color-bg-noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+  /* 基础色板 - 极致纯净与高级灰 */
+  --color-bg-base: #F7F7F8; /* 纯净浅灰 */
   
   --color-surface: #FFFFFF;
   --color-surface-hover: #FDFDFD;
@@ -61,21 +60,21 @@
 
 /* 暗黑模式 - 深邃宇宙 */
 html.dark {
-  --color-bg-base: #0D0D0F;
-  --color-surface: #161618;
-  --color-surface-hover: #1C1C1E;
-  --color-surface-active: #252528;
+  --color-bg-base: #0A0A0A; /* 极致纯净黑 */
+  --color-surface: #1A1A1A; /* 卡片比背景略亮 */
+  --color-surface-hover: #222222;
+  --color-surface-active: #2A2A2B;
   
   --text-primary: #EDEDF0;
   --text-secondary: #A1A1A6;
   --text-tertiary: #6E6E73;
   
-  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.05); /* 极细微光边 */
   --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 12px 24px -6px rgba(0, 0, 0, 0.4);
 
   /* Navbar Dark specific */
-  --navbar-bg: rgba(22, 22, 24, 0.8);
+  --navbar-bg: rgba(18, 18, 18, 0.8);
   --navbar-border: rgba(255, 255, 255, 0.08);
   --nav-pill-bg: rgba(255, 255, 255, 0.05);
   --nav-pill-hover: rgba(255, 255, 255, 0.08);
@@ -102,7 +101,6 @@ body {
   padding: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background-color: var(--color-bg-base);
-  background-image: var(--color-bg-noise);
   color: var(--text-primary);
   line-height: 1.5;
   overflow-x: hidden;

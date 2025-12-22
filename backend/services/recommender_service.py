@@ -230,80 +230,82 @@ class RecommendationSystem:
             }
         }
 
-    def recommend_item(self, item_name: str, top_n: int = 5) -> Dict:
-        """根据商品名称推荐目标客户群及关联商品"""
+    def recommend_item(self, item_name: str, top_n: int = 8) -> Dict:
+        """根据商品名称推荐上下游关联关系（双向拓扑图数据）"""
         
-        # 1. 获取关联规则 (As Antecedent)
-        associated_rules = []
+        upstream_rules = []
+        downstream_rules = []
+        
         try:
             if hasattr(self, 'rules_single') and not self.rules_single.empty and 'antecedents' in self.rules_single.columns:
+                # 1. 下游规则 (Downstream): Item -> What else?
                 # 筛选 item_name 在前项中的规则
-                # rules_single['antecedents'] 是 frozenset
-                relevant_rules = self.rules_single[
+                down_df = self.rules_single[
                     self.rules_single['antecedents'].apply(lambda x: item_name in x)
                 ].copy()
                 
-                if not relevant_rules.empty:
-                    # 按置信度降序
-                    relevant_rules = relevant_rules.sort_values('confidence', ascending=False).head(10)
-                    for _, r in relevant_rules.iterrows():
-                        associated_rules.append({
-                            "consequent": list(r['consequents'])[0], # 后项单一商品
+                if not down_df.empty:
+                    down_df = down_df.sort_values('confidence', ascending=False).head(top_n)
+                    for _, r in down_df.iterrows():
+                        downstream_rules.append({
+                            "item": list(r['consequents'])[0],
                             "confidence": float(r['confidence']),
                             "lift": float(r['lift']),
                             "support": float(r['support'])
                         })
-        except Exception:
-            # Fallback if rule filtering fails
-            associated_rules = []
 
-        # 2. 获取目标客户群 (Existing Logic)
-        # ... (rest of function) ...
-        if item_name not in self.subcategories:
-            return {"targets": [], "rules": associated_rules}
+                # 2. 上游规则 (Upstream): What else -> Item?
+                # 筛选 item_name 在后项中的规则
+                up_df = self.rules_single[
+                    self.rules_single['consequents'].apply(lambda x: item_name in x)
+                ].copy()
+                
+                if not up_df.empty:
+                    up_df = up_df.sort_values('confidence', ascending=False).head(top_n)
+                    for _, r in up_df.iterrows():
+                        upstream_rules.append({
+                            "item": list(r['antecedents'])[0],
+                            "confidence": float(r['confidence']),
+                            "lift": float(r['lift']),
+                            "support": float(r['support'])
+                        })
+        except Exception as e:
+            print(f"Error finding bidirectional rules: {e}")
 
-        # 如果没有模型，只返回关联规则
-        if not self.has_model:
-            return {"targets": [], "rules": associated_rules}
+        # 获取目标客户群 (Existing Logic)
+        targets = []
+        if self.has_model and item_name in self.subcategories:
+            try:
+                cluster_stats = self.product_cluster_stats[self.product_cluster_stats["子类别"] == item_name].copy()
+                if not cluster_stats.empty:
+                    total_buyers = cluster_stats["购买客户数"].sum() or 1
+                    total_customers = len(self.customer_data)
+                    cluster_sizes = self.cluster_profiles["客户数"].to_dict()
+                    
+                    cluster_stats["购买占比"] = cluster_stats["购买客户数"] / total_buyers * 100
+                    cluster_stats["群体占比"] = cluster_stats["分群名称"].map(
+                        {self.cluster_profiles.loc[k, "群体名称"]: v for k, v in cluster_sizes.items()}
+                    ) / total_customers * 100
+                    cluster_stats["购买倾向指数"] = cluster_stats["购买占比"] / cluster_stats["群体占比"]
+                    
+                    strategy_map = self.cluster_profiles.set_index("群体名称")["营销策略"].to_dict()
+                    cluster_stats = cluster_stats.sort_values("购买倾向指数", ascending=False).head(5)
+                    
+                    for _, r in cluster_stats.iterrows():
+                        targets.append({
+                            "cluster_name": r["分群名称"],
+                            "buyer_count": int(r["购买客户数"]),
+                            "lift_index": float(r["购买倾向指数"]),
+                            "strategy": strategy_map.get(r["分群名称"], "常规营销")
+                        })
+            except Exception: pass
 
-        # 群体购买统计（需要模型）
-        try:
-            cluster_stats = self.product_cluster_stats[self.product_cluster_stats["子类别"] == item_name].copy()
-            if cluster_stats.empty:
-                return {"targets": [], "rules": associated_rules}
-
-            total_buyers = cluster_stats["购买客户数"].sum() or 1
-            cluster_stats["购买占比"] = cluster_stats["购买客户数"] / total_buyers * 100
-
-            total_customers = len(self.customer_data)
-            cluster_sizes = self.cluster_profiles["客户数"].to_dict()
-            cluster_stats["群体规模"] = cluster_stats["分群名称"].map(
-                {self.cluster_profiles.loc[k, "群体名称"]: v for k, v in cluster_sizes.items()}
-            )
-            cluster_stats["群体占比"] = cluster_stats["群体规模"] / total_customers * 100
-            cluster_stats["购买倾向指数"] = cluster_stats["购买占比"] / cluster_stats["群体占比"]
-
-            strategy_map = self.cluster_profiles.set_index("群体名称")["营销策略"].to_dict()
-            cluster_stats["营销策略"] = cluster_stats["分群名称"].map(strategy_map)
-
-            cluster_stats = cluster_stats.sort_values("购买倾向指数", ascending=False).head(top_n)
-            targets = []
-            for _, r in cluster_stats.iterrows():
-                targets.append(
-                    {
-                        "cluster_name": r["分群名称"],
-                        "buyer_count": int(r["购买客户数"]),
-                        "buy_ratio": float(r["购买占比"]),
-                        "lift_index": float(r["购买倾向指数"]),
-                        "strategy": r["营销策略"],
-                        "to_items": [item_name],
-                        "from_items": [],
-                    }
-                )
-            return {"targets": targets, "rules": associated_rules}
-        except Exception:
-            # Fallback if clustering stats fail
-            return {"targets": [], "rules": associated_rules}
+        return {
+            "item": item_name,
+            "upstream": upstream_rules,
+            "downstream": downstream_rules,
+            "target_customers": targets
+        }
 
     def calculate_realtime_rules(self, item_name: str, min_confidence: float = 0.1) -> List[Dict]:
         """
@@ -355,9 +357,9 @@ class RecommendationSystem:
         for _, r in filtered_rules.sort_values('lift', ascending=False).head(10).iterrows():
             consequent = list(r['consequents'])[0]
             if len(r['consequents']) > 1: continue # Only simple rules
-            
+
             rule_obj = {
-                "consequent": consequent,
+                "item": consequent,  # 统一使用 "item" 字段，与 recommend_item 的 downstream 格式一致
                 "confidence": float(r['confidence']),
                 "lift": float(r['lift']),
                 "support": float(r['support']) * (len(target_orders) / len(self.df['订单 ID'].unique())) # Adjust support to global estimate roughly

@@ -35,6 +35,11 @@ const router = createRouter({
       component: () => import('@/views/ProductRecommend.vue')
     },
     {
+      path: '/projects/:id/customer/:customerId',
+      name: 'customer-analysis',
+      component: () => import('@/views/CustomerAnalysis.vue')
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/Settings.vue')

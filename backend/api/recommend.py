@@ -52,34 +52,20 @@ async def recommend_for_user(user_id: str = Query(..., description="用户ID")):
 @router.get("/item")
 async def recommend_for_item(item: str = Query(..., description="商品名称")):
     """
-    逆向：输入商品 -> 推荐目标顾客群 + 关联商品
+    逆向：输入商品 -> 返回双向关联拓扑图数据
     """
     try:
         recommender = get_recommender()
         res = recommender.recommend_item(item_name=item)
 
-        # 检查是否使用了降级推荐
-        warning = None
-        if not recommender.has_model and not res.get("targets"):
-            warning = "预训练模型未加载，客户群推荐不可用。可使用实时计算获取关联规则。"
-
         result = {
             "item": item,
-            "recommends": res.get("rules", []),
-            "target_customers": res.get("targets", []),
-            "speech": speech_conclusion_merger(
-                {"recommends": res.get("rules", []), "target_customers": res.get("targets", [])}
-            ),
-            "model_tries": 3,
-            "human_fallback": False,
-            "warning": warning,
+            "upstream": res.get("upstream", []),
+            "downstream": res.get("downstream", []),
+            "target_customers": res.get("target_customers", []),
+            "success": True
         }
         return result
-    except FileNotFoundError as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"数据集未找到：{str(e)}。请先创建项目并上传数据集。"
-        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"推荐失败: {str(e)}")
 

@@ -124,7 +124,9 @@ const updateRecommendation = async () => {
   recLoading.value = true
   try {
     const { data } = await axios.get('/api/recommend/item', { params: { item: selectedAntecedent.value } })
-    recommendedItems.value = data.recommends || []
+    // API返回的是 {upstream, downstream, target_customers}
+    // 前置商品 -> 后置商品 = downstream（下游）
+    recommendedItems.value = data.downstream || []
   } catch (e) {
     ElMessage.error('获取关联数据失败')
   } finally {
@@ -219,6 +221,14 @@ const stopAudio = () => {
     }
   }, 5000)
 }
+
+// 提取会员姓名（从name字段中移除ID部分）
+const extractName = (fullName: string) => {
+  // 假设格式是 "姓名-ID" 或直接是姓名
+  const parts = fullName.split('-')
+  return parts[0] || fullName
+}
+
 const fmtCurrency = (val?: number) => (val === undefined || val === null || Number.isNaN(val)) ? '-' : `${val.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`
 
 onMounted(() => { loadProject() })
@@ -229,15 +239,29 @@ onMounted(() => { loadProject() })
     <div class="container-breath-fixed">
       <!--Navbar -->
       <header class="detail-navbar">
-        <div class="header-left">
+        <div class="header-left-aligned">
           <button class="btn-back-round" @click="$router.push('/projects')">
             <el-icon><ArrowLeft /></el-icon>
           </button>
-          <div class="project-info-minimal">
-            <h1>{{ project?.name }}</h1>
-            <div class="meta-tags">
-              <span class="tag-pill">{{ project?.dataset_filename }}</span>
-              <span class="tag-pill status">{{ project?.status }}</span>
+          
+          <h1 class="project-main-title">{{ project?.name }}</h1>
+          
+          <div class="mini-divider"></div>
+
+          <div class="project-metadata-flow">
+            <div class="meta-segment">
+              <span class="m-label">源文件：</span>
+              <span class="m-value">{{ project?.dataset_filename }}</span>
+            </div>
+            
+            <div class="mini-divider"></div>
+            
+            <div class="meta-segment">
+              <span class="m-label">处理状态：</span>
+              <div class="status-wrap-micro">
+                <span class="status-dot-nano" :class="project?.status"></span>
+                <span class="m-value">{{ project?.status }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -284,35 +308,62 @@ onMounted(() => { loadProject() })
             </div>
           </div>
 
-          <div class="association-lookup-bar">
-            <div class="lookup-input">
-              <label><el-icon><Search /></el-icon> 关联查询</label>
-              <el-select v-model="selectedAntecedent" filterable placeholder="选择前置商品..." @change="updateRecommendation" class="full-width">
+          <div class="association-lookup-wrapper">
+            <div class="lookup-label">
+              <el-icon><ShoppingCart /></el-icon> 关联查询
+            </div>
+            
+            <div class="lookup-controls">
+              <el-select
+                v-model="selectedAntecedent"
+                filterable
+                clearable
+                placeholder="选择前置商品..."
+                @change="updateRecommendation"
+                class="premium-select"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
                 <el-option v-for="item in antecedentOptions" :key="item" :label="item" :value="item" />
               </el-select>
-            </div>
-            <div class="lookup-arrow" v-if="selectedAntecedent">→</div>
-            <div class="lookup-results" v-loading="recLoading">
-              <div v-if="recommendedItems.length > 0" class="rec-pills">
-                <div v-for="rec in recommendedItems" :key="rec.consequent" class="rec-pill-item">
-                  <el-icon class="rec-icon"><ShoppingCart /></el-icon>
-                  <span class="name">{{ rec.consequent }}</span>
-                  <span class="prob">{{ (rec.confidence * 100).toFixed(0) }}%</span>
+
+              <div class="lookup-feedback" v-if="selectedAntecedent">
+                <div v-if="recLoading" class="mini-pulse-loading">
+                  <span></span><span></span><span></span>
+                </div>
+                <div v-else-if="recommendedItems.length > 0" class="rec-result-flow">
+                  <div
+                    v-for="rec in recommendedItems.slice(0, 3)"
+                    :key="rec.item"
+                    class="rec-tag-pill"
+                    @click="router.push(`/projects/${route.params.id}/recommend?item=${encodeURIComponent(rec.item)}`)"
+                  >
+                    <span class="tag-name">{{ rec.item }}</span>
+                    <span class="tag-prob">{{ (rec.confidence * 100).toFixed(0) }}%</span>
+                  </div>
+                </div>
+                <div v-else class="rec-none">
+                  <span class="none-text">无直接关联</span>
+                  <el-button type="primary" size="small" @click="calculateRealtimeRules" :loading="calcLoading" class="btn-calculate-gradient">
+                    <el-icon><MagicStick /></el-icon> 立即计算
+                  </el-button>
                 </div>
               </div>
-              <div v-else-if="selectedAntecedent" class="rec-empty-state">
-                <span>暂无推荐</span>
-                <el-button type="primary" size="small" @click="calculateRealtimeRules" :loading="calcLoading">
-                  <el-icon><Connection /></el-icon> 实时计算
-                </el-button>
+              <div v-else class="lookup-hint">
+                <span class="blinking-cursor">|</span> 选择商品查看 AI 推荐建议
               </div>
-              <div v-else class="lookup-placeholder">请选择商品查看 AI 推荐</div>
             </div>
           </div>
 
           <!-- All Rules Grid -->
           <div class="rules-grid-dashboard">
-            <div v-for="(rule, idx) in associationRules.slice(0, 12)" :key="idx" class="mini-rule-card">
+            <div
+              v-for="(rule, idx) in associationRules.slice(0, 12)"
+              :key="idx"
+              class="mini-rule-card clickable"
+              @click="router.push(`/projects/${project?.id}/recommend?item=${encodeURIComponent(rule.consequent)}`)"
+            >
               <div class="rule-flow">
                 <div class="antecedents"><span v-for="a in rule.antecedents" :key="a" class="a-tag">{{ a }}</span></div>
                 <el-icon class="arrow"><ShoppingCart /></el-icon>
@@ -337,53 +388,73 @@ onMounted(() => { loadProject() })
 
           <transition name="fade-transform" mode="out-in">
             <!-- Grid View -->
-            <div v-if="!selectedClusterId" class="cluster-grid-layout">
+            <div v-if="!selectedClusterId && selectedClusterId !== 0" class="cluster-grid-layout">
               <div v-for="cluster in clusterProfiles" :key="cluster.cluster_id" class="cluster-card-modern">
                 <div class="card-head">
-                  <span class="badge">Group {{ cluster.cluster_id }}</span>
+                  <span class="badge">Group {{ cluster.cluster_id + 1 }}</span>
                   <el-button 
                     circle size="small" 
-                    class="btn-speak"
+                    class="btn-voice"
                     @click.stop="speakAnalysis('cluster', cluster)"
                     :loading="voiceLoading[`cluster_${cluster.cluster_id}`]"
                   >
                     <el-icon v-if="!voiceLoading[`cluster_${cluster.cluster_id}`]"><VideoPlay /></el-icon>
                   </el-button>
                 </div>
-                <h3>{{ cluster.cluster_name }}</h3>
-                <div class="card-kpis">
-                  <div class="k-item"><span class="v">{{ cluster.customer_count }}</span><span class="l">人</span></div>
-                  <div class="k-item"><span class="v">¥{{ fmtCurrency(cluster.avg_order_value) }}</span><span class="l">价</span></div>
+                <h4>{{ cluster.cluster_name }}</h4>
+                <div class="kpi-summary-row">
+                  {{ cluster.customer_count }}人，平均 ¥{{ fmtCurrency(cluster.avg_order_value) }}。
                 </div>
                 <p class="strat">{{ cluster.marketing_strategy }}</p>
                 <el-button type="primary" class="btn-action" @click="fetchClusterCustomers(cluster.cluster_id)">
-                  管理名单
+                  查看客户名单
                 </el-button>
               </div>
             </div>
 
             <!-- List View -->
             <div v-else class="cluster-list-view">
-              <div class="list-head">
-                <el-button link @click="selectedClusterId = null" :icon="ArrowLeft" class="btn-back-link">返回聚类</el-button>
-                <div class="cluster-info">
-                  <h2>{{ selectedCluster?.cluster_name }}</h2>
-                  <el-button round size="small" @click="speakAnalysis('list', selectedCluster)" :loading="voiceLoading[`list_${selectedClusterId}`]">
-                    <el-icon v-if="!voiceLoading[`list_${selectedClusterId}`]" style="margin-right: 4px"><VideoPlay /></el-icon> 总结播报
-                  </el-button>
+              <div class="list-head-modern">
+                <el-button @click="selectedClusterId = null" :icon="ArrowLeft" circle class="btn-back-action" />
+                <div class="list-title-group">
+                  <span class="list-sub-label">分群客户详细名单</span>
+                  <h2 class="list-main-title">{{ selectedCluster?.cluster_name }}</h2>
                 </div>
               </div>
               <div class="table-container">
-                <el-table :data="clusterCustomers" v-loading="customersLoading" height="500">
-                  <el-table-column prop="id" label="ID" width="140" />
-                  <el-table-column prop="recency" label="R (天)" sortable />
-                  <el-table-column prop="frequency" label="F (次)" sortable />
-                  <el-table-column prop="monetary" label="M (金额)" sortable>
-                    <template #default="{ row }">¥{{ fmtCurrency(row.monetary) }}</template>
-                  </el-table-column>
-                  <el-table-column label="操作" width="140" fixed="right">
+                <el-table
+                  :data="clusterCustomers"
+                  v-loading="customersLoading"
+                  height="550"
+                  row-class-name="clickable-row"
+                  @row-click="(row) => router.push(`/projects/${project?.id}/customer/${row.id}`)"
+                >
+                  <el-table-column label="会员信息" width="200" fixed>
                     <template #default="{ row }">
-                      <el-button size="small" round @click="showCustomerRec(row)">推荐</el-button>
+                      <div class="user-info-cell">
+                        <div class="u-name-primary">{{ extractName(row.name) }}</div>
+                        <div class="u-id-secondary">ID {{ row.id }}</div>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="recency" label="最后购买" sortable width="140">
+                    <template #default="{ row }">
+                      <span class="num-bold">{{ row.recency }}</span><span class="unit-label"> 天前</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="frequency" label="购买频次" sortable width="120">
+                    <template #default="{ row }">
+                      <span class="num-font">{{ row.frequency }}</span><span class="unit-label"> 次</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="monetary" label="累计消费" sortable min-width="160" align="right">
+                    <template #default="{ row }">
+                      <span class="monetary-val">¥{{ row.monetary.toFixed(2) }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="100" fixed="right">
+                    <template #default="{ row }">
+                      <el-button size="small" round @click.stop="router.push(`/projects/${project?.id}/customer/${row.id}`)">详情</el-button>
                     </template>
                   </el-table-column>
                 </el-table>
@@ -409,16 +480,52 @@ onMounted(() => { loadProject() })
       </div>
     </transition>
 
-    <!-- Dialog -->
-    <el-dialog v-model="showRecommendationDialog" :title="`客户建议: ${selectedCustomer?.id}`" width="400px">
-      <div v-loading="recsLoading" class="rec-modal">
-        <div v-if="customerRecs.length" class="rec-rows">
-          <div v-for="rec in customerRecs" :key="rec.item" class="rec-row">
-            <span>{{ rec.item }}</span>
-            <b>{{ (rec.score * 100).toFixed(0) }}%</b>
+    <!-- Personalized Recommendation & Detail Dialog -->
+    <el-dialog
+      v-model="showRecommendationDialog"
+      :title="`客户画像详情`"
+      width="520px"
+      custom-class="premium-detail-dialog"
+    >
+      <div v-loading="recsLoading" class="detail-dialog-content">
+        <!-- 1. Individual KPI Dashboard -->
+        <div class="user-kpi-dashboard">
+          <div class="u-kpi-card">
+            <span class="u-label">累计消费</span>
+            <span class="u-value">¥{{ fmtCurrency(selectedCustomer?.monetary) }}</span>
+          </div>
+          <div class="u-kpi-card">
+            <span class="u-label">购买频次</span>
+            <span class="u-value">{{ selectedCustomer?.frequency }} 次</span>
+          </div>
+          <div class="u-kpi-card">
+            <span class="u-label">最后购买</span>
+            <span class="u-value">{{ selectedCustomer?.recency }} 天前</span>
           </div>
         </div>
-        <el-empty v-else description="暂无数据" :image-size="40" />
+
+        <div class="detail-divider"></div>
+
+        <!-- 2. Marketing Strategy Section -->
+        <div class="marketing-strategy-section">
+          <h4 class="strategy-header">
+            <el-icon class="icon-align"><TrendCharts /></el-icon> 营销建议
+          </h4>
+          
+          <div v-if="customerRecs.length" class="rec-grid-compact">
+            <p class="strategy-text-relaxed">
+              根据该客户在 <span class="group-highlight">Group {{ (selectedCustomer?.cluster_id ?? 0) + 1 }}</span> 的消费行为特征，建议采取以下精准触达方案：
+            </p>
+            <div class="rec-rows-modern">
+              <div v-for="rec in customerRecs" :key="rec.item" class="rec-row-modern">
+                <span class="item-name">{{ rec.item }}</span>
+                <span class="item-reason">{{ rec.reason }}</span>
+                <span class="item-prob">{{ (rec.score * 100).toFixed(0) }}%</span>
+              </div>
+            </div>
+          </div>
+          <el-empty v-else description="暂无特定建议" :image-size="60" />
+        </div>
       </div>
     </el-dialog>
 
@@ -427,15 +534,81 @@ onMounted(() => { loadProject() })
 </template>
 
 <style scoped>
-.project-detail-layout { min-height: 100vh; background: #F8F9FA; padding-bottom: 100px; }
-html.dark .project-detail-layout { background: #0D0D0F; }
+.project-detail-layout { min-height: 100vh; background: var(--color-bg-base); padding-bottom: 100px; }
+html.dark .project-detail-layout { background: var(--color-bg-base); }
 .container-breath-fixed { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 
 .detail-navbar { height: 100px; display: flex; justify-content: space-between; align-items: center; }
 .header-left { display: flex; gap: 20px; align-items: center; }
 .btn-back-round { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border-subtle); background: var(--color-surface); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.3s; }
 .btn-back-round:hover { transform: translateX(-4px); background: var(--color-surface-hover); }
-.project-info-minimal h1 { font-size: 1.5rem; font-weight: 800; margin: 0; }
+.header-left-aligned {
+  display: flex;
+  align-items: center; 
+  gap: 16px;
+}
+
+.project-main-title {
+  font-size: 1.5rem;
+  font-weight: 850;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.project-metadata-flow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: transparent; /* Removed background */
+}
+
+.meta-segment {
+  display: flex;
+  align-items: center;
+}
+
+.m-label {
+  font-size: 12px; /* text-xs */
+  font-weight: 500;
+  color: #64748b; /* text-gray-500 */
+}
+
+.m-value {
+  font-size: 12px; /* text-xs */
+  font-weight: 400; /* Regular weight */
+  color: #94a3b8; /* text-gray-400 */
+}
+
+html.dark .m-value { color: #A1A1A6; }
+
+.status-wrap-micro {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-dot-nano {
+  width: 6px; /* w-1.5 */
+  height: 6px; /* h-1.5 */
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.status-dot-nano.已完成 { background: #10b981; }
+.status-dot-nano.处理中 { background: #f59e0b; }
+.status-dot-micro.失败 { background: #ef4444; }
+
+.mini-divider {
+  width: 1px;
+  height: 12px; /* h-3 */
+  background: rgba(0, 0, 0, 0.1);
+}
+
+html.dark .mini-divider {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .tag-pill { font-size: 0.7rem; padding: 2px 8px; background: rgba(0,0,0,0.05); border-radius: 10px; color: #666; margin-right: 8px; }
 
 .section-block { background: var(--color-surface); border-radius: 32px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); margin-bottom: 32px; border: 1px solid var(--border-subtle); }
@@ -444,7 +617,7 @@ html.dark .section-block { background: var(--color-surface); border-color: var(-
 /* Dashboard Grid */
 .grid-dashboard { display: grid; grid-template-columns: 300px 1fr; gap: 32px; }
 .stats-col { display: flex; flex-direction: column; gap: 16px; }
-.metric-card-glass { background: var(--color-bg-base); padding: 24px; border-radius: 24px; border: 1px solid var(--border-subtle); }
+.metric-card-glass { background: var(--color-surface); padding: 24px; border-radius: 24px; border: 1px solid var(--border-subtle); }
 .m-label { font-size: 0.75rem; color: var(--text-tertiary); font-weight: 600; margin-bottom: 4px; }
 .m-value { font-size: 1.6rem; font-weight: 800; color: var(--text-primary); }
 .chart-col { display: flex; flex-direction: column; }
@@ -457,19 +630,136 @@ html.dark .section-block { background: var(--color-surface); border-color: var(-
 .title-with-icon h3 { font-size: 1.4rem; font-weight: 800; margin: 0; color: var(--text-primary); }
 .title-with-icon p { font-size: 0.9rem; color: var(--text-tertiary); margin: 4px 0 0 0; }
 
-/* Association Lookup */
-.association-lookup-bar { display: flex; align-items: center; gap: 24px; background: var(--color-bg-base); padding: 24px; border-radius: 24px; margin-bottom: 32px; flex-wrap: wrap; border: 1px solid var(--border-subtle); }
-.lookup-input { flex: 1; min-width: 200px; }
-.lookup-input label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-tertiary); margin-bottom: 8px; }
-.lookup-results { flex: 2; min-width: 300px; }
-.rec-pills { display: flex; gap: 12px; flex-wrap: wrap; }
-.rec-pill-item { background: var(--color-surface); padding: 8px 16px; border-radius: 30px; display: flex; gap: 12px; align-items: center; box-shadow: var(--shadow-sm); border: 1px solid var(--border-subtle); }
-.rec-pill-item .prob { font-weight: 800; color: var(--color-accent); font-size: 0.8rem; }
-.rec-pill-item .name { color: var(--text-primary); font-weight: 600; }
+/* Association Lookup Refined */
+.association-lookup-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  background: var(--nav-pill-bg);
+  backdrop-filter: blur(12px);
+  padding: 12px 24px;
+  border-radius: 20px;
+  margin-bottom: 32px;
+  border: 1px solid transparent;
+  background-image: linear-gradient(var(--color-surface), var(--color-surface)), 
+                    linear-gradient(135deg, rgba(94, 106, 210, 0.2), rgba(167, 139, 250, 0.2));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  box-shadow: var(--shadow-sm);
+}
 
-/* Rules Grid */
+html.dark .association-lookup-wrapper {
+  background-image: linear-gradient(var(--color-surface), var(--color-surface)), 
+                    linear-gradient(135deg, rgba(94, 106, 210, 0.1), rgba(167, 139, 250, 0.1));
+}
+
+.lookup-label {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.lookup-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+}
+
+.premium-select {
+  width: 240px !important;
+}
+
+.lookup-feedback {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.rec-result-flow {
+  display: flex;
+  gap: 10px;
+  animation: fadeIn 0.4s ease;
+}
+
+.rec-tag-pill {
+  background: var(--color-bg-base);
+  padding: 6px 14px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  border: 1px solid var(--border-subtle);
+  transition: all 0.2s;
+}
+
+.rec-tag-pill:hover {
+  transform: scale(1.05);
+  border-color: var(--color-accent);
+}
+
+.tag-name { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
+.tag-prob { font-size: 0.75rem; font-weight: 800; color: var(--color-accent); }
+
+.lookup-hint {
+  font-size: 0.85rem;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.blinking-cursor {
+  font-weight: 100;
+  animation: blink 1s infinite;
+  color: var(--color-accent);
+}
+
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+.btn-calculate-gradient {
+  background: linear-gradient(135deg, var(--color-brand) 0%, var(--color-accent) 100%) !important;
+  border: none !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 12px rgba(94, 106, 210, 0.2) !important;
+}
+
+.mini-pulse-loading {
+  display: flex;
+  gap: 4px;
+}
+
+.mini-pulse-loading span {
+  width: 6px;
+  height: 6px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  animation: pulse-dot 1s infinite ease-in-out;
+}
+
+.mini-pulse-loading span:nth-child(2) { animation-delay: 0.2s; }
+.mini-pulse-loading span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes pulse-dot { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
+
+.rec-none {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.none-text { font-size: 0.85rem; font-style: italic; color: var(--text-tertiary); }
+
+/* All Rules Grid */
 .rules-grid-dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-.mini-rule-card { background: var(--color-bg-base); padding: 16px; border-radius: 16px; border: 1px solid var(--border-subtle); }
+.mini-rule-card { background: var(--color-surface); padding: 16px; border-radius: 16px; border: 1px solid var(--border-subtle); transition: all 0.3s; }
+.mini-rule-card.clickable { cursor: pointer; }
+.mini-rule-card.clickable:hover { transform: translateY(-4px); border-color: var(--color-accent); box-shadow: 0 8px 16px rgba(94, 106, 210, 0.2); }
 .rule-flow { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--text-primary); }
 .a-tag { font-size: 0.75rem; background: var(--nav-pill-bg); padding: 2px 6px; border-radius: 4px; margin-right: 4px; color: var(--text-secondary); }
 .c-tag { font-size: 0.75rem; background: var(--color-accent-soft); color: var(--color-accent); padding: 2px 6px; border-radius: 4px; font-weight: 700; }
@@ -477,21 +767,119 @@ html.dark .section-block { background: var(--color-surface); border-color: var(-
 
 /* Clusters */
 .cluster-grid-layout { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
-.cluster-card-modern { background: var(--color-bg-base); border-radius: 24px; padding: 24px; display: flex; flex-direction: column; transition: 0.3s; border: 1px solid var(--border-subtle); position: relative; z-index: 1; }
+.cluster-card-modern { background: var(--color-surface); border-radius: 24px; padding: 24px; display: flex; flex-direction: column; transition: 0.3s; border: 1px solid var(--border-subtle); position: relative; z-index: 1; }
 .cluster-card-modern:hover { transform: translateY(-8px); box-shadow: var(--shadow-md); border-color: var(--color-accent); z-index: 2; }
 .card-head { display: flex; justify-content: space-between; margin-bottom: 16px; position: relative; z-index: 3; }
-.cluster-card-modern h4 { font-size: 1.3rem; margin: 0 0 16px 0; color: var(--text-primary); }
-.kpis { display: flex; gap: 20px; margin-bottom: 16px; }
-.kpi { font-weight: 700; font-size: 1rem; color: var(--text-primary); }
-.kpi span { color: var(--color-accent); }
+.cluster-card-modern h4 { font-size: 1.3rem; margin: 0 0 12px 0; color: var(--text-primary); }
+.kpi-summary-row { font-size: 1rem; font-weight: 700; color: var(--color-accent); margin-bottom: 16px; }
 .strat { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; flex: 1; margin-bottom: 20px; }
 .btn-action { height: 44px !important; border-radius: 12px !important; font-weight: 700 !important; position: relative; z-index: 3; pointer-events: auto; }
 
 /* Drill down */
-.list-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; }
-.cluster-info { display: flex; align-items: center; gap: 16px; }
-.cluster-info h2 { font-size: 2rem; margin: 0; color: var(--text-primary); }
+.list-head-modern {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 40px;
+  animation: fadeIn 0.5s ease;
+}
+
+.btn-back-action {
+  width: 48px;
+  height: 48px;
+  background: var(--color-surface) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-back-action:hover {
+  transform: translateX(-4px);
+  background: var(--color-bg-base) !important;
+}
+
+.list-title-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.list-sub-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.list-main-title {
+  font-size: 2.25rem;
+  font-weight: 850;
+  margin: 0;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+}
+
 .table-container { border-radius: 24px; overflow: hidden; background: var(--color-surface); border: 1px solid var(--border-subtle); }
+
+.user-info-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.u-name-primary {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.u-id-secondary {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+html.dark .u-id-secondary {
+  color: #6b7280;
+}
+
+.num-font {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.num-bold {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--text-primary);
+}
+
+.unit-label {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.monetary-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+}
+
+:deep(.clickable-row) {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+:deep(.clickable-row:hover > td) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+html.dark :deep(.clickable-row:hover > td) {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
 
 /* Subtitle */
 .voice-subtitle { position: fixed; bottom: 40px; left: 0; right: 0; display: flex; justify-content: center; z-index: 2000; }
@@ -529,6 +917,108 @@ html.dark .section-block { background: var(--color-surface); border-color: var(-
   border-color: #ef4444;
   transform: scale(1.1);
 }
+
+/* Premium Detail Dialog Styles */
+.detail-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.user-kpi-dashboard {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.u-kpi-card {
+  background: var(--color-bg-base);
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+html.dark .u-kpi-card {
+  background: #1E1E1E; /* Slightly brighter than #0A0A0A */
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.u-label {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.u-value {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.detail-divider {
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.strategy-header {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #60a5fa; /* text-blue-400 */
+  margin: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-align {
+  font-size: 1.1rem;
+  vertical-align: middle;
+}
+
+.strategy-text-relaxed {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+html.dark .strategy-text-relaxed {
+  color: #A1A1A6; /* text-gray-400 */
+}
+
+.group-highlight {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.rec-rows-modern {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rec-row-modern {
+  background: var(--color-bg-base);
+  padding: 12px 16px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid var(--border-subtle);
+}
+
+html.dark .rec-row-modern {
+  background: #1E1E1E;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.item-name { font-weight: 700; color: var(--text-primary); }
+.item-reason { font-size: 0.8rem; color: var(--text-tertiary); flex: 1; margin-left: 12px; }
+.item-prob { font-weight: 800; color: var(--color-accent); font-size: 0.85rem; }
 
 .hidden-audio { display: none; }
 </style>
