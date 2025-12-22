@@ -1,254 +1,204 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import axios from 'axios'
 
 const router = useRouter()
-const healthStatus = ref<string>('checking')
-
-// 检查后端健康状态
-const checkBackendHealth = async () => {
-  try {
-    const response = await axios.get('/api/health')
-    if (response.data.status === 'healthy') {
-      healthStatus.value = 'healthy'
-      ElMessage.success('后端API连接正常')
-    }
-  } catch (error) {
-    healthStatus.value = 'error'
-    ElMessage.error('无法连接到后端API，请确保后端已启动')
-  }
-}
-
-onMounted(() => {
-  checkBackendHealth()
-})
 
 const goToProjects = () => {
   router.push('/projects')
 }
-
-const goToMyProjects = () => {
-  router.push('/me/projects')
-}
 </script>
 
 <template>
-  <div class="home-container">
-    <header class="header">
-      <h1>🛒 MarketMind</h1>
-      <p class="subtitle">超市AI营销系统</p>
-      <div class="status-badge" :class="healthStatus">
-        <span v-if="healthStatus === 'healthy'">✅ 后端连接正常</span>
-        <span v-else-if="healthStatus === 'error'">❌ 后端未启动</span>
-        <span v-else>⏳ 检查中...</span>
-      </div>
-    </header>
+  <div class="home-wrapper">
+    <!-- 银色弥散背景装饰 -->
+    <div class="silver-glass-background">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
 
-    <main class="main-content">
-      <div class="intro-section">
-        <h2>项目分析管理</h2>
-        <p>创建、管理和分析您的营销数据项目</p>
-      </div>
-
-      <div class="action-buttons">
-        <el-button type="primary" size="large" @click="goToProjects">
-          ➕ 新建项目
-        </el-button>
-        <el-button type="default" size="large" @click="goToMyProjects">
-          📋 我的项目
-        </el-button>
-      </div>
-
-      <div class="features-grid">
-        <el-card class="info-card">
-          <div class="card-icon">📊</div>
-          <h3>关联规则分析</h3>
-          <p>基于Apriori算法的购物篮分析</p>
-          <p class="detail">发现商品组合规律，制定促销策略</p>
-        </el-card>
-
-        <el-card class="info-card">
-          <div class="card-icon">📈</div>
-          <h3>销售预测</h3>
-          <p>时间序列预测模型</p>
-          <p class="detail">预测未来销售额和利润趋势</p>
-        </el-card>
-
-        <el-card class="info-card">
-          <div class="card-icon">👥</div>
-          <h3>客户聚类</h3>
-          <p>RFM模型 + K-Means聚类</p>
-          <p class="detail">精准客户分群，实现定向营销</p>
-        </el-card>
-
-        <el-card class="info-card">
-          <div class="card-icon">🔊</div>
-          <h3>语音播报</h3>
-          <p>AI自动生成分析报告</p>
-          <p class="detail">智能语音播报分析结果</p>
-        </el-card>
-      </div>
-
-      <div class="tech-stack">
-        <h3>技术栈</h3>
-        <div class="tech-tags">
-          <el-tag>Vue 3</el-tag>
-          <el-tag type="success">FastAPI</el-tag>
-          <el-tag type="info">TypeScript</el-tag>
-          <el-tag type="warning">Element Plus</el-tag>
-          <el-tag type="danger">ECharts</el-tag>
+    <div class="container-breath content-overlay">
+      <!-- Hero Section -->
+      <header class="hero-section">
+        <div class="hero-content">
+          <h1 class="slogan-display">数据洞察 触手可及</h1>
+          <p class="text-subtitle">
+            MarketMind 是您的超市 AI 营销专家。<br>
+            通过关联规则、预测模型与客户聚类，释放数据潜力。
+          </p>
+          
+          <div class="hero-actions">
+            <el-button type="primary" size="large" @click="goToProjects" class="btn-hero">
+              开始探索
+            </el-button>
+          </div>
         </div>
-      </div>
-    </main>
+      </header>
 
-    <footer class="footer">
-      <p>MarketMind v1.0.0 | Vue3 + FastAPI 前后端分离架构</p>
-    </footer>
+      <!-- Footer -->
+      <footer class="minimal-footer">
+        <p>Powered by MarketMind Intelligence Engine v1.0</p>
+      </footer>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.home-container {
-  min-height: 100vh;
+.home-wrapper {
+  position: relative;
+  min-height: 100vh; /* Changed from calc(100vh - 64px) to 100vh */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-.header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 3rem 2rem;
-  text-align: center;
+/* 银色毛玻璃背景系统 */
+.silver-glass-background {
+  position: fixed; /* Changed from absolute to fixed for full viewport coverage */
+  inset: 0;
+  z-index: 0;
+  height: 100vh;
+  width: 100vw;
+  background: radial-gradient(circle at 50% 50%, #f0f0f5 0%, #e5e5f0 100%);
+  overflow: hidden;
+  pointer-events: none; /* Ensure clicks pass through */
+  transition: background 0.5s ease;
 }
 
-.header h1 {
-  font-size: 3rem;
-  margin: 0;
-  margin-bottom: 0.5rem;
+html.dark .silver-glass-background {
+  background: radial-gradient(circle at 50% 50%, #1a1a1e 0%, #0d0d0f 100%);
 }
 
-.subtitle {
-  font-size: 1.2rem;
-  margin: 0;
-  opacity: 0.9;
+.silver-glass-background::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(120px) saturate(180%);
+  background: rgba(255, 255, 255, 0.2);
 }
 
-.status-badge {
-  margin-top: 1rem;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  display: inline-block;
-  font-size: 0.9rem;
+html.dark .silver-glass-background::after {
+  background: rgba(0, 0, 0, 0.4);
 }
 
-.status-badge.healthy {
-  background-color: rgba(103, 194, 58, 0.2);
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.5;
+  animation: float 20s infinite ease-in-out;
 }
 
-.status-badge.error {
-  background-color: rgba(245, 108, 108, 0.2);
+.orb-1 {
+  width: 600px;
+  height: 600px;
+  top: -200px;
+  left: -100px;
+  background: linear-gradient(135deg, #d1d5db 0%, #9ca3af 100%);
 }
 
-.main-content {
+html.dark .orb-1 {
+  background: linear-gradient(135deg, #374151 0%, #111827 100%);
+}
+
+.orb-2 {
+  width: 500px;
+  height: 500px;
+  bottom: -150px;
+  right: -50px;
+  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+  animation-delay: -5s;
+}
+
+html.dark .orb-2 {
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+}
+
+.orb-3 {
+  width: 400px;
+  height: 400px;
+  top: 10%; /* Adjusted from 20% to cover top better */
+  right: 15%;
+  background: radial-gradient(circle, #ffffff 0%, #f3f4f6 100%);
+  animation-delay: -10s;
+}
+
+html.dark .orb-3 {
+  background: radial-gradient(circle, #4b5563 0%, #1f2937 100%);
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(40px, -60px) scale(1.1); }
+  66% { transform: translate(-30px, 30px) scale(0.9); }
+}
+
+.content-overlay {
+  position: relative;
+  z-index: 1;
   flex: 1;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
-  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding-top: 64px; /* Maintain content spacing below navbar height */
 }
 
-.intro-section {
-  text-align: center;
-  margin-bottom: 3rem;
-}
-
-.intro-section h2 {
-  color: #333;
-  margin-bottom: 0.5rem;
-}
-
-.intro-section p {
-  color: #666;
-  font-size: 1.1rem;
-}
-
-.action-buttons {
+.hero-section {
+  flex: 1;
   display: flex;
   justify-content: center;
-  gap: 1.5rem;
-  margin-bottom: 3rem;
-}
-
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 3rem;
-}
-
-.info-card {
+  align-items: center;
   text-align: center;
-  padding: 1rem;
-  transition: all 0.3s ease;
+  padding: 80px 0;
 }
 
-.info-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+.hero-content {
+  max-width: 900px;
 }
 
-.card-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
+/* Slogan 字体增大 20% (3.5rem * 1.2 = 4.2rem) */
+.slogan-display {
+  font-size: 4.2rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  margin-bottom: 32px;
+  background: linear-gradient(180deg, #1A1A1C 0%, #4A4A4E 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--text-primary);
 }
 
-.feature-card h3 {
-  color: #333;
-  margin-bottom: 0.5rem;
+html.dark .slogan-display {
+  background: linear-gradient(180deg, #FFFFFF 0%, #A1A1A6 100%);
+  -webkit-background-clip: text;
 }
 
-.feature-card p {
-  color: #666;
-  margin: 0.5rem 0;
+.text-subtitle {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+  line-height: 1.8;
+  margin-bottom: 48px;
+  font-weight: 400;
 }
 
-.detail {
-  font-size: 0.9rem;
-  color: #999;
-  margin-bottom: 1rem;
+.btn-hero {
+  padding: 16px 48px !important;
+  font-size: 1.1rem !important;
+  border-radius: var(--radius-pill) !important;
+  box-shadow: 0 20px 40px -10px rgba(0,0,0,0.1) !important;
 }
 
-.tech-stack {
+.minimal-footer {
   text-align: center;
-  padding: 2rem;
-  background: white;
-  border-radius: 8px;
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  padding-bottom: 40px;
+  opacity: 0.5;
 }
 
-.tech-stack h3 {
-  color: #333;
-  margin-bottom: 1rem;
-}
-
-.tech-tags {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.footer {
-  background-color: #333;
-  color: white;
-  text-align: center;
-  padding: 1.5rem;
-  margin-top: auto;
-}
-
-.footer p {
-  margin: 0;
-  opacity: 0.8;
+@media (max-width: 768px) {
+  .slogan-display {
+    font-size: 2.8rem;
+  }
 }
 </style>

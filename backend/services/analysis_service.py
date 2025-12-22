@@ -11,6 +11,8 @@ from backend.services.association_service import AssociationService
 from backend.services.prediction_service import PredictionService
 from backend.services.clustering_service import ClusteringService
 from backend.services.tts_service import TTSService
+from backend.services.model_builder_service import ModelBuilderService
+from backend.services.recommender_service import clear_recommender_cache
 
 
 async def run_project_analysis(project_id: str):
@@ -23,6 +25,7 @@ async def run_project_analysis(project_id: str):
     3. 客户聚类
     4. 生成分析报告
     5. 语音合成
+    6. 构建推荐模型 (model_data.pkl)
     """
     try:
         # 获取项目
@@ -76,10 +79,13 @@ async def run_project_analysis(project_id: str):
         # ========== 3. 客户聚类 ==========
         print("正在执行客户聚类分析...")
         clustering_service = ClusteringService(str(dataset_path))
+        customers_csv_path = project_dir / "customers.csv"
         clustering_result = await clustering_service.analyze(
-            n_clusters=project.parameters.n_clusters
+            n_clusters=project.parameters.n_clusters,
+            save_path=str(customers_csv_path)
         )
         results.clustering_data = clustering_result.get('data', {})
+        results.clustering_data['customers_csv'] = str(customers_csv_path)
         print(f"客户聚类完成，共分为 {clustering_result['data'].get('n_clusters', 0)} 个群体，轮廓系数={clustering_result['data'].get('silhouette_score', 0):.4f}")
 
         # ========== 4. 生成分析报告 ==========
@@ -103,6 +109,25 @@ async def run_project_analysis(project_id: str):
         except Exception as e:
             print(f"语音合成失败（跳过）: {e}")
             # 语音失败不影响整体分析
+
+        # ========== 6. 构建推荐模型 ==========
+        print("正在构建推荐模型 (model_data.pkl)...")
+        try:
+            model_builder = ModelBuilderService(str(dataset_path))
+            model_result = await model_builder.build_and_save(
+                n_clusters=project.parameters.n_clusters,
+                association_rules=results.association_rules,
+                output_path="backend/data/model_data.pkl"
+            )
+            if model_result.get('success'):
+                print(f"✓ 推荐模型构建完成: {model_result['total_customers']}个客户, {model_result['n_clusters']}个群体, {model_result['n_rules']}条规则")
+                # 清除推荐系统缓存，以便下次调用时加载新模型
+                clear_recommender_cache()
+            else:
+                print(f"✗ 推荐模型构建失败: {model_result.get('error')}")
+        except Exception as e:
+            print(f"推荐模型构建失败（跳过）: {e}")
+            # 模型构建失败不影响整体分析
 
         # ========== 更新项目状态 ==========
         storage.update_project(project_id, {

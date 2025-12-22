@@ -40,13 +40,41 @@ class RecommendationSystem:
     """
 
     def __init__(self, model_path: str = str(MODEL_PATH), data_path: str = str(DATA_PATH)):
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"模型文件 '{model_path}' 不存在！请先生成 model_data.pkl。")
+        # 模型文件变为可选
+        self.has_model = os.path.exists(model_path)
 
-        self._load_model(model_path)
+        if self.has_model:
+            self._load_model(model_path)
+        else:
+            # 初始化空模型属性
+            self.kmeans_model = None
+            self.cluster_scaler = None
+            self.best_k = 0
+            self.cluster_features = []
+            self.cluster_profiles = pd.DataFrame()
+            self.cluster_contribution = []
+            self.customer_data = pd.DataFrame()
+            self.rules_single = pd.DataFrame()
+            self.feature_stats = {}
+            self.reference_date = None
+            self.categories = []
+            self.subcategories = []
+            self.regions = []
+            self.segments = []
+
+        # 加载数据集（总是需要）
+        if not os.path.exists(data_path):
+            raise FileNotFoundError(f"数据集文件 '{data_path}' 不存在！请先上传数据集。")
+
         self.df = pd.read_csv(data_path, encoding="utf-8")
         self._preprocess_data()
-        self._build_product_stats()
+
+        # 只有在有模型时才构建产品统计
+        if self.has_model:
+            self._build_product_stats()
+        else:
+            # 基本的产品统计（不依赖聚类）
+            self._build_basic_product_stats()
 
     def _load_model(self, model_path):
         with open(model_path, "rb") as f:
@@ -59,7 +87,8 @@ class RecommendationSystem:
         self.cluster_profiles = model_data["cluster_profiles"]
         self.cluster_contribution = model_data["cluster_contribution"]
         self.customer_data = model_data["customer_data"]
-        self.rules_single = model_data["rules_single"]
+        # Use .get() to avoid KeyError if rules_single is missing in old pkl files
+        self.rules_single = model_data.get("rules_single", pd.DataFrame())
         self.feature_stats = model_data["feature_stats"]
         self.reference_date = model_data["reference_date"]
         self.categories = model_data["categories"]
@@ -72,6 +101,28 @@ class RecommendationSystem:
         num_cols = ["销售额", "数量", "折扣", "利润"]
         for c in num_cols:
             self.df[c] = pd.to_numeric(self.df[c], errors="coerce")
+
+    def _build_basic_product_stats(self):
+        """不依赖聚类的基本产品统计"""
+        # 提取可用的子类别列表
+        if '子类别' in self.df.columns:
+            self.subcategories = self.df['子类别'].unique().tolist()
+        if '类别' in self.df.columns:
+            self.categories = self.df['类别'].unique().tolist()
+        if '地区' in self.df.columns:
+            self.regions = self.df['地区'].unique().tolist()
+        if '细分' in self.df.columns:
+            self.segments = self.df['细分'].unique().tolist()
+
+        # 基本产品统计
+        self.product_stats = self.df.groupby("子类别").agg({
+            "销售额": ["sum", "mean"],
+            "利润": "sum",
+            "客户 ID": "nunique",
+            "类别": "first"
+        }).reset_index()
+        self.product_stats.columns = ["子类别", "总销售额", "平均销售额", "总利润", "购买客户数", "所属类别"]
+        self.product_stats["利润率"] = self.product_stats["总利润"] / self.product_stats["总销售额"] * 100
 
     def _build_product_stats(self):
         customer_cluster_map = self.customer_data.set_index("客户ID")["客户分群"].to_dict()
@@ -93,6 +144,10 @@ class RecommendationSystem:
     # ---------- 对外推荐方法 ----------
     def recommend_user(self, user_id: str, top_n: int = 10) -> Dict:
         """根据用户ID推荐商品"""
+        # 如果没有模型，返回基于销售额的热门推荐
+        if not self.has_model:
+            return self._recommend_user_fallback(user_id, top_n)
+
         row = self.customer_data[self.customer_data["客户ID"] == user_id]
         if row.empty:
             return {"recommends": [], "cluster": None}
@@ -151,50 +206,196 @@ class RecommendationSystem:
 
         return {"recommends": recommends, "cluster": cluster_info}
 
+    def _recommend_user_fallback(self, user_id: str, top_n: int = 10) -> Dict:
+        """当没有模型时的降级推荐：基于热门商品"""
+        # 按销售额排序推荐热门商品
+        top_products = self.product_stats.sort_values("总销售额", ascending=False).head(top_n)
+
+        recommends = []
+        for _, r in top_products.iterrows():
+            recommends.append({
+                "item": r["子类别"],
+                "category": r["所属类别"],
+                "score": 0.5,  # 固定分数
+                "avg_price": float(r["平均销售额"]),
+                "reason": f"热门商品（销售额 {r['总销售额']:.0f}）",
+            })
+
+        return {
+            "recommends": recommends,
+            "cluster": {
+                "cluster_id": -1,
+                "cluster_name": "未分类",
+                "strategy": "基于热门商品推荐（模型未加载）",
+            }
+        }
+
     def recommend_item(self, item_name: str, top_n: int = 5) -> Dict:
-        """根据商品名称推荐目标客户群"""
+        """根据商品名称推荐目标客户群及关联商品"""
+        
+        # 1. 获取关联规则 (As Antecedent)
+        associated_rules = []
+        try:
+            if hasattr(self, 'rules_single') and not self.rules_single.empty and 'antecedents' in self.rules_single.columns:
+                # 筛选 item_name 在前项中的规则
+                # rules_single['antecedents'] 是 frozenset
+                relevant_rules = self.rules_single[
+                    self.rules_single['antecedents'].apply(lambda x: item_name in x)
+                ].copy()
+                
+                if not relevant_rules.empty:
+                    # 按置信度降序
+                    relevant_rules = relevant_rules.sort_values('confidence', ascending=False).head(10)
+                    for _, r in relevant_rules.iterrows():
+                        associated_rules.append({
+                            "consequent": list(r['consequents'])[0], # 后项单一商品
+                            "confidence": float(r['confidence']),
+                            "lift": float(r['lift']),
+                            "support": float(r['support'])
+                        })
+        except Exception:
+            # Fallback if rule filtering fails
+            associated_rules = []
+
+        # 2. 获取目标客户群 (Existing Logic)
+        # ... (rest of function) ...
         if item_name not in self.subcategories:
-            return {"targets": []}
+            return {"targets": [], "rules": associated_rules}
 
-        # 群体购买统计
-        cluster_stats = self.product_cluster_stats[self.product_cluster_stats["子类别"] == item_name].copy()
-        if cluster_stats.empty:
-            return {"targets": []}
+        # 如果没有模型，只返回关联规则
+        if not self.has_model:
+            return {"targets": [], "rules": associated_rules}
 
-        total_buyers = cluster_stats["购买客户数"].sum() or 1
-        cluster_stats["购买占比"] = cluster_stats["购买客户数"] / total_buyers * 100
+        # 群体购买统计（需要模型）
+        try:
+            cluster_stats = self.product_cluster_stats[self.product_cluster_stats["子类别"] == item_name].copy()
+            if cluster_stats.empty:
+                return {"targets": [], "rules": associated_rules}
 
-        total_customers = len(self.customer_data)
-        cluster_sizes = self.cluster_profiles["客户数"].to_dict()
-        cluster_stats["群体规模"] = cluster_stats["分群名称"].map(
-            {self.cluster_profiles.loc[k, "群体名称"]: v for k, v in cluster_sizes.items()}
-        )
-        cluster_stats["群体占比"] = cluster_stats["群体规模"] / total_customers * 100
-        cluster_stats["购买倾向指数"] = cluster_stats["购买占比"] / cluster_stats["群体占比"]
+            total_buyers = cluster_stats["购买客户数"].sum() or 1
+            cluster_stats["购买占比"] = cluster_stats["购买客户数"] / total_buyers * 100
 
-        strategy_map = self.cluster_profiles.set_index("群体名称")["营销策略"].to_dict()
-        cluster_stats["营销策略"] = cluster_stats["分群名称"].map(strategy_map)
-
-        cluster_stats = cluster_stats.sort_values("购买倾向指数", ascending=False).head(top_n)
-        targets = []
-        for _, r in cluster_stats.iterrows():
-            targets.append(
-                {
-                    "cluster_name": r["分群名称"],
-                    "buyer_count": int(r["购买客户数"]),
-                    "buy_ratio": float(r["购买占比"]),
-                    "lift_index": float(r["购买倾向指数"]),
-                    "strategy": r["营销策略"],
-                    "to_items": [item_name],
-                    "from_items": [],
-                }
+            total_customers = len(self.customer_data)
+            cluster_sizes = self.cluster_profiles["客户数"].to_dict()
+            cluster_stats["群体规模"] = cluster_stats["分群名称"].map(
+                {self.cluster_profiles.loc[k, "群体名称"]: v for k, v in cluster_sizes.items()}
             )
-        return {"targets": targets}
+            cluster_stats["群体占比"] = cluster_stats["群体规模"] / total_customers * 100
+            cluster_stats["购买倾向指数"] = cluster_stats["购买占比"] / cluster_stats["群体占比"]
+
+            strategy_map = self.cluster_profiles.set_index("群体名称")["营销策略"].to_dict()
+            cluster_stats["营销策略"] = cluster_stats["分群名称"].map(strategy_map)
+
+            cluster_stats = cluster_stats.sort_values("购买倾向指数", ascending=False).head(top_n)
+            targets = []
+            for _, r in cluster_stats.iterrows():
+                targets.append(
+                    {
+                        "cluster_name": r["分群名称"],
+                        "buyer_count": int(r["购买客户数"]),
+                        "buy_ratio": float(r["购买占比"]),
+                        "lift_index": float(r["购买倾向指数"]),
+                        "strategy": r["营销策略"],
+                        "to_items": [item_name],
+                        "from_items": [],
+                    }
+                )
+            return {"targets": targets, "rules": associated_rules}
+        except Exception:
+            # Fallback if clustering stats fail
+            return {"targets": [], "rules": associated_rules}
+
+    def calculate_realtime_rules(self, item_name: str, min_confidence: float = 0.1) -> List[Dict]:
+        """
+        实时计算指定商品的关联规则 (On-demand Apriori)
+        """
+        try:
+            from mlxtend.frequent_patterns import apriori, association_rules
+            from mlxtend.preprocessing import TransactionEncoder
+        except ImportError:
+            raise ImportError("Please install mlxtend: pip install mlxtend")
+
+        # 1. 过滤包含该商品的订单 (Transaction subset)
+        # 获取包含 item_name 的所有订单ID
+        target_orders = self.df[self.df['子类别'] == item_name]['订单 ID'].unique()
+        
+        # 获取这些订单的所有商品明细
+        subset_df = self.df[self.df['订单 ID'].isin(target_orders)]
+        
+        if len(subset_df) < 5: # Not enough data
+            return []
+
+        # 构建购物篮
+        basket = subset_df.groupby('订单 ID')['子类别'].apply(list).tolist()
+        
+        # Transaction Encoder
+        te = TransactionEncoder()
+        te_ary = te.fit_transform(basket)
+        df_trans = pd.DataFrame(te_ary, columns=te.columns_)
+        
+        # Apriori (Lower support since we are already in a focused subset)
+        # In a focused subset, support means "conditional probability" given the item exists (almost)
+        # Actually, if we filter by item, support of item is 1.0 in this subset.
+        frequent_itemsets = apriori(df_trans, min_support=0.01, use_colnames=True)
+        
+        if frequent_itemsets.empty:
+            return []
+
+        # Generate Rules
+        rules = association_rules(frequent_itemsets, metric="confidence", min_threshold=min_confidence)
+        
+        # Filter: Antecedents must include item_name
+        # And convert frozenset to list for checking
+        filtered_rules = rules[rules['antecedents'].apply(lambda x: item_name in x)]
+        
+        # Format results
+        results = []
+        new_rules_rows = []
+        
+        for _, r in filtered_rules.sort_values('lift', ascending=False).head(10).iterrows():
+            consequent = list(r['consequents'])[0]
+            if len(r['consequents']) > 1: continue # Only simple rules
+            
+            rule_obj = {
+                "consequent": consequent,
+                "confidence": float(r['confidence']),
+                "lift": float(r['lift']),
+                "support": float(r['support']) * (len(target_orders) / len(self.df['订单 ID'].unique())) # Adjust support to global estimate roughly
+            }
+            results.append(rule_obj)
+            
+            # Prepare for persistence
+            new_rules_rows.append({
+                'antecedents': r['antecedents'],
+                'consequents': r['consequents'],
+                'support': rule_obj['support'],
+                'confidence': rule_obj['confidence'],
+                'lift': rule_obj['lift']
+            })
+
+        # 2. Persistence (Simple CSV Append)
+        if new_rules_rows:
+            new_df = pd.DataFrame(new_rules_rows)
+            # Append to in-memory rules
+            self.rules_single = pd.concat([self.rules_single, new_df], ignore_index=True)
+            
+            # Append to file
+            dynamic_rules_path = Path("backend/data/dynamic_rules.csv")
+            header = not dynamic_rules_path.exists()
+            new_df.to_csv(dynamic_rules_path, mode='a', header=header, index=False)
+            
+        return results
 
 
 @lru_cache(maxsize=1)
 def get_recommender() -> RecommendationSystem:
     return RecommendationSystem()
+
+
+def clear_recommender_cache():
+    """清除推荐系统缓存，用于模型更新后重新加载"""
+    get_recommender.cache_clear()
+    print("✓ 推荐系统缓存已清除")
 
 
 def speech_conclusion_merger(result: Dict) -> str:

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { Search, User, Goods, VideoPause, ArrowLeft } from '@element-plus/icons-vue'
 
 type Mode = 'user' | 'item'
 
@@ -19,7 +20,6 @@ interface TargetCustomer {
   buy_ratio?: number
   lift_index?: number
   to_items?: string[]
-  from_items?: string[]
 }
 
 interface RecommendResponse {
@@ -27,325 +27,352 @@ interface RecommendResponse {
   recommends?: RecommendItem[]
   target_customers?: TargetCustomer[]
   speech?: string
-  model_tries?: number
-  human_fallback?: boolean
 }
 
 const mode = ref<Mode>('user')
 const keyword = ref('')
 const loading = ref(false)
-const ttsLoading = ref(false)
-const audioUrl = ref('')
+const voiceLoading = ref(false)
 const data = ref<RecommendResponse | null>(null)
 const audioRef = ref<HTMLAudioElement | null>(null)
+const audioUrl = ref('')
+const subtitleText = ref('')
+const showSubtitle = ref(false)
 
 const placeholder = computed(() =>
-  mode.value === 'user' ? '请输入用户ID，例如：U1001' : '请输入商品名称，例如：椅子'
+  mode.value === 'user' ? '输入用户 ID (如: U1001)' : '输入商品子类别 (如: 椅子)'
 )
 
-const hasRules = computed(() => (data.value?.recommends?.length || 0) > 0)
-const hasTargets = computed(() => (data.value?.target_customers?.length || 0) > 0)
-const speechText = computed(() => data.value?.speech || '')
-
-const formatPercent = (v?: number) =>
-  typeof v === 'number' ? `${(v * 100).toFixed(2)}%` : '-'
-const formatFloat = (v?: number, digits = 2) =>
-  typeof v === 'number' ? v.toFixed(digits) : '-'
-
 const search = async () => {
-  if (!keyword.value.trim()) {
-    ElMessage.warning(mode.value === 'user' ? '请输入用户ID' : '请输入商品名称')
-    return
-  }
+  if (!keyword.value.trim()) return
   loading.value = true
-  audioUrl.value = ''
+  data.value = null
   try {
     const url = mode.value === 'user' ? '/api/recommend/user' : '/api/recommend/item'
-    const params =
-      mode.value === 'user'
-        ? { user_id: keyword.value.trim() }
-        : { item: keyword.value.trim() }
+    const params = mode.value === 'user' ? { user_id: keyword.value.trim() } : { item: keyword.value.trim() }
     const res = await axios.get(url, { params })
     data.value = res.data
-    if (!hasRules.value && !hasTargets.value) {
-      ElMessage.info('暂无关联规则')
-    }
-  } catch (e) {
-    ElMessage.error('查询失败，请稍后重试')
+  } catch (e: any) {
+    ElMessage.error('查询失败: ' + (e.response?.data?.detail || '服务未响应'))
   } finally {
     loading.value = false
   }
 }
 
-const playTTS = async () => {
-  if (!speechText.value) {
-    ElMessage.info('暂无可播报内容')
-    return
-  }
-  ttsLoading.value = true
+const playVoice = async () => {
+  if (!data.value?.speech) return
+  voiceLoading.value = true
   try {
-    const res = await axios.post('/api/recommend/tts/play', {
-      speech: speechText.value,
-      project_id: 'recommend'
-    })
-    const url = res.data?.audio_url
-    if (url) {
-      audioUrl.value = url
-      // 自动播放
-      requestAnimationFrame(() => {
-        audioRef.value?.play().catch(() => {})
-      })
+    const text = data.value.speech
+    subtitleText.value = text
+    const res = await axios.post('/api/voice/tts', { text })
+    if (res.data.success) {
+      audioUrl.value = res.data.audio_url
+      setTimeout(() => {
+        audioRef.value?.play()
+        showSubtitle.value = true
+      }, 100)
     }
-  } catch (e: any) {
-    ElMessage.error(`语音生成失败：${e?.response?.data?.detail || e?.message || '请稍后重试'}`)
+  } catch (e) {
+    ElMessage.error('语音合成失败')
   } finally {
-    ttsLoading.value = false
+    voiceLoading.value = false
   }
 }
 
-const switchMode = (m: Mode) => {
-  if (mode.value !== m) {
-    mode.value = m
-    keyword.value = ''
-    data.value = null
-    audioUrl.value = ''
-  }
+const stopVoice = () => {
+  audioRef.value?.pause()
+  showSubtitle.value = false
 }
 </script>
 
 <template>
-  <div class="page-container">
-    <el-page-header @back="$router.push('/projects')" title="返回">
-      <template #content>
-        <span class="page-title">🎯 商品/用户推荐</span>
-      </template>
-    </el-page-header>
+  <div class="recommend-center-layout">
+    <div class="container-breath-fixed">
+      <header class="page-navbar">
+        <div class="nav-left">
+          <el-button circle :icon="ArrowLeft" @click="$router.back()" class="btn-back" />
+          <h1 class="text-display" style="font-size: 1.75rem;">智能推荐中心</h1>
+        </div>
+        <div class="mode-pills">
+          <button :class="{ active: mode === 'user' }" @click="mode = 'user'">
+            <el-icon><User /></el-icon> 找商品
+          </button>
+          <button :class="{ active: mode === 'item' }" @click="mode = 'item'">
+            <el-icon><Goods /></el-icon> 找客群
+          </button>
+        </div>
+      </header>
 
-    <div class="content">
-      <!-- 搜索栏 -->
-      <el-card class="search-card">
-        <div class="search-row">
-          <div class="mode-toggle">
-            <el-button-group>
-              <el-button
-                :type="mode === 'user' ? 'primary' : 'default'"
-                @click="switchMode('user')"
-              >
-                按用户推荐
-              </el-button>
-              <el-button
-                :type="mode === 'item' ? 'primary' : 'default'"
-                @click="switchMode('item')"
-              >
-                按商品推荐
-              </el-button>
-            </el-button-group>
-          </div>
-          <div class="search-input">
+      <main class="recommend-main">
+        <!-- Search Focused Card -->
+        <section class="glass-search-focus">
+          <div class="search-input-wrapper">
             <el-input
               v-model="keyword"
               :placeholder="placeholder"
-              clearable
+              size="large"
+              class="large-search-input"
               @keyup.enter="search"
-            />
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
+            <el-button type="primary" size="large" @click="search" :loading="loading" class="btn-search-go">智能检索</el-button>
           </div>
-          <el-button type="primary" :loading="loading" @click="search">查询</el-button>
-        </div>
-      </el-card>
+        </section>
 
-      <!-- 关联推荐卡片 -->
-      <el-card class="result-card">
-        <template #header>
-          <div class="card-header">
-            <span>关联推荐</span>
-            <span v-if="data?.item" class="muted">目标：{{ data.item }}</span>
+        <!-- Result Section -->
+        <transition name="fade-up">
+          <div v-if="data" class="recommend-results-grid">
+            <!-- Recommendations List -->
+            <div class="result-block-card glass-card" v-if="data.recommends?.length">
+              <div class="block-header">
+                <h3>💡 关联建议</h3>
+                <el-button link type="primary" @click="playVoice" :loading="voiceLoading">🔊 语音解读</el-button>
+              </div>
+              <div class="rec-list-modern">
+                <div v-for="rec in data.recommends" :key="rec.item" class="rec-item-modern">
+                  <div class="item-info">
+                    <span class="item-name">{{ rec.item }}</span>
+                    <span class="item-reason">{{ rec.reason }}</span>
+                  </div>
+                  <div class="item-score">{{ ((rec.score || 0) * 100).toFixed(0) }}%</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Target Clusters -->
+            <div class="result-block-card glass-card" v-if="data.target_customers?.length">
+              <div class="block-header">
+                <h3>👥 目标客群</h3>
+              </div>
+              <div class="target-grid-modern">
+                <div v-for="tgt in data.target_customers" :key="tgt.cluster_name" class="target-card-modern">
+                  <span class="cluster-label">{{ tgt.cluster_name }}</span>
+                  <div class="target-stats">
+                    <div class="stat"><span>{{ tgt.buyer_count }}</span>人已购</div>
+                    <div class="stat">提升 <span>{{ (tgt.lift_index || 0).toFixed(1) }}</span>x</div>
+                  </div>
+                  <p class="target-strat">{{ tgt.strategy }}</p>
+                </div>
+              </div>
+            </div>
           </div>
-        </template>
-
-        <div v-if="hasRules" class="table-wrapper">
-          <el-table :data="data?.recommends" stripe style="min-width: 820px;">
-            <el-table-column label="推荐商品" min-width="160">
-              <template #default="{ row }">
-                <el-tag type="success" size="small" class="tag">{{ row.item }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="所属类别" min-width="140">
-              <template #default="{ row }">
-                <el-tag type="info" size="small" class="tag">{{ row.category || '-' }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="推荐分" width="120">
-              <template #default="{ row }">{{ formatFloat(row.score) }}</template>
-            </el-table-column>
-            <el-table-column label="推荐理由" min-width="240" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.reason || '-' }}</template>
-            </el-table-column>
-          </el-table>
-        </div>
-        <el-empty v-else description="暂无关联规则" />
-      </el-card>
-
-      <!-- 目标顾客对象卡片 -->
-      <el-card class="result-card">
-        <template #header>
-          <div class="card-header">
-            <span>目标顾客对象</span>
+          <div v-else-if="!loading && keyword" class="empty-results">
+             <!-- Placeholder for no results -->
           </div>
-        </template>
+        </transition>
+      </main>
+    </div>
 
-        <div v-if="hasTargets" class="table-wrapper">
-          <el-table :data="data?.target_customers" stripe style="min-width: 820px;">
-            <el-table-column label="群体" min-width="180">
-              <template #default="{ row }">
-                <el-tag type="success" size="small" class="tag">{{ row.cluster_name || '目标群体' }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="mode === 'item'" label="后项" min-width="120">
-              <template #default="{ row }">
-                <el-tag
-                  v-for="(it, idx) in row.to_items || [data?.item]"
-                  :key="idx"
-                  type="success"
-                  size="small"
-                  class="tag"
-                >
-                  {{ it }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="mode === 'item'" label="前项组合" min-width="160">
-              <template #default="{ row }">
-                <el-tag
-                  v-for="(it, idx) in row.from_items || []"
-                  :key="idx"
-                  type="info"
-                  size="small"
-                  class="tag"
-                >
-                  {{ it }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="购买倾向/提升" width="140">
-              <template #default="{ row }">
-                <span>{{ formatFloat(row.lift_index || row.buy_ratio) }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="策略" min-width="220" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.strategy || '-' }}</template>
-            </el-table-column>
-          </el-table>
-        </div>
-        <el-empty v-else description="暂无关联规则" />
-      </el-card>
-
-      <!-- 播报 -->
-      <div class="tts-bar" v-if="speechText">
-        <div class="speech-text">播报内容：{{ speechText }}</div>
-        <div class="tts-actions">
-          <el-button type="primary" :loading="ttsLoading" @click="playTTS">🔊 播放播报</el-button>
-          <audio v-if="audioUrl" ref="audioRef" :src="audioUrl" controls autoplay style="max-width: 320px; width: 100%;" />
-        </div>
+    <!-- Subtitle Overlay -->
+    <div class="voice-subtitle-overlay" v-if="showSubtitle" @click="stopVoice">
+      <div class="subtitle-box">
+        <span class="pulse-icon"></span>
+        <p>{{ subtitleText }}</p>
+        <el-icon><VideoPause /></el-icon>
       </div>
     </div>
+
+    <audio ref="audioRef" :src="audioUrl" @ended="showSubtitle = false" class="hidden-audio"></audio>
   </div>
 </template>
 
 <style scoped>
-.page-container {
-  padding: 1.5rem;
-  max-width: 1400px;
+.recommend-center-layout {
+  min-height: 100vh;
+  background: var(--color-bg-base);
+  padding-bottom: 100px;
+}
+
+.container-breath-fixed {
+  max-width: 1000px;
   margin: 0 auto;
+  padding: 0 24px;
 }
 
-.page-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-}
-
-.content {
+.page-navbar {
+  height: 100px;
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-top: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
 }
 
-.search-card {
-  padding-bottom: 0.5rem;
-}
-
-.search-row {
+.nav-left {
   display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
+  gap: 20px;
   align-items: center;
 }
 
-.mode-toggle {
+.btn-back {
+  background: white;
+  border: 1px solid var(--border-subtle);
+  transition: 0.3s;
+}
+
+.btn-back:hover { transform: translateX(-4px); }
+
+.mode-pills {
+  background: rgba(0,0,0,0.05);
+  padding: 4px;
+  border-radius: 16px;
   display: flex;
+  gap: 4px;
 }
 
-.search-input {
-  flex: 1;
-  min-width: 240px;
-}
-
-.result-card {
-  overflow-x: auto;
-}
-
-.card-header {
+.mode-pills button {
+  border: none;
+  background: transparent;
+  padding: 8px 20px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.3s;
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 700;
 }
 
-.muted {
-  color: #94a3b8;
-  font-size: 0.95rem;
+.mode-pills button.active {
+  background: white;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
 }
 
-.tag {
-  margin-right: 6px;
-  margin-bottom: 4px;
+.glass-search-focus {
+  background: white;
+  border-radius: 32px;
+  padding: 40px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.04);
+  margin-bottom: 48px;
+  border: 1px solid rgba(0,0,0,0.02);
 }
 
-.table-wrapper {
-  width: 100%;
-  overflow-x: auto;
+.search-input-wrapper {
+  display: flex;
+  gap: 16px;
 }
 
-.tts-bar {
-  margin-top: 1rem;
-  padding: 1rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: var(--surface, #ffffff);
+.large-search-input {
+  flex: 1;
+}
+
+:deep(.large-search-input .el-input__wrapper) {
+  height: 60px !important;
+  border-radius: 16px !important;
+  font-size: 1.1rem !important;
+  background: #F8F9FA !important;
+}
+
+.btn-search-go {
+  height: 60px !important;
+  padding: 0 40px !important;
+  border-radius: 16px !important;
+  font-weight: 700 !important;
+}
+
+.recommend-results-grid {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 32px;
 }
 
-.tts-actions {
+.glass-card {
+  background: rgba(255,255,255,0.8);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(255,255,255,0.5);
+}
+
+.block-header {
   display: flex;
-  gap: 1rem;
+  justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
+  margin-bottom: 24px;
 }
 
-.speech-text {
-  color: #475569;
-  line-height: 1.5;
+.block-header h3 { margin: 0; font-size: 1.25rem; font-weight: 800; }
+
+.rec-list-modern {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-@media (max-width: 768px) {
-  .page-container {
-    padding: 1rem;
-  }
-  .tts-actions {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+.rec-item-modern {
+  background: white;
+  padding: 16px 24px;
+  border-radius: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: 0.3s;
 }
+
+.rec-item-modern:hover { transform: scale(1.01); box-shadow: var(--shadow-sm); }
+
+.item-name { font-weight: 700; font-size: 1.1rem; color: var(--text-primary); }
+.item-reason { font-size: 0.85rem; color: var(--text-tertiary); display: block; margin-top: 4px; }
+.item-score { font-weight: 800; color: var(--color-accent); background: var(--color-accent-soft); padding: 4px 12px; border-radius: 10px; }
+
+.target-grid-modern {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.target-card-modern {
+  background: white;
+  padding: 24px;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cluster-label { font-weight: 800; font-size: 1.1rem; }
+.target-stats { display: flex; gap: 16px; font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); }
+.target-stats span { color: var(--color-accent); font-weight: 800; }
+.target-strat { font-size: 0.85rem; color: var(--text-tertiary); line-height: 1.5; }
+
+/* Subtitle */
+.voice-subtitle-overlay {
+  position: fixed;
+  bottom: 40px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 2000;
+  pointer-events: none;
+}
+
+.subtitle-box {
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(12px);
+  padding: 16px 32px;
+  border-radius: 40px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: white;
+  pointer-events: auto;
+  cursor: pointer;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+  max-width: 80%;
+}
+
+.subtitle-box p { margin: 0; font-size: 1rem; font-weight: 500; }
+
+.hidden-audio { display: none; }
+
+.fade-up-enter-active { transition: all 0.5s ease; }
+.fade-up-enter-from { opacity: 0; transform: translateY(30px); }
 </style>

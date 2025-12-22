@@ -4,13 +4,11 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
 import type { UploadInstance, UploadProps } from 'element-plus'
+import { UploadFilled } from '@element-plus/icons-vue'
 
 const router = useRouter()
-
-// 当前步骤
 const currentStep = ref(0)
 
-// 表单数据
 const projectForm = ref({
   name: '',
   description: '',
@@ -23,105 +21,55 @@ const projectForm = ref({
   }
 })
 
-// 上传文件
 const uploadRef = ref<UploadInstance>()
 const fileList = ref<any[]>([])
 const uploading = ref(false)
 
-// 步骤标题
 const steps = [
-  { title: '项目信息', description: '填写项目基本信息' },
-  { title: '上传数据', description: '上传数据集并设置参数' },
-  { title: '确认创建', description: '确认信息并开始分析' }
+  { title: '基本信息', desc: 'Project Details' },
+  { title: '数据上传', desc: 'Upload Dataset' },
+  { title: '确认分析', desc: 'Confirmation' }
 ]
 
-// 下一步
 const nextStep = () => {
-  if (currentStep.value === 0) {
-    if (!projectForm.value.name) {
-      ElMessage.warning('请填写项目名称')
-      return
-    }
-  }
-
-  if (currentStep.value === 1) {
-    if (fileList.value.length === 0) {
-      ElMessage.warning('请上传数据集文件')
-      return
-    }
-  }
-
+  if (currentStep.value === 0 && !projectForm.value.name) return ElMessage.warning('请输入项目名称')
+  if (currentStep.value === 1 && fileList.value.length === 0) return ElMessage.warning('请上传数据集文件')
   currentStep.value++
 }
 
-// 上一步
-const prevStep = () => {
-  currentStep.value--
-}
+const prevStep = () => currentStep.value--
 
-// 文件上传前校验
 const beforeUpload: UploadProps['beforeUpload'] = (file) => {
-  const isCSV = file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
-  if (!isCSV) {
-    ElMessage.error('只能上传 CSV 或 Excel 文件！')
+  if (!/\.(csv|xlsx|xls)$/.test(file.name)) {
+    ElMessage.error('仅支持 CSV 或 Excel 文件')
     return false
   }
-  const isLt100M = file.size / 1024 / 1024 < 100
-  if (!isLt100M) {
-    ElMessage.error('文件大小不能超过 100MB！')
+  if (file.size / 1024 / 1024 > 100) {
+    ElMessage.error('文件大小需小于 100MB')
     return false
   }
   return true
 }
 
-// 文件列表变化
-const handleFileChange: UploadProps['onChange'] = (_file, files) => {
-  fileList.value = files
-}
+const handleFileChange: UploadProps['onChange'] = (_, files) => fileList.value = files
 
-// 创建项目并上传
 const createProject = async () => {
-  if (fileList.value.length === 0) {
-    ElMessage.warning('请上传数据集文件')
-    return
-  }
-
+  if (fileList.value.length === 0) return ElMessage.warning('请上传数据集')
   uploading.value = true
-
   try {
-    // 第1步：创建项目
-    const createResponse = await axios.post('/api/projects', projectForm.value)
-
-    if (!createResponse.data.success) {
-      throw new Error('创建项目失败')
-    }
-
-    const projectId = createResponse.data.data.id
-
-    // 第2步：上传文件
+    const { data: res } = await axios.post('/api/projects', projectForm.value)
+    if (!res.success) throw new Error('创建项目失败')
+    
     const formData = new FormData()
     formData.append('file', fileList.value[0].raw)
-
-    const uploadResponse = await axios.post(
-      `/api/projects/${projectId}/upload`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      }
-    )
-
-    if (uploadResponse.data.success) {
-      ElMessage.success('项目创建成功，正在分析中...')
-      setTimeout(() => {
-        router.push(`/projects/${projectId}`)
-      }, 1000)
+    const { data: uploadRes } = await axios.post(`/api/projects/${res.data.id}/upload`, formData)
+    
+    if (uploadRes.success) {
+      ElMessage.success('项目已创建，开始分析')
+      setTimeout(() => router.push(`/projects/${res.data.id}`), 1000)
     }
-
-  } catch (error: any) {
-    console.error('创建项目失败:', error)
-    ElMessage.error(error.response?.data?.detail || '创建项目失败')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '创建失败')
   } finally {
     uploading.value = false
   }
@@ -129,243 +77,365 @@ const createProject = async () => {
 </script>
 
 <template>
-  <div class="page-container">
-    <el-page-header @back="$router.push('/projects')" title="返回">
-      <template #content>
-        <span class="page-title">➕ 新建项目</span>
-      </template>
-    </el-page-header>
+  <div class="container-breath">
+    <!-- Header -->
+    <div class="focus-header">
+      <button class="btn-back" @click="$router.push('/projects')">←</button>
+      <h1 class="text-display" style="font-size: 1.8rem;">新建项目</h1>
+    </div>
 
-    <div class="content">
-      <el-card>
-        <el-steps :active="currentStep" align-center finish-status="success">
-          <el-step
-            v-for="(step, index) in steps"
-            :key="index"
-            :title="step.title"
-            :description="step.description"
-          />
-        </el-steps>
-
-        <div class="step-content">
-          <!-- 步骤1: 项目信息 -->
-          <div v-show="currentStep === 0">
-            <el-form :model="projectForm" label-width="120px">
-              <el-form-item label="项目名称" required>
-                <el-input
-                  v-model="projectForm.name"
-                  placeholder="请输入项目名称"
-                  maxlength="100"
-                  show-word-limit
-                />
-              </el-form-item>
-
-              <el-form-item label="项目描述">
-                <el-input
-                  v-model="projectForm.description"
-                  type="textarea"
-                  :rows="4"
-                  placeholder="请输入项目描述（可选）"
-                  maxlength="500"
-                  show-word-limit
-                />
-              </el-form-item>
-            </el-form>
+    <div class="focus-card">
+      <!-- Custom Stepper -->
+      <div class="custom-stepper">
+        <div 
+          v-for="(step, idx) in steps" 
+          :key="idx"
+          class="step-item"
+          :class="{ active: currentStep === idx, completed: currentStep > idx }"
+        >
+          <div class="step-indicator">
+            <span v-if="currentStep > idx">✓</span>
+            <span v-else>{{ idx + 1 }}</span>
           </div>
-
-          <!-- 步骤2: 上传数据 -->
-          <div v-show="currentStep === 1">
-            <el-form :model="projectForm" label-width="140px">
-              <el-form-item label="数据集文件" required>
-                <el-upload
-                  ref="uploadRef"
-                  :auto-upload="false"
-                  :limit="1"
-                  :before-upload="beforeUpload"
-                  :on-change="handleFileChange"
-                  accept=".csv,.xlsx,.xls"
-                  drag
-                >
-                  <div class="upload-content">
-                    <i class="el-icon-upload"></i>
-                    <div class="el-upload__text">
-                      拖拽文件到此处，或<em>点击上传</em>
-                    </div>
-                    <div class="el-upload__tip">
-                      支持 CSV 和 Excel 文件，大小不超过 100MB
-                    </div>
-                  </div>
-                </el-upload>
-              </el-form-item>
-
-              <el-divider>分析参数（可选）</el-divider>
-
-              <el-form-item label="最小支持度">
-                <el-slider
-                  v-model="projectForm.parameters.min_support"
-                  :min="0.01"
-                  :max="0.1"
-                  :step="0.01"
-                  :format-tooltip="(val: number) => (val * 100).toFixed(0) + '%'"
-                  show-input
-                />
-              </el-form-item>
-
-              <el-form-item label="最小置信度">
-                <el-slider
-                  v-model="projectForm.parameters.min_confidence"
-                  :min="0.1"
-                  :max="0.9"
-                  :step="0.1"
-                  :format-tooltip="(val: number) => (val * 100).toFixed(0) + '%'"
-                  show-input
-                />
-              </el-form-item>
-
-              <el-form-item label="最小提升度">
-                <el-input-number
-                  v-model="projectForm.parameters.min_lift"
-                  :min="0.5"
-                  :max="5"
-                  :step="0.5"
-                />
-              </el-form-item>
-
-              <el-form-item label="预测周数">
-                <el-input-number
-                  v-model="projectForm.parameters.forecast_weeks"
-                  :min="1"
-                  :max="52"
-                />
-              </el-form-item>
-
-              <el-form-item label="聚类数量">
-                <el-input-number
-                  v-model="projectForm.parameters.n_clusters"
-                  :min="2"
-                  :max="10"
-                />
-              </el-form-item>
-            </el-form>
+          <div class="step-info">
+            <span class="step-title">{{ step.title }}</span>
+            <span class="step-desc">{{ step.desc }}</span>
           </div>
+          <div class="step-line" v-if="idx < steps.length - 1"></div>
+        </div>
+      </div>
 
-          <!-- 步骤3: 确认信息 -->
-          <div v-show="currentStep === 2">
-            <el-descriptions title="项目信息" :column="1" border>
-              <el-descriptions-item label="项目名称">
-                {{ projectForm.name }}
-              </el-descriptions-item>
-              <el-descriptions-item label="项目描述">
-                {{ projectForm.description || '无' }}
-              </el-descriptions-item>
-              <el-descriptions-item label="数据集文件">
-                {{ fileList[0]?.name || '未上传' }}
-              </el-descriptions-item>
-            </el-descriptions>
-
-            <el-descriptions title="分析参数" :column="2" border style="margin-top: 20px;">
-              <el-descriptions-item label="最小支持度">
-                {{ (projectForm.parameters.min_support * 100).toFixed(0) }}%
-              </el-descriptions-item>
-              <el-descriptions-item label="最小置信度">
-                {{ (projectForm.parameters.min_confidence * 100).toFixed(0) }}%
-              </el-descriptions-item>
-              <el-descriptions-item label="最小提升度">
-                {{ projectForm.parameters.min_lift }}
-              </el-descriptions-item>
-              <el-descriptions-item label="预测周数">
-                {{ projectForm.parameters.forecast_weeks }} 周
-              </el-descriptions-item>
-              <el-descriptions-item label="聚类数量">
-                {{ projectForm.parameters.n_clusters }} 类
-              </el-descriptions-item>
-            </el-descriptions>
-
-            <el-alert
-              type="info"
-              title="提示"
-              description="点击'创建并开始分析'后，系统将自动开始分析您的数据，请耐心等待。"
-              style="margin-top: 20px;"
-              :closable="false"
-              show-icon
+      <!-- Content Area -->
+      <div class="form-content">
+        <!-- Step 1 -->
+        <div v-if="currentStep === 0" class="step-pane fade-in">
+          <div class="input-group">
+            <label>项目名称</label>
+            <el-input 
+              v-model="projectForm.name" 
+              placeholder="例如：2024 Q1 销售分析" 
+              size="large"
+              class="large-input"
+            />
+          </div>
+          <div class="input-group">
+            <label>项目描述 <span class="optional">(可选)</span></label>
+            <el-input 
+              v-model="projectForm.description" 
+              type="textarea" 
+              :rows="4" 
+              placeholder="简要描述本次分析的目标..." 
             />
           </div>
         </div>
 
-        <div class="step-buttons">
-          <el-button v-if="currentStep > 0" @click="prevStep">
-            上一步
-          </el-button>
-          <el-button v-if="currentStep < 2" type="primary" @click="nextStep">
-            下一步
-          </el-button>
-          <el-button
-            v-if="currentStep === 2"
-            type="primary"
-            :loading="uploading"
-            @click="createProject"
-          >
-            {{ uploading ? '创建中...' : '创建并开始分析' }}
-          </el-button>
+        <!-- Step 2 -->
+        <div v-if="currentStep === 1" class="step-pane fade-in">
+          <div class="upload-area">
+            <el-upload
+              ref="uploadRef"
+              :auto-upload="false"
+              :limit="1"
+              :before-upload="beforeUpload"
+              :on-change="handleFileChange"
+              accept=".csv,.xlsx,.xls"
+              drag
+              action="#"
+              class="full-width-upload"
+            >
+              <div class="upload-placeholder">
+                <el-icon class="upload-icon"><UploadFilled /></el-icon>
+                <div class="upload-text">点击或拖拽上传数据集</div>
+                <div class="upload-hint">支持 .csv, .xlsx (Max 100MB)</div>
+              </div>
+            </el-upload>
+          </div>
+
+          <div class="params-section">
+            <h3 class="params-title">高级参数设定</h3>
+            <div class="params-grid">
+              <div class="param-item">
+                <span class="param-label">最小支持度</span>
+                <el-slider v-model="projectForm.parameters.min_support" :min="0.01" :max="0.1" :step="0.01" />
+              </div>
+              <div class="param-item">
+                <span class="param-label">最小置信度</span>
+                <el-slider v-model="projectForm.parameters.min_confidence" :min="0.1" :max="0.9" :step="0.1" />
+              </div>
+              <div class="param-item">
+                <span class="param-label">预测周数 ({{ projectForm.parameters.forecast_weeks }}周)</span>
+                <el-slider v-model="projectForm.parameters.forecast_weeks" :min="4" :max="52" />
+              </div>
+              <div class="param-item">
+                <span class="param-label">聚类分组数 ({{ projectForm.parameters.n_clusters }}组)</span>
+                <el-slider v-model="projectForm.parameters.n_clusters" :min="2" :max="8" />
+              </div>
+            </div>
+          </div>
         </div>
-      </el-card>
+
+        <!-- Step 3 -->
+        <div v-if="currentStep === 2" class="step-pane fade-in">
+          <div class="review-box">
+            <div class="review-item">
+              <span class="label">项目名称</span>
+              <span class="value">{{ projectForm.name }}</span>
+            </div>
+            <div class="review-item">
+              <span class="label">数据集</span>
+              <span class="value">{{ fileList[0]?.name }}</span>
+            </div>
+            <div class="review-divider"></div>
+            <div class="review-item">
+              <span class="label">最小支持度</span>
+              <span class="value">{{ (projectForm.parameters.min_support * 100).toFixed(0) }}%</span>
+            </div>
+            <div class="review-item">
+              <span class="label">预测时长</span>
+              <span class="value">{{ projectForm.parameters.forecast_weeks }} 周</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="form-actions">
+        <el-button v-if="currentStep > 0" @click="prevStep" plain class="btn-secondary">上一步</el-button>
+        <el-button 
+          type="primary" 
+          @click="currentStep === 2 ? createProject() : nextStep()" 
+          :loading="uploading"
+          class="btn-primary-large"
+        >
+          {{ currentStep === 2 ? '开始智能分析' : '下一步' }}
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.page-container {
-  padding: 2rem;
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-.page-title {
-  font-size: 1.5rem;
-  font-weight: bold;
-}
-
-.content {
-  margin-top: 2rem;
-}
-
-.step-content {
-  margin: 3rem 0;
-  min-height: 400px;
-}
-
-.step-buttons {
+.focus-header {
   display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 40px;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.btn-back {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: color 0.2s;
+}
+
+.btn-back:hover { color: var(--text-primary); }
+
+.focus-card {
+  max-width: 800px;
+  margin: 0 auto;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 40px;
+  border: 1px solid var(--border-subtle);
+  position: relative;
+}
+
+.custom-stepper {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 48px;
+  position: relative;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 2;
+  flex: 1;
+}
+
+.step-indicator {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-surface-hover);
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 1rem;
-  padding-top: 2rem;
-  border-top: 1px solid #eee;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  border: 1px solid var(--border-subtle);
 }
 
-.upload-content {
+.step-item.active .step-indicator {
+  background: var(--text-primary);
+  color: var(--color-surface);
+  border-color: var(--text-primary);
+  box-shadow: 0 0 0 4px rgba(0,0,0,0.05);
+}
+
+.step-item.completed .step-indicator {
+  background: #10B981;
+  color: white;
+  border-color: #10B981;
+}
+
+.step-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.step-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-tertiary);
+}
+
+.step-item.active .step-title { color: var(--text-primary); }
+.step-desc { font-size: 0.75rem; color: var(--text-tertiary); opacity: 0.7; }
+
+.step-line {
+  flex: 1;
+  height: 2px;
+  background: var(--color-surface-hover);
+  margin: 0 16px;
+}
+
+.form-content {
+  min-height: 300px;
+}
+
+.input-group {
+  margin-bottom: 24px;
+}
+
+.input-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+}
+
+.upload-area {
+  margin-bottom: 32px;
+}
+
+.upload-placeholder {
+  padding: 40px;
   text-align: center;
-  padding: 2rem;
+  border: 2px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+  background: var(--color-bg-base);
 }
 
-.el-icon-upload {
-  font-size: 67px;
-  color: #C0C4CC;
+.upload-placeholder:hover {
+  border-color: var(--color-accent);
+  background: var(--color-surface-hover);
+}
+
+.upload-icon {
+  font-size: 48px;
+  color: var(--text-tertiary);
   margin-bottom: 16px;
 }
 
-.el-upload__text {
-  color: #606266;
-  font-size: 14px;
+.upload-text {
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-.el-upload__text em {
-  color: #409EFF;
-  font-style: normal;
-}
-
-.el-upload__tip {
-  color: #999;
-  font-size: 12px;
+.upload-hint {
+  font-size: 0.85rem;
+  color: var(--text-tertiary);
   margin-top: 8px;
+}
+
+.params-section {
+  background: var(--color-bg-base);
+  padding: 24px;
+  border-radius: var(--radius-md);
+}
+
+.params-title {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.params-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.param-label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+}
+
+.review-box {
+  background: var(--color-bg-base);
+  border-radius: var(--radius-md);
+  padding: 32px;
+}
+
+.review-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  font-size: 1rem;
+}
+
+.review-item .label { color: var(--text-secondary); }
+.review-item .value { font-weight: 600; color: var(--text-primary); }
+
+.review-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 24px 0;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.btn-primary-large {
+  padding: 12px 32px !important;
+  font-size: 1rem !important;
+}
+
+.fade-in {
+  animation: fadeIn 0.4s var(--ease-smooth);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

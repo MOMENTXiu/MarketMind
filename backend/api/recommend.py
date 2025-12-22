@@ -21,42 +21,111 @@ async def recommend_for_user(user_id: str = Query(..., description="用户ID")):
     """
     正向：输入用户ID -> 推荐商品
     """
-    recommender = get_recommender()
-    res = recommender.recommend_user(user_id=user_id)
-    result = {
-        "item": user_id,
-        "recommends": res.get("recommends", []),
-        "target_customers": [res["cluster"]] if res.get("cluster") else [],
-        "speech": speech_conclusion_merger(res),
-        "model_tries": 3,
-        "human_fallback": False,
-    }
-    return result
+    try:
+        recommender = get_recommender()
+        res = recommender.recommend_user(user_id=user_id)
+
+        # 检查是否使用了降级推荐
+        warning = None
+        if not recommender.has_model:
+            warning = "预训练模型未加载，使用热门商品推荐"
+
+        result = {
+            "item": user_id,
+            "recommends": res.get("recommends", []),
+            "target_customers": [res["cluster"]] if res.get("cluster") else [],
+            "speech": speech_conclusion_merger(res),
+            "model_tries": 3,
+            "human_fallback": False,
+            "warning": warning,
+        }
+        return result
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"数据集未找到：{str(e)}。请先创建项目并上传数据集。"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"推荐失败: {str(e)}")
 
 
 @router.get("/item")
 async def recommend_for_item(item: str = Query(..., description="商品名称")):
     """
-    逆向：输入商品 -> 推荐目标顾客群
+    逆向：输入商品 -> 推荐目标顾客群 + 关联商品
     """
-    recommender = get_recommender()
-    res = recommender.recommend_item(item_name=item)
-    result = {
-        "item": item,
-        "recommends": res.get("rules", []),
-        "target_customers": res.get("targets", []),
-        "speech": speech_conclusion_merger(
-            {"recommends": res.get("rules", []), "target_customers": res.get("targets", [])}
-        ),
-        "model_tries": 3,
-        "human_fallback": False,
-    }
-    return result
+    try:
+        recommender = get_recommender()
+        res = recommender.recommend_item(item_name=item)
+
+        # 检查是否使用了降级推荐
+        warning = None
+        if not recommender.has_model and not res.get("targets"):
+            warning = "预训练模型未加载，客户群推荐不可用。可使用实时计算获取关联规则。"
+
+        result = {
+            "item": item,
+            "recommends": res.get("rules", []),
+            "target_customers": res.get("targets", []),
+            "speech": speech_conclusion_merger(
+                {"recommends": res.get("rules", []), "target_customers": res.get("targets", [])}
+            ),
+            "model_tries": 3,
+            "human_fallback": False,
+            "warning": warning,
+        }
+        return result
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"数据集未找到：{str(e)}。请先创建项目并上传数据集。"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"推荐失败: {str(e)}")
 
 
 class TTSRequest(BaseModel):
     project_id: str | None = None
     speech: str
+
+
+class CalculateRequest(BaseModel):
+    item: str
+    min_confidence: float = 0.1
+
+
+@router.post("/calculate")
+async def calculate_rules(body: CalculateRequest):
+    """
+    实时计算关联规则 (Fallback)
+    当预训练模型中没有找到规则时，触发实时计算
+    """
+    try:
+        recommender = get_recommender()
+
+        # Check if item exists in dataset first
+        if body.item not in recommender.subcategories:
+            return {"success": False, "message": "商品不存在于数据集中", "rules": []}
+
+        # Trigger calculation
+        rules = recommender.calculate_realtime_rules(
+            item_name=body.item,
+            min_confidence=body.min_confidence
+        )
+
+        return {
+            "success": True,
+            "item": body.item,
+            "rules": rules,
+            "source": "realtime_calculation"
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"数据集未找到：{str(e)}。请先创建项目并上传数据集。"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"实时计算失败: {str(e)}")
 
 
 @router.post("/tts/play")

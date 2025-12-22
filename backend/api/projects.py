@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 from typing import Optional
 import shutil
 from pathlib import Path
+import pandas as pd
 
 from backend.models.project import (
     Project,
@@ -193,6 +194,51 @@ async def download_report(project_id: str):
         filename=f"{project.name}_分析报告.md",
         media_type="text/markdown"
     )
+
+
+@router.get("/{project_id}/customers")
+async def get_project_customers(
+    project_id: str, 
+    cluster_id: Optional[int] = Query(None, description="按聚类ID过滤")
+):
+    """获取项目客户列表"""
+    project = storage.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+
+    # 优先从 customers.csv 读取
+    customers_csv = Path(storage.get_project_dir(project_id)) / "customers.csv"
+    
+    if not customers_csv.exists():
+        # 如果不存在（可能是旧项目），尝试从分析结果中获取 Top 20
+        if project.results and project.results.clustering_data:
+            cust_data = project.results.clustering_data.get('cluster_customers', {})
+            if cluster_id is not None:
+                return {"success": True, "data": cust_data.get(str(cluster_id), [])}
+            return {"success": True, "data": cust_data}
+        return {"success": True, "data": []}
+
+    try:
+        df_cust = pd.read_csv(customers_csv)
+        if cluster_id is not None:
+            df_cust = df_cust[df_cust['客户分群'] == cluster_id]
+        
+        # 统一字段名映射给前端
+        # 对应前端字段: id, name, recency, frequency, monetary
+        res_data = []
+        for _, row in df_cust.iterrows():
+            res_data.append({
+                "id": str(row['客户ID']),
+                "name": str(row['客户ID']), # 真实数据通常有姓名，此处用ID占位
+                "recency": int(row['R_最近购买天数']),
+                "frequency": int(row['F_购买频次']),
+                "monetary": float(row['M_消费金额']),
+                "cluster_id": int(row['客户分群'])
+            })
+        
+        return {"success": True, "data": res_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取客户数据失败: {str(e)}")
 
 
 @router.get("/{project_id}/audio")

@@ -33,6 +33,11 @@ const router = createRouter({
       path: '/projects/:id/recommend',
       name: 'product-recommend',
       component: () => import('@/views/ProductRecommend.vue')
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/views/Settings.vue')
     }
   ]
 })

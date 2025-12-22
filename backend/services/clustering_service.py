@@ -18,12 +18,13 @@ class ClusteringService:
         self.scaler = StandardScaler()
         self.kmeans = None
 
-    async def analyze(self, n_clusters: int = 4) -> Dict[str, Any]:
+    async def analyze(self, n_clusters: int = 4, save_path: str = None) -> Dict[str, Any]:
         """
         执行客户聚类分析
 
         Args:
             n_clusters: 聚类数量
+            save_path: 完整结果保存路径
 
         Returns:
             聚类结果字典
@@ -57,11 +58,21 @@ class ClusteringService:
             self.kmeans = KMeans(n_clusters=best_k, random_state=42, n_init=10)
             customer_data['客户分群'] = self.kmeans.fit_predict(X_scaled)
 
+            # 保存完整结果
+            if save_path:
+                customer_data.to_csv(save_path, index=False, encoding='utf-8')
+
             # 7. 分析各群体特征
             cluster_profiles = self._analyze_clusters(customer_data)
 
             # 8. 计算各群体贡献度
             contribution_data = self._calculate_contribution(customer_data)
+
+            # 9. 提取每个聚类的客户详细列表（TOP 20）
+            cluster_customers = self._get_cluster_customers(customer_data)
+
+            # 10. 分析每个聚类的关联规则（前推后、后推前 TOP5）
+            cluster_rules = self._analyze_cluster_rules(customer_data, df)
 
             try:
                 silhouette = round(float(silhouette_score(X_scaled, customer_data['客户分群'])), 4)
@@ -76,7 +87,9 @@ class ClusteringService:
                     "n_clusters": best_k,
                     "silhouette_score": silhouette,
                     "cluster_profiles": cluster_profiles,
-                    "contribution": contribution_data
+                    "contribution": contribution_data,
+                    "cluster_customers": cluster_customers,
+                    "cluster_rules": cluster_rules
                 }
             }
 
@@ -216,3 +229,123 @@ class ClusteringService:
             })
 
         return contribution_list
+
+    def _get_cluster_customers(self, customer_data: pd.DataFrame) -> Dict[int, List[Dict[str, Any]]]:
+        """获取每个聚类的客户详细列表（TOP 20按消费金额排序）"""
+        cluster_customers = {}
+
+        for cluster_id in customer_data['客户分群'].unique():
+            cluster_df = customer_data[customer_data['客户分群'] == cluster_id].copy()
+
+            # 按消费金额降序排序，取TOP 20
+            cluster_df = cluster_df.sort_values('M_消费金额', ascending=False).head(20)
+
+            customers = []
+            for _, row in cluster_df.iterrows():
+                customers.append({
+                    "customer_id": str(row['客户ID']),
+                    "customer_name": str(row['客户ID']),  # 客户名称就是ID
+                    "avg_order_value": round(float(row['客单价']), 2),
+                    "frequency": int(row['F_购买频次']),
+                    "total_monetary": round(float(row['M_消费金额']), 2),
+                    "recency_days": int(row['R_最近购买天数']),
+                    "profit_margin": round(float(row['利润率']), 2)
+                })
+
+            cluster_customers[int(cluster_id)] = customers
+
+        return cluster_customers
+
+    def _analyze_cluster_rules(self, customer_data: pd.DataFrame, df: pd.DataFrame) -> Dict[int, Dict[str, List]]:
+        """分析每个聚类的关联规则（前推后、后推前 TOP5）"""
+        from mlxtend.frequent_patterns import apriori, association_rules
+        from mlxtend.preprocessing import TransactionEncoder
+
+        cluster_rules = {}
+
+        for cluster_id in customer_data['客户分群'].unique():
+            # 获取该聚类的客户ID列表
+            cluster_customer_ids = customer_data[customer_data['客户分群'] == cluster_id]['客户ID'].tolist()
+
+            # 过滤该聚类的订单
+            cluster_orders = df[df['客户 ID'].isin(cluster_customer_ids)]
+
+            if len(cluster_orders) < 10:  # 订单太少跳过
+                cluster_rules[int(cluster_id)] = {
+                    "antecedent_to_consequent": [],  # 前推后
+                    "consequent_to_antecedent": []   # 后推前
+                }
+                continue
+
+            try:
+                # 构建购物篮
+                basket_data = cluster_orders.groupby('订单 ID')['子类别'].apply(list).reset_index()
+                basket_data = basket_data[basket_data['子类别'].apply(len) > 1]
+
+                if len(basket_data) < 5:  # 购物篮太少
+                    cluster_rules[int(cluster_id)] = {
+                        "antecedent_to_consequent": [],
+                        "consequent_to_antecedent": []
+                    }
+                    continue
+
+                transactions = basket_data['子类别'].tolist()
+
+                # 事务编码
+                te = TransactionEncoder()
+                te_ary = te.fit_transform(transactions)
+                basket_df = pd.DataFrame(te_ary, columns=te.columns_)
+
+                # Apriori
+                frequent_itemsets = apriori(basket_df, min_support=0.05, use_colnames=True)
+
+                if frequent_itemsets.empty:
+                    cluster_rules[int(cluster_id)] = {
+                        "antecedent_to_consequent": [],
+                        "consequent_to_antecedent": []
+                    }
+                    continue
+
+                # 生成关联规则
+                rules = association_rules(
+                    frequent_itemsets,
+                    metric="confidence",
+                    min_threshold=0.2,
+                    num_itemsets=len(frequent_itemsets)
+                )
+
+                # 前推后 TOP5（按置信度排序）
+                antecedent_to_consequent = []
+                for _, rule in rules.sort_values('confidence', ascending=False).head(5).iterrows():
+                    antecedent_to_consequent.append({
+                        "antecedent": list(rule['antecedents']),
+                        "consequent": list(rule['consequents']),
+                        "confidence": round(float(rule['confidence']), 4),
+                        "support": round(float(rule['support']), 4),
+                        "lift": round(float(rule['lift']), 2)
+                    })
+
+                # 后推前 TOP5（交换前后项）
+                consequent_to_antecedent = []
+                for _, rule in rules.sort_values('confidence', ascending=False).head(5).iterrows():
+                    consequent_to_antecedent.append({
+                        "antecedent": list(rule['consequents']),  # 交换
+                        "consequent": list(rule['antecedents']),  # 交换
+                        "confidence": round(float(rule['confidence']), 4),  # 注意：这里的置信度是原方向的
+                        "support": round(float(rule['support']), 4),
+                        "lift": round(float(rule['lift']), 2)
+                    })
+
+                cluster_rules[int(cluster_id)] = {
+                    "antecedent_to_consequent": antecedent_to_consequent,
+                    "consequent_to_antecedent": consequent_to_antecedent
+                }
+
+            except Exception as e:
+                print(f"聚类 {cluster_id} 关联规则分析失败: {e}")
+                cluster_rules[int(cluster_id)] = {
+                    "antecedent_to_consequent": [],
+                    "consequent_to_antecedent": []
+                }
+
+        return cluster_rules

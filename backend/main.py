@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from backend.api import association, voice, projects, recommend
+from backend.api import association, voice, projects, recommend, ai_voice
 # 注释掉独立的 prediction 和 clustering API，现在通过 projects API 使用
 # from backend.api import prediction, clustering
 from backend.core.config import settings
@@ -42,6 +42,7 @@ app.include_router(association.router, prefix="/api/association", tags=["关联�
 # app.include_router(clustering.router, prefix="/api/clustering", tags=["客户聚类"])
 app.include_router(voice.router, prefix="/api/voice", tags=["语音播报"])
 app.include_router(recommend.router, prefix="/api", tags=["行为推荐"])
+app.include_router(ai_voice.router, prefix="/api", tags=["AI 语音播报"])
 
 
 @app.get("/")
