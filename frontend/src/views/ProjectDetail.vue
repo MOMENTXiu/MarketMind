@@ -280,47 +280,6 @@ const loadTheme = () => {
   applyTheme()
 }
 
-// 聊天助手
-type ChatMsg = { role: 'user' | 'assistant'; content: string }
-const chatOpen = ref(false)
-const chatInput = ref('')
-const chatMessages = ref<ChatMsg[]>([])
-const chatLoading = ref(false)
-
-const toggleChat = () => {
-  chatOpen.value = !chatOpen.value
-}
-
-const sendChat = async () => {
-  const text = chatInput.value.trim()
-  if (!text) return
-  chatMessages.value.push({ role: 'user', content: text })
-  chatInput.value = ''
-  chatLoading.value = true
-  const assistant: ChatMsg = { role: 'assistant', content: '' }
-  chatMessages.value.push(assistant)
-
-  try {
-    const res = await fetch('/api/llm/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: text })
-    })
-    if (!res.body) throw new Error('无响应体')
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    while (true) {
-      const { value, done } = await reader.read()
-      if (done) break
-      assistant.content += decoder.decode(value, { stream: true })
-    }
-  } catch (e: any) {
-    assistant.content += '\n（助手出错，请稍后重试）'
-  } finally {
-    chatLoading.value = false
-  }
-}
-
 // 定时刷新（处理中状态）
 let refreshTimer: any = null
 
@@ -628,37 +587,6 @@ onBeforeUnmount(() => {
         <el-empty description="项目分析未完成，无法查看结果" />
       </el-card>
     </div>
-
-    <!-- 智能助手浮动按钮 -->
-    <el-button class="fab-chat" type="primary" circle @click="toggleChat">
-      🤖
-    </el-button>
-
-    <!-- 聊天面板 -->
-    <div v-if="chatOpen" class="chat-panel">
-      <div class="chat-header">
-        <span>智能助手</span>
-        <el-button link type="danger" @click="toggleChat">关闭</el-button>
-      </div>
-      <div class="chat-body">
-        <div
-          v-for="(msg, idx) in chatMessages"
-          :key="idx"
-          :class="['bubble', msg.role === 'user' ? 'user-bubble' : 'assistant-bubble']"
-        >
-          {{ msg.content }}
-        </div>
-        <div v-if="chatLoading" class="bubble assistant-bubble">正在生成...</div>
-      </div>
-      <div class="chat-footer">
-        <el-input
-          v-model="chatInput"
-          placeholder="请输入问题，按回车发送"
-          @keyup.enter="!chatLoading && sendChat()"
-        />
-        <el-button type="primary" :loading="chatLoading" @click="sendChat">发送</el-button>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -830,84 +758,5 @@ onBeforeUnmount(() => {
 .mr-6 {
   margin-right: 6px;
   margin-bottom: 4px;
-}
-
-.fab-chat {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-  z-index: 999;
-}
-
-.chat-panel {
-  position: fixed;
-  right: 24px;
-  bottom: 90px;
-  width: 360px;
-  max-height: 520px;
-  background: var(--surface, #fff);
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
-  z-index: 998;
-  display: flex;
-  flex-direction: column;
-}
-
-.chat-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: 700;
-}
-
-.chat-body {
-  padding: 12px;
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.bubble {
-  padding: 10px 12px;
-  border-radius: 12px;
-  max-width: 85%;
-  white-space: pre-wrap;
-  line-height: 1.5;
-}
-
-.user-bubble {
-  align-self: flex-end;
-  background: #2563eb;
-  color: #fff;
-}
-
-.assistant-bubble {
-  align-self: flex-start;
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.chat-footer {
-  padding: 12px;
-  border-top: 1px solid #e2e8f0;
-  display: flex;
-  gap: 8px;
-}
-
-@media (max-width: 768px) {
-  .chat-panel {
-    width: calc(100vw - 24px);
-    right: 12px;
-    bottom: 80px;
-  }
 }
 </style>
