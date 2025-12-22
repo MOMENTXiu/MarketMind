@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
 import type { UploadInstance, UploadProps } from 'element-plus'
-import { UploadFilled } from '@element-plus/icons-vue'
+import { UploadFilled, ArrowLeft } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const currentStep = ref(0)
@@ -80,7 +80,9 @@ const createProject = async () => {
   <div class="container-breath">
     <!-- Header -->
     <div class="focus-header">
-      <button class="btn-back" @click="$router.push('/projects')">←</button>
+      <button class="btn-back" @click="$router.push('/projects')">
+        <el-icon><ArrowLeft /></el-icon>
+      </button>
       <h1 class="text-display" style="font-size: 1.8rem;">新建项目</h1>
     </div>
 

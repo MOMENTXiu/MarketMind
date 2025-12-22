@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
-import { Connection, Setting, Check, Close } from '@element-plus/icons-vue'
+import { Connection, Setting, Cpu, Microphone, Headset, ArrowLeft } from '@element-plus/icons-vue'
 
 const protocol = ref('http')
 const ip = ref('127.0.0.1')
@@ -36,7 +36,7 @@ interface TTSConfig {
 }
 
 const ttsConfig = ref<TTSConfig>({
-  voice: 'zh-CN-YunxiNeural',
+  voice: 'zh-CN-XiaoxiaoNeural',
   rate: '+0%',
   volume: '+0%'
 })
@@ -44,35 +44,27 @@ const ttsConfig = ref<TTSConfig>({
 const ttsTesting = ref(false)
 const ttsSaving = ref(false)
 
-// Slider values (for UI binding)
+// Slider values
 const rateValue = ref(0)
 const volumeValue = ref(0)
 
-// Convert slider value to percentage string
-const updateRate = (val: number) => {
-  ttsConfig.value.rate = val >= 0 ? `+${val}%` : `${val}%`
-}
+const updateRate = (val: number) => { ttsConfig.value.rate = val >= 0 ? `+${val}%` : `${val}%` }
+const updateVolume = (val: number) => { ttsConfig.value.volume = val >= 0 ? `+${val}%` : `${val}%` }
 
-const updateVolume = (val: number) => {
-  ttsConfig.value.volume = val >= 0 ? `+${val}%` : `${val}%`
-}
-
-// Get friendly voice name
 const getVoiceName = (voice: string) => {
   const names: Record<string, string> = {
-    'zh-CN-YunxiNeural': '云希 (男声 - 专业)',
-    'zh-CN-XiaoxiaoNeural': '晓晓 (女声 - 温柔)',
-    'zh-CN-YunyangNeural': '云扬 (男声 - 活力)',
-    'zh-CN-XiaoyiNeural': '晓伊 (女声 - 活泼)',
-    'zh-CN-YunjianNeural': '云健 (男声 - 稳重)',
-    'zh-CN-XiaomengNeural': '晓梦 (女声 - 温暖)',
-    'zh-CN-YunyeNeural': '云野 (男声 - 清晰)',
-    'zh-CN-XiaomoNeural': '晓墨 (女声 - 知性)'
+    'zh-CN-XiaoxiaoNeural': '晓晓 (女声)',
+    'zh-CN-YunyangNeural': '云扬 (男声)',
+    'zh-CN-XiaoyiNeural': '晓伊 (女声)',
+    'zh-CN-YunjianNeural': '云健 (男声)',
+    'zh-CN-XiaohanNeural': '晓涵 (女声)',
+    'zh-CN-XiaomengNeural': '晓梦 (女声)',
+    'zh-CN-YunyeNeural': '云野 (男声)',
+    'zh-CN-XiaomoNeural': '晓墨 (女声)'
   }
   return names[voice] || voice
 }
 
-// Load existing config
 const loadConfig = () => {
   const savedUrl = localStorage.getItem('API_BASE_URL')
   if (savedUrl) {
@@ -82,8 +74,10 @@ const loadConfig = () => {
       ip.value = url.hostname
       port.value = url.port || (protocol.value === 'https' ? '443' : '80')
     } catch (e) {
-      console.error('Failed to parse saved API URL', e)
+      protocol.value = 'http'
     }
+  } else {
+    protocol.value = 'http'
   }
 
   // Load LLM config
@@ -101,9 +95,8 @@ const loadConfig = () => {
   if (savedTTS) {
     try {
       ttsConfig.value = JSON.parse(savedTTS)
-      // Initialize slider values
-      rateValue.value = parseInt(ttsConfig.value.rate.replace('%', ''))
-      volumeValue.value = parseInt(ttsConfig.value.volume.replace('%', ''))
+      rateValue.value = parseInt(ttsConfig.value.rate.replace('%', '').replace('+', '')) || 0
+      volumeValue.value = parseInt(ttsConfig.value.volume.replace('%', '').replace('+', '')) || 0
     } catch (e) {
       console.error('Failed to parse TTS config', e)
     }
@@ -115,9 +108,7 @@ const testAndSave = async () => {
   testLoading.value = true
   
   try {
-    // Attempt to ping the health endpoint at the NEW address
     const response = await axios.get(`${baseUrl}/api/health`, { timeout: 5000 })
-    
     if (response.status === 200) {
       localStorage.setItem('API_BASE_URL', baseUrl)
       connectionStatus.value = 'connected'
@@ -165,7 +156,6 @@ const testLLMConnection = async () => {
   llmTesting.value = true
   try {
     const headers: Record<string, string> = {}
-
     if (llmConfig.value.provider === 'openai') {
       headers['Authorization'] = `Bearer ${llmConfig.value.apiKey}`
     } else if (llmConfig.value.provider === 'claude') {
@@ -182,7 +172,6 @@ const testLLMConnection = async () => {
       ElMessage.success('连接成功！LLM API 配置正常')
     }
   } catch (error: any) {
-    console.error('LLM connection test failed:', error)
     const msg = error.response?.data?.error?.message || error.message || '连接失败'
     ElMessage.error(`连接测试失败: ${msg}`)
   } finally {
@@ -232,23 +221,22 @@ const saveTTSConfig = () => {
 const testTTS = async () => {
   ttsTesting.value = true
   try {
-    const response = await axios.post('/api/tts', {
-      text: `您好，这是 ${ttsConfig.value.voice} 的语音测试，语速${ttsConfig.value.rate}，音量${ttsConfig.value.volume}。`,
+    const { data } = await axios.post('/api/voice/tts', {
+      text: "测试语音播报效果，欢迎使用超市 AI 营销系统。",
       voice: ttsConfig.value.voice,
       rate: ttsConfig.value.rate,
       volume: ttsConfig.value.volume
     })
 
-    if (response.data.success) {
-      // 播放音频
-      const audio = new Audio(response.data.audio_url)
+    if (data.success) {
+      const baseUrl = localStorage.getItem('API_BASE_URL') || ''
+      const fullAudioUrl = data.audio_url.startsWith('http') ? data.audio_url : `${baseUrl}${data.audio_url}`
+      const audio = new Audio(fullAudioUrl)
       audio.play()
-      ElMessage.success('语音测试成功')
+      ElMessage.success('试听成功')
     }
   } catch (error: any) {
-    console.error('TTS test failed:', error)
-    const msg = error.response?.data?.detail || error.message
-    ElMessage.error(`测试失败: ${msg}`)
+    ElMessage.error('TTS 测试失败')
   } finally {
     ttsTesting.value = false
   }
@@ -273,29 +261,31 @@ onMounted(() => {
         <section class="glass-settings-card">
           <div class="card-header-minimal">
             <div class="header-info">
-              <h3 class="card-title">服务器地址</h3>
+              <h3 class="card-title" style="display: flex; align-items: center; gap: 12px">
+                <el-icon><Connection /></el-icon> 服务器地址
+              </h3>
               <p class="card-desc">配置后端 API 的访问基准地址</p>
             </div>
           </div>
 
           <div class="glass-form">
-            <div class="form-row-adaptive">
-              <div class="glass-form-item protocol">
+            <div class="form-row-precise">
+              <div class="field-protocol">
                 <label>协议</label>
-                <el-select v-model="protocol" size="large">
+                <el-select v-model="protocol" class="full-width">
                   <el-option label="http://" value="http" />
                   <el-option label="https://" value="https" />
                 </el-select>
               </div>
               
-              <div class="glass-form-item ip">
+              <div class="field-ip">
                 <label>后端 IP / 域名</label>
-                <el-input v-model="ip" placeholder="127.0.0.1" size="large" />
+                <el-input v-model="ip" placeholder="127.0.0.1" />
               </div>
 
-              <div class="glass-form-item port">
+              <div class="field-port">
                 <label>端口</label>
-                <el-input v-model="port" placeholder="8000" size="large" />
+                <el-input v-model="port" placeholder="8000" />
               </div>
             </div>
 
@@ -311,7 +301,7 @@ onMounted(() => {
                 type="primary" 
                 @click="testAndSave" 
                 :loading="testLoading"
-                class="btn-glass-action"
+                class="btn-premium"
               >
                 测试并保存
               </el-button>
@@ -323,47 +313,43 @@ onMounted(() => {
         <section class="glass-settings-card">
           <div class="card-header-minimal">
             <div class="header-info">
-              <h3 class="card-title">🤖 AI 模型设置</h3>
+              <h3 class="card-title" style="display: flex; align-items: center; gap: 10px">
+                <el-icon><Cpu /></el-icon> AI 模型设置
+              </h3>
               <p class="card-desc">配置 LLM 服务，用于生成智能播报文案</p>
             </div>
           </div>
 
           <div class="glass-form">
-            <!-- 快捷模板 -->
-            <div class="template-buttons">
-              <span class="template-label">快捷模板：</span>
-              <el-button size="small" @click="applyTemplate('openai')">OpenAI</el-button>
-              <el-button size="small" @click="applyTemplate('claude')">Claude</el-button>
-              <el-button size="small" @click="applyTemplate('deepseek')">DeepSeek</el-button>
+            <div class="template-pills">
+              <span class="template-label">快捷模板:</span>
+              <button @click="applyTemplate('openai')">OpenAI</button>
+              <button @click="applyTemplate('claude')">Claude</button>
+              <button @click="applyTemplate('deepseek')">DeepSeek</button>
             </div>
 
-            <div class="form-row-adaptive">
-              <div class="glass-form-item" style="flex: 1; min-width: 200px;">
+            <div class="form-row-precise">
+              <div style="flex: 1">
                 <label>模型类型</label>
-                <el-select v-model="llmConfig.provider" size="large" style="width: 100%">
+                <el-select v-model="llmConfig.provider" class="full-width">
                   <el-option label="OpenAI 类型" value="openai" />
                   <el-option label="Claude 类型" value="claude" />
                 </el-select>
               </div>
 
-              <div class="glass-form-item" style="flex: 2; min-width: 250px;">
+              <div style="flex: 2">
                 <label>模型名称</label>
                 <el-input
                   v-model="llmConfig.modelName"
                   placeholder="gpt-4o, claude-3-5-sonnet 等"
-                  size="large"
                 />
               </div>
             </div>
 
             <div class="glass-form-item">
-              <label>API 服务器</label>
-              <el-input
-                v-model="llmConfig.baseUrl"
-                placeholder="https://api.openai.com/v1"
-                size="large"
-              />
-              <div class="form-hint">支持自定义代理地址</div>
+              <label>API 服务器 (Base URL)</label>
+              <el-input v-model="llmConfig.baseUrl" placeholder="https://api.openai.com/v1" />
+              <p class="hint-text" style="margin-top: 4px">支持第三方转发代理或自建中转地址</p>
             </div>
 
             <div class="glass-form-item">
@@ -373,22 +359,20 @@ onMounted(() => {
                 type="password"
                 placeholder="sk-..."
                 show-password
-                size="large"
               />
-              <div class="form-hint">密钥仅保存在本地浏览器，不会上传服务器</div>
             </div>
 
             <div class="glass-actions">
-              <div class="llm-info-text">
-                🔊 用于生成语音播报文案 (Edge-TTS)
+              <div class="hint-text">
+                用于生成语音播报文案 (Edge-TTS)
               </div>
 
               <div style="display: flex; gap: 12px;">
-                <el-button @click="testLLMConnection" :loading="llmTesting" class="btn-glass-action">
+                <el-button @click="testLLMConnection" :loading="llmTesting">
                   测试连接
                 </el-button>
-                <el-button type="primary" @click="saveLLMConfig" :loading="llmSaving" class="btn-glass-action">
-                  保存配置
+                <el-button type="primary" @click="saveLLMConfig" :loading="llmSaving" class="btn-premium">
+                  保存 AI 配置
                 </el-button>
               </div>
             </div>
@@ -399,7 +383,9 @@ onMounted(() => {
         <section class="glass-settings-card">
           <div class="card-header-minimal">
             <div class="header-info">
-              <h3 class="card-title">🔊 语音播报设置</h3>
+              <h3 class="card-title" style="display: flex; align-items: center; gap: 10px">
+                <el-icon><Microphone /></el-icon> 语音播报设置
+              </h3>
               <p class="card-desc">配置 Edge-TTS 语音合成参数</p>
             </div>
           </div>
@@ -407,22 +393,21 @@ onMounted(() => {
           <div class="glass-form">
             <div class="glass-form-item">
               <label>语音模型</label>
-              <el-select v-model="ttsConfig.voice" size="large" style="width: 100%">
-                <el-option label="云希 (男声 - 专业)" value="zh-CN-YunxiNeural" />
-                <el-option label="晓晓 (女声 - 温柔)" value="zh-CN-XiaoxiaoNeural" />
-                <el-option label="云扬 (男声 - 活力)" value="zh-CN-YunyangNeural" />
-                <el-option label="晓伊 (女声 - 活泼)" value="zh-CN-XiaoyiNeural" />
-                <el-option label="云健 (男声 - 稳重)" value="zh-CN-YunjianNeural" />
-                <el-option label="晓梦 (女声 - 温暖)" value="zh-CN-XiaomengNeural" />
-                <el-option label="云野 (男声 - 清晰)" value="zh-CN-YunyeNeural" />
-                <el-option label="晓墨 (女声 - 知性)" value="zh-CN-XiaomoNeural" />
+              <el-select v-model="ttsConfig.voice" class="full-width">
+                <el-option label="晓晓 (女声)" value="zh-CN-XiaoxiaoNeural" />
+                <el-option label="云扬 (男声)" value="zh-CN-YunyangNeural" />
+                <el-option label="晓伊 (女声)" value="zh-CN-XiaoyiNeural" />
+                <el-option label="云健 (男声)" value="zh-CN-YunjianNeural" />
+                <el-option label="晓涵 (女声)" value="zh-CN-XiaohanNeural" />
+                <el-option label="晓梦 (女声)" value="zh-CN-XiaomengNeural" />
+                <el-option label="云野 (男声)" value="zh-CN-YunyeNeural" />
+                <el-option label="晓墨 (女声)" value="zh-CN-XiaomoNeural" />
               </el-select>
-              <div class="form-hint">选择播报语音的音色和风格</div>
             </div>
 
-            <div class="form-row-adaptive">
-              <div class="glass-form-item" style="flex: 1;">
-                <label>语速调整 ({{ ttsConfig.rate }})</label>
+            <div class="form-row-precise">
+              <div style="flex: 1;">
+                <label>语速 ({{ ttsConfig.rate }})</label>
                 <el-slider
                   v-model="rateValue"
                   :min="-50"
@@ -433,8 +418,8 @@ onMounted(() => {
                 />
               </div>
 
-              <div class="glass-form-item" style="flex: 1;">
-                <label>音量调整 ({{ ttsConfig.volume }})</label>
+              <div style="flex: 1;">
+                <label>音量 ({{ ttsConfig.volume }})</label>
                 <el-slider
                   v-model="volumeValue"
                   :min="-50"
@@ -446,28 +431,24 @@ onMounted(() => {
               </div>
             </div>
 
-            <div class="info-grid">
-              <div class="info-item">
-                <div class="info-label">语音引擎</div>
-                <div class="info-value">Microsoft Edge TTS</div>
+            <div class="info-grid-settings">
+              <div class="info-tag-item">
+                <span class="it-l">引擎</span>
+                <span class="it-v">Edge TTS</span>
               </div>
-              <div class="info-item">
-                <div class="info-label">当前语音</div>
-                <div class="info-value">{{ getVoiceName(ttsConfig.voice) }}</div>
-              </div>
-              <div class="info-item">
-                <div class="info-label">工作流程</div>
-                <div class="info-value">LLM 生成文案 → TTS 语音合成</div>
+              <div class="info-tag-item">
+                <span class="it-l">采样</span>
+                <span class="it-v">24kHz</span>
               </div>
             </div>
 
             <div class="glass-actions">
               <div style="display: flex; gap: 12px;">
-                <el-button @click="testTTS" :loading="ttsTesting" class="btn-glass-action">
-                  🎧 试听语音
+                <el-button @click="testTTS" :loading="ttsTesting">
+                  <el-icon style="margin-right: 6px"><Headset /></el-icon> 试听语音
                 </el-button>
-                <el-button type="primary" @click="saveTTSConfig" :loading="ttsSaving" class="btn-glass-action">
-                  保存配置
+                <el-button type="primary" @click="saveTTSConfig" :loading="ttsSaving" class="btn-premium">
+                  保存语音配置
                 </el-button>
               </div>
             </div>
@@ -493,7 +474,7 @@ onMounted(() => {
 
 <style scoped>
 .settings-page-wrapper {
-  min-height: calc(100vh - 64px);
+  min-height: 100vh;
   display: flex;
   justify-content: center;
   padding: 60px 24px;
@@ -517,7 +498,6 @@ onMounted(() => {
   gap: 24px;
 }
 
-/* 75% 不透明度圆角矩形卡片 */
 .glass-settings-card {
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(20px);
@@ -540,35 +520,20 @@ html.dark .glass-settings-card {
 }
 
 .card-header-minimal {
-  display: flex;
-  gap: 20px;
-  align-items: center;
   margin-bottom: 32px;
-}
-
-.icon-circle {
-  width: 48px;
-  height: 48px;
-  background: var(--text-primary);
-  color: var(--color-bg-base);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
 }
 
 .card-title {
   font-size: 1.25rem;
-  font-weight: 700;
-  margin: 0 0 4px 0;
+  font-weight: 800;
   color: var(--text-primary);
+  margin: 0;
 }
 
 .card-desc {
   font-size: 0.9rem;
   color: var(--text-tertiary);
-  margin: 0;
+  margin: 4px 0 0 0;
 }
 
 .glass-form {
@@ -577,28 +542,24 @@ html.dark .glass-settings-card {
   gap: 24px;
 }
 
-.form-row-adaptive {
+.form-row-precise {
   display: flex;
   gap: 16px;
-  flex-wrap: wrap;
+  align-items: flex-end;
 }
 
-.glass-form-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+.field-protocol { flex: 0 0 140px; }
+.field-ip { flex: 1; }
+.field-port { flex: 0 0 100px; }
 
-.glass-form-item label {
-  font-size: 0.85rem;
-  font-weight: 600;
+label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
   color: var(--text-secondary);
+  margin-bottom: 8px;
   padding-left: 4px;
 }
-
-.protocol { width: 120px; }
-.ip { flex: 1; min-width: 200px; }
-.port { width: 100px; }
 
 .glass-actions {
   display: flex;
@@ -652,11 +613,63 @@ html.dark .connection-status-pill {
   color: var(--text-secondary);
 }
 
-.btn-glass-action {
+.template-pills {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--nav-pill-bg);
+  padding: 8px 16px;
+  border-radius: 12px;
+}
+
+.template-pills button {
+  border: none;
+  background: var(--color-surface);
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.template-pills button:hover {
+  background: var(--color-accent);
+  color: white;
+}
+
+.btn-premium {
   border-radius: 12px !important;
-  padding: 12px 28px !important;
+  padding: 12px 24px !important;
   font-weight: 700 !important;
 }
+
+.hint-text {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.info-grid-settings {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.info-tag-item {
+  background: var(--nav-pill-bg);
+  padding: 6px 14px;
+  border-radius: 10px;
+  display: flex;
+  gap: 8px;
+  font-size: 0.75rem;
+  border: 1px solid var(--border-subtle);
+}
+
+.it-l { color: var(--text-tertiary); font-weight: 600; }
+.it-v { color: var(--text-primary); font-weight: 700; }
 
 .placeholder-content-glass {
   color: var(--text-tertiary);
@@ -667,55 +680,5 @@ html.dark .connection-status-pill {
   border-radius: 16px;
 }
 
-/* Element Plus Overrides for Glass effect */
-:deep(.el-input__wrapper), :deep(.el-select .el-input__wrapper) {
-  background-color: rgba(0, 0, 0, 0.02) !important;
-  box-shadow: none !important;
-  border: 1px solid transparent !important;
-}
-
-html.dark :deep(.el-input__wrapper) {
-  background-color: rgba(255, 255, 255, 0.03) !important;
-}
-
-:deep(.el-input__wrapper.is-focus) {
-  background-color: var(--color-surface) !important;
-  border-color: var(--color-accent) !important;
-  box-shadow: var(--shadow-glow) !important;
-}
-
-/* LLM Config Styles */
-.template-buttons {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.02);
-  border-radius: 12px;
-  margin-bottom: 16px;
-}
-
-html.dark .template-buttons {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.template-label {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-
-.form-hint {
-  font-size: 0.8rem;
-  color: var(--text-tertiary);
-  margin-top: 6px;
-  padding-left: 4px;
-}
-
-.llm-info-text {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-
+.full-width { width: 100%; }
 </style>

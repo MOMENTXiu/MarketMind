@@ -12,15 +12,19 @@ from pathlib import Path
 
 router = APIRouter()
 service = VoiceService()
-tts_service = TTSService(voice="zh-CN-YunxiNeural")
+tts_service = TTSService(voice="zh-CN-XiaoxiaoNeural")
 
 class SimpleTTSRequest(BaseModel):
     text: str
+    voice: str | None = "zh-CN-XiaoxiaoNeural"
+    rate: str | None = "+0%"
+    volume: str | None = "+0%"
 
 @router.post("/tts")
 async def text_to_speech(request: SimpleTTSRequest):
     """
     极简 TTS 接口：文本 -> 音频访问路径
+    支持自定义语音、语速和音量
     """
     try:
         file_id = uuid4().hex
@@ -29,7 +33,13 @@ async def text_to_speech(request: SimpleTTSRequest):
         filename = f"tts_{file_id}.mp3"
         filepath = output_dir / filename
         
-        await tts_service.synthesize(request.text, str(filepath))
+        await tts_service.synthesize(
+            request.text, 
+            str(filepath), 
+            voice=request.voice, 
+            rate=request.rate, 
+            volume=request.volume
+        )
         
         return {
             "success": True,

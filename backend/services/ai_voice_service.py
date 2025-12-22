@@ -12,7 +12,7 @@ import tempfile
 class AIVoiceService:
     """AI 语音播报服务类"""
 
-    VOICE_NAME = "zh-CN-YunxiNeural"  # 使用云希语音
+    VOICE_NAME = "zh-CN-XiaoxiaoNeural"  # 使用晓晓语音（女声）
     VOICE_RATE = "+0%"  # 语速
     VOICE_VOLUME = "+0%"  # 音量
 
@@ -31,10 +31,42 @@ class AIVoiceService:
         """
         # 根据场景类型构建 prompt
         prompts = {
-            "clustering": "你是一位商业顾问。请将以下客户聚类分析数据转化为一段简短、专业、富有行动建议的中文播报词（50字以内）。重点突出该群体特征和营销策略建议。严禁输出代码或 JSON，只输出纯文字播报词。",
-            "association": "你是一位商业顾问。请将以下商品关联规则数据转化为一段简短、专业、富有行动建议的中文播报词（50字以内）。重点突出商品关联性和销售建议。严禁输出代码或 JSON，只输出纯文字播报词。",
-            "prediction": "你是一位商业顾问。请将以下销售预测数据转化为一段简短、专业、富有行动建议的中文播报词（50字以内）。重点突出未来趋势和备货建议。严禁输出代码或 JSON，只输出纯文字播报词。",
-            "summary": "你是一位商业顾问。请将以下营销分析数据转化为一段简短、专业、富有行动建议的中文播报词（80字以内）。概括核心洞察和行动建议。严禁输出代码或 JSON，只输出纯文字播报词。"
+            "clustering": """你是一位资深零售数据分析师。请将以下客户聚类分析数据转化为一段专业的营销播报词（100-150字）。
+
+播报要求：
+1. 说明这是哪个客户群体，有多少人
+2. 描述该群体的核心消费特征（用具体数字）
+3. 给出2-3条具体的营销建议
+4. 用商业播报的语气，简洁有力
+
+严禁输出代码、JSON或markdown格式，只输出纯文字播报内容。""",
+            "association": """你是一位资深零售数据分析师。请将以下商品关联规则分析数据转化为一段专业的营销播报词（100-150字）。
+
+播报要求：
+1. 说明发现了哪些商品关联
+2. 用具体数字说明关联强度
+3. 给出具体的捆绑销售建议
+4. 用商业播报的语气，简洁有力
+
+严禁输出代码、JSON或markdown格式，只输出纯文字播报内容。""",
+            "prediction": """你是一位资深零售数据分析师。请将以下销售预测数据转化为一段专业的营销播报词（100-150字）。
+
+播报要求：
+1. 说明预测的时间范围和趋势
+2. 用具体数字描述预测结果
+3. 给出备货和促销建议
+4. 用商业播报的语气，简洁有力
+
+严禁输出代码、JSON或markdown格式，只输出纯文字播报内容。""",
+            "summary": """你是一位资深零售数据分析师。请将以下营销分析数据转化为一段专业的总结播报词（100-150字）。
+
+播报要求：
+1. 概括核心发现（用具体数据）
+2. 给出优先级最高的行动建议
+3. 说明预期效果
+4. 用商业播报的语气，简洁有力
+
+严禁输出代码、JSON或markdown格式，只输出纯文字播报内容。"""
         }
 
         system_prompt = prompts.get(scene_type, prompts["summary"])
@@ -79,7 +111,7 @@ class AIVoiceService:
                         {"role": "system", "content": system},
                         {"role": "user", "content": user}
                     ],
-                    "max_tokens": 200,
+                    "max_tokens": 400,
                     "temperature": 0.7
                 }
             )
@@ -104,7 +136,7 @@ class AIVoiceService:
                     "messages": [
                         {"role": "user", "content": user}
                     ],
-                    "max_tokens": 200
+                    "max_tokens": 400
                 }
             )
             response.raise_for_status()
@@ -114,13 +146,25 @@ class AIVoiceService:
     @staticmethod
     def _generate_fallback_script(data: Dict[str, Any], scene_type: str) -> str:
         """降级文案生成（LLM 失败时使用）"""
-        fallback_templates = {
-            "clustering": "该客户群体具有独特的消费特征，建议采取针对性营销策略以提升转化率。",
-            "association": "发现多组商品存在强关联关系，建议实施捆绑销售策略以提升客单价。",
-            "prediction": "销售数据呈现上升趋势，建议提前备货以应对未来需求增长。",
-            "summary": "本次分析揭示了重要的市场洞察，建议及时调整营销策略以把握商机。"
-        }
-        return fallback_templates.get(scene_type, fallback_templates["summary"])
+
+        if scene_type == "clustering":
+            cluster_name = data.get("cluster_name", "客户群体")
+            customer_count = data.get("customer_count", "若干")
+            avg_order = data.get("avg_order_value", 0)
+            recency = data.get("recency", 0)
+            frequency = data.get("frequency", 0)
+            strategy = data.get("marketing_strategy", "采取针对性营销策略")
+
+            return f"""根据RFM聚类分析，识别出{cluster_name}，共{customer_count}位客户，最近消费距今{recency}天，平均消费{frequency}次，客单价{avg_order}元。建议{strategy}，通过优化商品推荐和专属优惠活动，提升该群体的复购率和客单价。"""
+
+        elif scene_type == "association":
+            return f"""通过商品关联规则分析，发现多组商品存在显著购买关联性，支持度和置信度均达标。建议将关联商品就近摆放，推出组合促销套餐，预计可提升15%到25%的连带销售率，并在收银台设置关联商品提醒。"""
+
+        elif scene_type == "prediction":
+            return f"""基于时间序列预测模型，销售数据呈现季节性波动和上升趋势，预计未来销量保持稳定增长。建议提前做好库存准备，确保热销商品充足供应，关注天气和节假日因素，灵活调整备货和促销策略。"""
+
+        else:  # summary
+            return f"""本次数据分析从客户细分、商品关联、销售预测等维度深入挖掘。核心发现包括识别高价值客户群体、发现商品购买关联规律、预测销售趋势。建议优先针对高价值客户精准营销，优化商品陈列和捆绑销售，根据预测做好库存规划，预计可带来10%到20%的业绩提升。"""
 
     @staticmethod
     async def text_to_speech(
@@ -136,7 +180,7 @@ class AIVoiceService:
         Args:
             text: 要转换的文本
             output_path: 输出文件路径（可选，默认使用临时文件）
-            voice: 语音模型（可选，默认 zh-CN-YunxiNeural）
+            voice: 语音模型（可选，默认 zh-CN-XiaoxiaoNeural）
             rate: 语速（可选，默认 +0%）
             volume: 音量（可选，默认 +0%）
 
@@ -157,16 +201,26 @@ class AIVoiceService:
         # 确保输出目录存在
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-        # 使用 edge-tts 生成语音
-        communicate = edge_tts.Communicate(
-            text,
-            voice_name,
-            rate=voice_rate,
-            volume=voice_volume
-        )
+        try:
+            # 使用 edge-tts 生成语音
+            communicate = edge_tts.Communicate(
+                text,
+                voice_name,
+                rate=voice_rate,
+                volume=voice_volume
+            )
 
-        await communicate.save(output_path)
-        return output_path
+            await communicate.save(output_path)
+            return output_path
+        except Exception as e:
+            error_msg = str(e)
+            if "No audio was received" in error_msg:
+                raise Exception(
+                    "Edge-TTS 服务暂时不可用，可能是网络连接问题。"
+                    "请检查网络连接或稍后再试。"
+                )
+            else:
+                raise Exception(f"TTS 合成失败: {error_msg}")
 
     @staticmethod
     async def generate_voice_broadcast(

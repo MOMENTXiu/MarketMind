@@ -480,17 +480,15 @@ wheels = [
 
 [[package]]
 name = "edge-tts"
-version = "7.2.3"
+version = "6.1.19"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "certifi" },
-    { name = "tabulate" },
-    { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e8/d0/db9a841ac29f119ca8e3d2a22325849997c571a4f31f728042c5fdbdff33/edge_tts-7.2.3.tar.gz", hash = "sha256:b85e271181cd52656934069237bfc3853335a17f7e51a4f7116e2936d32e62d2", size = 27308, upload-time = "2025-08-28T21:13:53.376Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2b/81/58663476b9afe5ae7f28767d6cadffbf30ed99063a219e213edacecb841b/edge_tts-6.1.19.tar.gz", hash = "sha256:52fdfbaef2b3afee98bbba5e5c6365b5a6156fe78fe4e81e55749f7a563add38", size = 20131, upload-time = "2024-11-22T01:18:03.991Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c3/c6/9387c3f9decdd9780dfe21b7d9c0831aafd5d6813baf4f17b50afc7b7d77/edge_tts-7.2.3-py3-none-any.whl", hash = "sha256:62c87df25dedb6cd565cbdf87c639e01c466095b1e8f48ab8fa9efbb2123f53c", size = 30349, upload-time = "2025-08-28T21:13:52.145Z" },
+    { url = "https://files.pythonhosted.org/packages/52/8d/6b91e2efa7e6f2438888142a66ff053e2bc301b8eddd3cb0fd2452644890/edge_tts-6.1.19-py3-none-any.whl", hash = "sha256:af49ea0539f54b0d76a73bc76cefd9deb2010a11c5ee2a189967e15830a6ba37", size = 22125, upload-time = "2024-11-22T01:18:01.14Z" },
 ]
 
 [[package]]
@@ -1105,6 +1103,7 @@ dependencies = [
     { name = "aiofiles" },
     { name = "edge-tts" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "matplotlib" },
     { name = "mlxtend" },
     { name = "numpy" },
@@ -1134,8 +1133,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiofiles", specifier = ">=25.1.0" },
-    { name = "edge-tts", specifier = ">=6.1.10" },
+    { name = "edge-tts", specifier = ">=6.1.10,<7.0.0" },
     { name = "fastapi", specifier = ">=0.123.5" },
+    { name = "httpx", specifier = ">=0.24.0" },
     { name = "matplotlib", specifier = ">=3.8.0" },
     { name = "mlxtend", specifier = ">=0.23.0" },
     { name = "numpy", specifier = ">=1.26.0" },
@@ -2300,15 +2300,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e5/be/89ee065e06597bf12bff0c76299fabd255971c882c1d572a8819dc1510bf/streamlit-1.52.0.tar.gz", hash = "sha256:572095458fbd68587776f4d39d7f89dcb4a54c0ee43572713026bd9963580af8", size = 8578948, upload-time = "2025-12-04T00:18:17.354Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/11/44/284b6c3b96d5705fafd6f75cffab4cbe047f836e6f0cf55916e044c92058/streamlit-1.52.0-py3-none-any.whl", hash = "sha256:ef59133890a3b0aa45674d54b258170cf56bcc4ab65a1b930fa7671a45fa760a", size = 9024661, upload-time = "2025-12-04T00:18:14.637Z" },
-]
-
-[[package]]
-name = "tabulate"
-version = "0.9.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ec/fe/802052aecb21e3797b8f7902564ab6ea0d60ff8ca23952079064155d1ae1/tabulate-0.9.0.tar.gz", hash = "sha256:0095b12bf5966de529c0feb1fa08671671b3368eec77d7ef7ab114be2c068b3c", size = 81090, upload-time = "2022-10-06T17:21:48.54Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/40/44/4a5f08c96eb108af5cb50b41f76142f0afa346dfa99d5296fe7202a11854/tabulate-0.9.0-py3-none-any.whl", hash = "sha256:024ca478df22e9340661486f85298cff5f6dcdba14f3813e8830015b9ed1948f", size = 35252, upload-time = "2022-10-06T17:21:44.262Z" },
 ]
 
 [[package]]

@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
+import { Search, Delete, Folder, Plus, FolderOpened, ArrowRight } from '@element-plus/icons-vue'
 
 const router = useRouter()
 
@@ -105,7 +106,7 @@ onMounted(() => {
       <div class="header-actions">
         <!-- Search Pill -->
         <div class="search-pill">
-          <span class="search-icon">🔍</span>
+          <el-icon class="search-icon"><Search /></el-icon>
           <input 
             v-model="searchQuery" 
             type="text" 
@@ -114,8 +115,8 @@ onMounted(() => {
           >
         </div>
         
-        <el-button type="primary" class="btn-create" @click="createProject">
-          + 新建
+        <el-button type="primary" class="btn-create" @click="createProject" round>
+          <el-icon style="margin-right: 4px"><Plus /></el-icon> 新建项目
         </el-button>
       </div>
     </header>
@@ -139,7 +140,7 @@ onMounted(() => {
             {{ getStatusConfig(project.status).label }}
           </div>
           <button class="btn-icon-only" @click="(e) => deleteProject(e, project.id, project.name)">
-            🗑
+            <el-icon><Delete /></el-icon>
           </button>
         </div>
 
@@ -147,7 +148,7 @@ onMounted(() => {
         <div class="card-body">
           <h3 class="project-title">{{ project.name }}</h3>
           <p class="project-meta">
-            <span class="meta-icon">📁</span>
+            <el-icon class="meta-icon"><Folder /></el-icon>
             {{ project.dataset_filename || '无数据集' }}
           </p>
         </div>
@@ -155,14 +156,14 @@ onMounted(() => {
         <!-- Card Footer -->
         <div class="card-footer">
           <span class="time-tag">{{ formatDate(project.created_at) }}</span>
-          <span class="arrow-icon">→</span>
+          <el-icon class="arrow-icon"><ArrowRight /></el-icon>
         </div>
       </div>
     </div>
 
     <!-- Empty State -->
     <div v-else class="empty-state">
-      <div class="empty-icon">📂</div>
+      <el-icon class="empty-icon"><FolderOpened /></el-icon>
       <h3>暂无项目</h3>
       <p>开始您的第一个数据分析任务吧</p>
       <el-button type="primary" @click="createProject" style="margin-top: 24px;">创建项目</el-button>
@@ -206,8 +207,9 @@ onMounted(() => {
 
 .search-icon {
   opacity: 0.5;
-  margin-right: 8px;
-  font-size: 0.9em;
+  margin-right: 10px;
+  font-size: 1.1rem;
+  color: var(--text-secondary);
 }
 
 .search-input {

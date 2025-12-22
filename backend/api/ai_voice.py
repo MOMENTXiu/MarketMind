@@ -4,7 +4,7 @@ AI 语音播报 API
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from pathlib import Path
 
 from backend.services.ai_voice_service import AIVoiceService
@@ -17,14 +17,14 @@ class VoiceBroadcastRequest(BaseModel):
     data: Dict[str, Any]
     llm_config: Dict[str, str]
     scene_type: str = "summary"
-    tts_config: Dict[str, str] = None
+    tts_config: Optional[Dict[str, str]] = None
 
 
 class TTSRequest(BaseModel):
     text: str
-    voice: str = None
-    rate: str = None
-    volume: str = None
+    voice: Optional[str] = None
+    rate: Optional[str] = None
+    volume: Optional[str] = None
 
 
 @router.post("/ai-voice/broadcast")

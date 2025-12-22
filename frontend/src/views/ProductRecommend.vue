@@ -67,7 +67,9 @@ const playVoice = async () => {
     subtitleText.value = text
     const res = await axios.post('/api/voice/tts', { text })
     if (res.data.success) {
-      audioUrl.value = res.data.audio_url
+      const baseUrl = localStorage.getItem('API_BASE_URL') || ''
+      audioUrl.value = res.data.audio_url.startsWith('http') ? res.data.audio_url : `${baseUrl}${res.data.audio_url}`
+      
       setTimeout(() => {
         audioRef.value?.play()
         showSubtitle.value = true
@@ -129,8 +131,12 @@ const stopVoice = () => {
             <!-- Recommendations List -->
             <div class="result-block-card glass-card" v-if="data.recommends?.length">
               <div class="block-header">
-                <h3>💡 关联建议</h3>
-                <el-button link type="primary" @click="playVoice" :loading="voiceLoading">🔊 语音解读</el-button>
+                <h3 style="display: flex; align-items: center; gap: 8px">
+                  <el-icon color="#E6A23C"><TrendCharts /></el-icon> 关联建议
+                </h3>
+                <el-button link type="primary" @click="playVoice" :loading="voiceLoading">
+                  <el-icon style="margin-right: 4px"><VideoPlay /></el-icon> 语音解读
+                </el-button>
               </div>
               <div class="rec-list-modern">
                 <div v-for="rec in data.recommends" :key="rec.item" class="rec-item-modern">
@@ -146,7 +152,9 @@ const stopVoice = () => {
             <!-- Target Clusters -->
             <div class="result-block-card glass-card" v-if="data.target_customers?.length">
               <div class="block-header">
-                <h3>👥 目标客群</h3>
+                <h3 style="display: flex; align-items: center; gap: 8px">
+                  <el-icon color="#409EFF"><User /></el-icon> 目标客群
+                </h3>
               </div>
               <div class="target-grid-modern">
                 <div v-for="tgt in data.target_customers" :key="tgt.cluster_name" class="target-card-modern">
@@ -208,15 +216,16 @@ const stopVoice = () => {
 }
 
 .btn-back {
-  background: white;
+  background: var(--color-surface);
+  color: var(--text-primary);
   border: 1px solid var(--border-subtle);
   transition: 0.3s;
 }
 
-.btn-back:hover { transform: translateX(-4px); }
+.btn-back:hover { transform: translateX(-4px); background: var(--color-surface-hover); }
 
 .mode-pills {
-  background: rgba(0,0,0,0.05);
+  background: var(--nav-pill-bg);
   padding: 4px;
   border-radius: 16px;
   display: flex;
@@ -239,18 +248,18 @@ const stopVoice = () => {
 }
 
 .mode-pills button.active {
-  background: white;
+  background: var(--color-surface);
   color: var(--text-primary);
   box-shadow: var(--shadow-sm);
 }
 
 .glass-search-focus {
-  background: white;
+  background: var(--color-surface);
   border-radius: 32px;
   padding: 40px;
   box-shadow: 0 20px 50px rgba(0,0,0,0.04);
   margin-bottom: 48px;
-  border: 1px solid rgba(0,0,0,0.02);
+  border: 1px solid var(--border-subtle);
 }
 
 .search-input-wrapper {
@@ -266,7 +275,8 @@ const stopVoice = () => {
   height: 60px !important;
   border-radius: 16px !important;
   font-size: 1.1rem !important;
-  background: #F8F9FA !important;
+  background: var(--color-bg-base) !important;
+  color: var(--text-primary) !important;
 }
 
 .btn-search-go {
@@ -283,12 +293,12 @@ const stopVoice = () => {
 }
 
 .glass-card {
-  background: rgba(255,255,255,0.8);
+  background: var(--navbar-bg);
   backdrop-filter: blur(20px);
   border-radius: 24px;
   padding: 32px;
   box-shadow: var(--shadow-sm);
-  border: 1px solid rgba(255,255,255,0.5);
+  border: 1px solid var(--border-subtle);
 }
 
 .block-header {
@@ -298,7 +308,7 @@ const stopVoice = () => {
   margin-bottom: 24px;
 }
 
-.block-header h3 { margin: 0; font-size: 1.25rem; font-weight: 800; }
+.block-header h3 { margin: 0; font-size: 1.25rem; font-weight: 800; color: var(--text-primary); }
 
 .rec-list-modern {
   display: flex;
@@ -307,16 +317,17 @@ const stopVoice = () => {
 }
 
 .rec-item-modern {
-  background: white;
+  background: var(--color-surface);
   padding: 16px 24px;
   border-radius: 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   transition: 0.3s;
+  border: 1px solid var(--border-subtle);
 }
 
-.rec-item-modern:hover { transform: scale(1.01); box-shadow: var(--shadow-sm); }
+.rec-item-modern:hover { transform: scale(1.01); box-shadow: var(--shadow-sm); border-color: var(--color-accent); }
 
 .item-name { font-weight: 700; font-size: 1.1rem; color: var(--text-primary); }
 .item-reason { font-size: 0.85rem; color: var(--text-tertiary); display: block; margin-top: 4px; }
@@ -329,15 +340,16 @@ const stopVoice = () => {
 }
 
 .target-card-modern {
-  background: white;
+  background: var(--color-surface);
   padding: 24px;
   border-radius: 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  border: 1px solid var(--border-subtle);
 }
 
-.cluster-label { font-weight: 800; font-size: 1.1rem; }
+.cluster-label { font-weight: 800; font-size: 1.1rem; color: var(--text-primary); }
 .target-stats { display: flex; gap: 16px; font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); }
 .target-stats span { color: var(--color-accent); font-weight: 800; }
 .target-strat { font-size: 0.85rem; color: var(--text-tertiary); line-height: 1.5; }

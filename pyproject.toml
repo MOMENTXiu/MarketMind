@@ -23,7 +23,8 @@ dependencies = [
     # Web界面
     "streamlit>=1.31.0",
     # 语音合成
-    "edge-tts>=6.1.10",
+    "edge-tts>=6.1.10,<7.0.0",
+    "httpx>=0.24.0",
     # 时间序列
     "statsmodels>=0.14.0",
     # 工具库

@@ -2,7 +2,7 @@
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { computed, ref, onMounted } from 'vue'
 import axios from 'axios'
-import { Moon, Sunny } from '@element-plus/icons-vue'
+import { Moon, Sunny, Plus } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const isHome = computed(() => route.path === '/')
@@ -91,9 +91,9 @@ onMounted(() => {
           </div>
           
           <RouterLink to="/projects/new">
-            <el-button type="primary">
-              <span class="btn-text">新建项目</span>
-              <span class="btn-icon">+</span>
+            <el-button type="primary" round>
+              <el-icon style="margin-right: 4px"><Plus /></el-icon>
+              <span>新建项目</span>
             </el-button>
           </RouterLink>
         </div>
