@@ -16,7 +16,7 @@ from backend.core.config import settings
 router = APIRouter(prefix="/recommend", tags=["推荐"])
 
 
-@router.get("/user")
+@router.get("/user/")
 async def recommend_for_user(user_id: str = Query(..., description="用户ID")):
     """
     正向：输入用户ID -> 推荐商品
@@ -49,7 +49,7 @@ async def recommend_for_user(user_id: str = Query(..., description="用户ID")):
         raise HTTPException(status_code=500, detail=f"推荐失败: {str(e)}")
 
 
-@router.get("/item")
+@router.get("/item/")
 async def recommend_for_item(item: str = Query(..., description="商品名称")):
     """
     逆向：输入商品 -> 返回双向关联拓扑图数据
@@ -80,7 +80,7 @@ class CalculateRequest(BaseModel):
     min_confidence: float = 0.1
 
 
-@router.post("/calculate")
+@router.post("/calculate/")
 async def calculate_rules(body: CalculateRequest):
     """
     实时计算关联规则 (Fallback)
@@ -114,7 +114,7 @@ async def calculate_rules(body: CalculateRequest):
         raise HTTPException(status_code=500, detail=f"实时计算失败: {str(e)}")
 
 
-@router.post("/tts/play")
+@router.post("/tts/play/")
 async def play_tts(body: TTSRequest):
     """读取 speech 文本生成 MP3，并返回URL"""
     try:

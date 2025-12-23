@@ -9,7 +9,7 @@ router = APIRouter()
 service = ClusteringService()
 
 
-@router.post("/analyze", response_model=ClusteringResponse)
+@router.post("/analyze/", response_model=ClusteringResponse)
 async def cluster_customers(request: ClusteringRequest):
     """
     执行客户聚类分析
@@ -27,7 +27,7 @@ async def cluster_customers(request: ClusteringRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/status")
+@router.get("/status/")
 async def get_clustering_status():
     """获取聚类服务状态"""
     return {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import http from '@/utils/http'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { Search, User, Goods, ArrowLeft, MagicStick, Refresh, Loading, VideoPlay } from '@element-plus/icons-vue'
@@ -73,9 +74,9 @@ const search = async (targetItem?: string) => {
   displayedText.value = ''
   
   try {
-    const { data: res } = await axios.get('/api/recommend/item', { params: { item: query } })
+    const { data: res } = await http.get('/api/recommend/item/', { params: { item: query } })
     data.value = res
-    
+
     // Trigger LLM insight
     generateLLMInsight()
     
@@ -125,7 +126,7 @@ const playInsightVoice = async () => {
   voiceLoading.value = true
   try {
     const savedTTS = JSON.parse(localStorage.getItem('tts_config') || '{}')
-    const { data: ttsData } = await axios.post('/api/voice/tts', {
+    const { data: ttsData } = await http.post('/api/voice/tts/', {
       text: insightText.value,
       voice: savedTTS.voice || 'zh-CN-YunxiNeural',
       rate: savedTTS.rate || '+0%',
@@ -133,9 +134,8 @@ const playInsightVoice = async () => {
     })
 
     if (ttsData.success) {
-      const baseUrl = localStorage.getItem('API_BASE_URL') || ''
-      audioUrl.value = ttsData.audio_url.startsWith('http') ? ttsData.audio_url : `${baseUrl}${ttsData.audio_url}`
-      
+      audioUrl.value = ttsData.audio_url
+
       setTimeout(() => {
         audioRef.value?.play()
       }, 100)
@@ -209,7 +209,7 @@ onMounted(async () => {
   const customerId = route.query.customerId
   if (customerId) {
     try {
-      const { data: customerRec } = await axios.get('/api/recommend/user', {
+      const { data: customerRec } = await http.get('/api/recommend/user/', {
         params: { user_id: customerId }
       })
       if (customerRec.recommends && customerRec.recommends.length > 0) {

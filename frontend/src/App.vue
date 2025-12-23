@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { computed, ref, onMounted } from 'vue'
-import axios from 'axios'
+import http from '@/utils/http'
 import { Moon, Sunny, Plus } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -13,7 +13,7 @@ const isDark = ref(false)
 
 const checkBackendHealth = async () => {
   try {
-    const response = await axios.get('/api/health')
+    const response = await http.get('/api/health/')
     if (response.data.status === 'healthy') {
       healthStatus.value = 'healthy'
     }

@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import axios from 'axios'
+import http from '@/utils/http'
 import { Search, Delete, Folder, Plus, FolderOpened, ArrowRight } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -25,7 +25,7 @@ const searchQuery = ref('')
 const loadProjects = async () => {
   loading.value = true
   try {
-    const response = await axios.get('/api/projects')
+    const response = await http.get('/api/projects/')
     if (response.data.success) {
       projects.value = response.data.data
     }
@@ -58,7 +58,7 @@ const deleteProject = async (e: Event, id: string, name: string) => {
       }
     )
 
-    const response = await axios.delete(`/api/projects/${id}`)
+    const response = await http.delete(`/api/projects/${id}/`)
     if (response.data.success) {
       ElMessage.success('项目已删除')
       loadProjects()

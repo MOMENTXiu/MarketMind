@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import axios from 'axios'
+import http from '@/utils/http'
 import { ArrowLeft, User, ShoppingCart, MagicStick, VideoPlay } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -33,7 +33,7 @@ const fetchCustomerDetail = async () => {
   loading.value = true
   try {
     // 1. Fetch Project Info
-    const { data: projectData } = await axios.get(`/api/projects/${projectId.value}`)
+    const { data: projectData } = await http.get(`/api/projects/${projectId.value}/`)
     if (projectData.success) {
       projectInfo.value = projectData.data
     }
@@ -41,7 +41,7 @@ const fetchCustomerDetail = async () => {
     // 2. Fetch Customer Detail from Project Customer List
     let customerData = null
     try {
-      const { data: customersResp } = await axios.get(`/api/projects/${projectId.value}/customers`)
+      const { data: customersResp } = await http.get(`/api/projects/${projectId.value}/customers/`)
       if (customersResp.success && Array.isArray(customersResp.data)) {
         customerData = customersResp.data.find((c: any) => String(c.id) === String(customerId.value))
       }
@@ -50,7 +50,7 @@ const fetchCustomerDetail = async () => {
     }
 
     // 3. Fetch Recommendations & Cluster Info
-    const { data: recData } = await axios.get('/api/recommend/user', {
+    const { data: recData } = await http.get('/api/recommend/user/', {
       params: { user_id: customerId.value }
     })
 
@@ -97,7 +97,7 @@ const generateAISuggestion = async () => {
     const llmConfig = JSON.parse(savedLLM)
 
     // 使用后端的 AI Voice API，只要文本，不要语音
-    const { data: voiceData } = await axios.post('/api/ai-voice/broadcast', {
+    const { data: voiceData } = await http.post('/api/ai-voice/broadcast/', {
       data: {
         customer_name: customer.value.name,
         customer_id: customer.value.id,
@@ -142,7 +142,7 @@ const playVoice = async () => {
     const savedTTS = localStorage.getItem('tts_config')
     const ttsConfig = savedTTS ? JSON.parse(savedTTS) : {}
 
-    const { data: ttsData } = await axios.post('/api/voice/tts', {
+    const { data: ttsData } = await http.post('/api/voice/tts/', {
       text: aiSuggestion.value,
       voice: ttsConfig.voice,
       rate: ttsConfig.rate,
@@ -150,9 +150,7 @@ const playVoice = async () => {
     })
 
     if (ttsData.success) {
-      const baseUrl = localStorage.getItem('API_BASE_URL') || ''
-      audioUrl.value = ttsData.audio_url.startsWith('http') ?
-                      ttsData.audio_url : `${baseUrl}${ttsData.audio_url}`
+      audioUrl.value = ttsData.audio_url
 
       setTimeout(() => {
         audioRef.value?.play()

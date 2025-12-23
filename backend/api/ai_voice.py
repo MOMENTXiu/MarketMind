@@ -27,7 +27,7 @@ class TTSRequest(BaseModel):
     volume: Optional[str] = None
 
 
-@router.post("/ai-voice/broadcast")
+@router.post("/ai-voice/broadcast/")
 async def generate_voice_broadcast(request: VoiceBroadcastRequest):
     """
     生成 AI 语音播报（LLM + TTS 完整流程）
@@ -64,7 +64,7 @@ async def generate_voice_broadcast(request: VoiceBroadcastRequest):
     }
 
 
-@router.post("/tts")
+@router.post("/tts/")
 async def text_to_speech(request: TTSRequest):
     """
     纯 TTS 服务（不调用 LLM）
@@ -95,7 +95,7 @@ async def text_to_speech(request: TTSRequest):
         raise HTTPException(status_code=500, detail=f"TTS 失败: {str(e)}")
 
 
-@router.get("/ai-voice/audio/{filename}")
+@router.get("/ai-voice/audio/{filename}/")
 async def get_audio_file(filename: str):
     """
     获取音频文件

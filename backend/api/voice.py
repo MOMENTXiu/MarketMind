@@ -20,7 +20,7 @@ class SimpleTTSRequest(BaseModel):
     rate: str | None = "+0%"
     volume: str | None = "+0%"
 
-@router.post("/tts")
+@router.post("/tts/")
 async def text_to_speech(request: SimpleTTSRequest):
     """
     极简 TTS 接口：文本 -> 音频访问路径
@@ -49,7 +49,7 @@ async def text_to_speech(request: SimpleTTSRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"TTS 合成失败: {str(e)}")
 
-@router.post("/generate", response_model=VoiceResponse)
+@router.post("/generate/", response_model=VoiceResponse)
 async def generate_voice(request: VoiceRequest):
     """
     生成语音播报
@@ -69,7 +69,7 @@ async def generate_voice(request: VoiceRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/status")
+@router.get("/status/")
 async def get_voice_status():
     """获取语音服务状态"""
     return {

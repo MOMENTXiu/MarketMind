@@ -9,7 +9,7 @@ router = APIRouter()
 service = PredictionService()
 
 
-@router.post("/forecast", response_model=PredictionResponse)
+@router.post("/forecast/", response_model=PredictionResponse)
 async def forecast_sales(request: PredictionRequest):
     """
     执行销售预测
@@ -27,7 +27,7 @@ async def forecast_sales(request: PredictionRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/status")
+@router.get("/status/")
 async def get_prediction_status():
     """获取预测服务状态"""
     return {

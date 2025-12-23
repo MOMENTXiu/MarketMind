@@ -9,7 +9,7 @@ router = APIRouter()
 service = AssociationService()
 
 
-@router.post("/analyze", response_model=AssociationRuleResponse)
+@router.post("/analyze/", response_model=AssociationRuleResponse)
 async def analyze_association_rules(
     request: AssociationRuleRequest,
     background_tasks: BackgroundTasks
@@ -34,7 +34,7 @@ async def analyze_association_rules(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/status")
+@router.get("/status/")
 async def get_analysis_status():
     """获取分析状态"""
     return {

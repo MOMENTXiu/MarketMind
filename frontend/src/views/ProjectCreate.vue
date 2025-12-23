@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import axios from 'axios'
+import http from '@/utils/http'
 import type { UploadInstance, UploadProps } from 'element-plus'
 import { UploadFilled, ArrowLeft } from '@element-plus/icons-vue'
 
@@ -57,12 +57,12 @@ const createProject = async () => {
   if (fileList.value.length === 0) return ElMessage.warning('请上传数据集')
   uploading.value = true
   try {
-    const { data: res } = await axios.post('/api/projects', projectForm.value)
+    const { data: res } = await http.post('/api/projects/', projectForm.value)
     if (!res.success) throw new Error('创建项目失败')
-    
+
     const formData = new FormData()
     formData.append('file', fileList.value[0].raw)
-    const { data: uploadRes } = await axios.post(`/api/projects/${res.data.id}/upload`, formData)
+    const { data: uploadRes } = await http.post(`/api/projects/${res.data.id}/upload/`, formData)
     
     if (uploadRes.success) {
       ElMessage.success('项目已创建，开始分析')

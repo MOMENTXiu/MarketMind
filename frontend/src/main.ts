@@ -8,17 +8,7 @@ import App from './App.vue'
 import router from './router'
 import axios from 'axios'
 
-// Global Axios Configuration
-axios.interceptors.request.use(config => {
-  const dynamicUrl = localStorage.getItem('API_BASE_URL')
-  if (dynamicUrl) {
-    // Check if the URL is absolute or relative
-    if (!config.url?.startsWith('http')) {
-       config.baseURL = dynamicUrl
-    }
-  }
-  return config
-})
+// No axios interceptor needed - use relative paths with Vite proxy
 
 const app = createApp(App)
 const pinia = createPinia()

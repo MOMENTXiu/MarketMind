@@ -44,7 +44,7 @@ async def create_project(project_data: ProjectCreate):
         raise HTTPException(status_code=500, detail=f"创建项目失败: {str(e)}")
 
 
-@router.post("/{project_id}/upload")
+@router.post("/{project_id}/upload/")
 async def upload_dataset(
     project_id: str,
     file: UploadFile = File(...),
@@ -107,7 +107,7 @@ async def list_projects(skip: int = 0, limit: int = 100):
         raise HTTPException(status_code=500, detail=f"获取列表失败: {str(e)}")
 
 
-@router.get("/{project_id}", response_model=ProjectResponse)
+@router.get("/{project_id}/", response_model=ProjectResponse)
 async def get_project(project_id: str):
     """获取项目详情"""
     project = storage.get_project(project_id)
@@ -121,7 +121,7 @@ async def get_project(project_id: str):
     )
 
 
-@router.put("/{project_id}", response_model=ProjectResponse)
+@router.put("/{project_id}/", response_model=ProjectResponse)
 async def update_project(project_id: str, updates: ProjectUpdate):
     """更新项目信息"""
     project = storage.get_project(project_id)
@@ -140,7 +140,7 @@ async def update_project(project_id: str, updates: ProjectUpdate):
     )
 
 
-@router.delete("/{project_id}")
+@router.delete("/{project_id}/")
 async def delete_project(project_id: str):
     """删除项目"""
     success = storage.delete_project(project_id)
@@ -153,7 +153,7 @@ async def delete_project(project_id: str):
     }
 
 
-@router.post("/{project_id}/reanalyze")
+@router.post("/{project_id}/reanalyze/")
 async def reanalyze_project(project_id: str, background_tasks: BackgroundTasks):
     """重新分析项目"""
     project = storage.get_project(project_id)
@@ -175,7 +175,7 @@ async def reanalyze_project(project_id: str, background_tasks: BackgroundTasks):
     }
 
 
-@router.get("/{project_id}/download/report")
+@router.get("/{project_id}/download/report/")
 async def download_report(project_id: str):
     """下载分析报告"""
     project = storage.get_project(project_id)
@@ -196,7 +196,7 @@ async def download_report(project_id: str):
     )
 
 
-@router.get("/{project_id}/customers")
+@router.get("/{project_id}/customers/")
 async def get_project_customers(
     project_id: str, 
     cluster_id: Optional[int] = Query(None, description="按聚类ID过滤")
@@ -241,7 +241,7 @@ async def get_project_customers(
         raise HTTPException(status_code=500, detail=f"读取客户数据失败: {str(e)}")
 
 
-@router.get("/{project_id}/audio")
+@router.get("/{project_id}/audio/")
 async def get_audio_file(project_id: str):
     """获取语音文件"""
     project = storage.get_project(project_id)
@@ -262,7 +262,7 @@ async def get_audio_file(project_id: str):
     )
 
 
-@router.get("/{project_id}/recommend")
+@router.get("/{project_id}/recommend/")
 async def recommend_item(project_id: str, item: str = Query(..., description="商品名称，如：椅子")):
     """
     根据商品名称，返回与该商品相关的前项 / 后项关联规则。

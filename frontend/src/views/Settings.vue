@@ -2,13 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
-import { Connection, Setting, Cpu, Microphone, Headset, ArrowLeft } from '@element-plus/icons-vue'
-
-const protocol = ref('http')
-const ip = ref('127.0.0.1')
-const port = ref('8000')
-const testLoading = ref(false)
-const connectionStatus = ref<'connected' | 'disconnected' | 'unknown'>('unknown')
+import http from '@/utils/http'
+import { Cpu, Microphone, Headset } from '@element-plus/icons-vue'
 
 // LLM Configuration
 interface LLMConfig {
@@ -66,20 +61,6 @@ const getVoiceName = (voice: string) => {
 }
 
 const loadConfig = () => {
-  const savedUrl = localStorage.getItem('API_BASE_URL')
-  if (savedUrl) {
-    try {
-      const url = new URL(savedUrl)
-      protocol.value = url.protocol.replace(':', '')
-      ip.value = url.hostname
-      port.value = url.port || (protocol.value === 'https' ? '443' : '80')
-    } catch (e) {
-      protocol.value = 'http'
-    }
-  } else {
-    protocol.value = 'http'
-  }
-
   // Load LLM config
   const savedLLM = localStorage.getItem('llm_config')
   if (savedLLM) {
@@ -103,36 +84,6 @@ const loadConfig = () => {
   }
 }
 
-const testAndSave = async () => {
-  const baseUrl = `${protocol.value}://${ip.value}:${port.value}`
-  testLoading.value = true
-  
-  try {
-    const response = await axios.get(`${baseUrl}/api/health`, { timeout: 5000 })
-    if (response.status === 200) {
-      localStorage.setItem('API_BASE_URL', baseUrl)
-      connectionStatus.value = 'connected'
-      ElMessage.success('连接测试成功，配置已保存')
-    } else {
-      throw new Error('服务响应异常')
-    }
-  } catch (error: any) {
-    connectionStatus.value = 'disconnected'
-    ElMessage.error(`连接测试失败: ${error.message || '无法访问该地址'}`)
-  } finally {
-    testLoading.value = false
-  }
-}
-
-const checkCurrentStatus = async () => {
-  try {
-    const response = await axios.get('/api/health', { timeout: 3000 })
-    if (response.status === 200) connectionStatus.value = 'connected'
-    else connectionStatus.value = 'disconnected'
-  } catch (e) {
-    connectionStatus.value = 'disconnected'
-  }
-}
 
 // LLM functions
 const saveLLMConfig = () => {
@@ -221,7 +172,7 @@ const saveTTSConfig = () => {
 const testTTS = async () => {
   ttsTesting.value = true
   try {
-    const { data } = await axios.post('/api/voice/tts', {
+    const { data } = await http.post('/api/voice/tts/', {
       text: "测试语音播报效果，欢迎使用超市 AI 营销系统。",
       voice: ttsConfig.value.voice,
       rate: ttsConfig.value.rate,
@@ -229,8 +180,7 @@ const testTTS = async () => {
     })
 
     if (data.success) {
-      const baseUrl = localStorage.getItem('API_BASE_URL') || ''
-      const fullAudioUrl = data.audio_url.startsWith('http') ? data.audio_url : `${baseUrl}${data.audio_url}`
+      const fullAudioUrl = data.audio_url
       const audio = new Audio(fullAudioUrl)
       audio.play()
       ElMessage.success('试听成功')
@@ -244,7 +194,6 @@ const testTTS = async () => {
 
 onMounted(() => {
   loadConfig()
-  checkCurrentStatus()
 })
 </script>
 
@@ -257,58 +206,6 @@ onMounted(() => {
       </header>
 
       <div class="settings-sections">
-        <!-- 服务器地址配置卡片 -->
-        <section class="glass-settings-card">
-          <div class="card-header-minimal">
-            <div class="header-info">
-              <h3 class="card-title" style="display: flex; align-items: center; gap: 12px">
-                <el-icon><Connection /></el-icon> 服务器地址
-              </h3>
-              <p class="card-desc">配置后端 API 的访问基准地址</p>
-            </div>
-          </div>
-
-          <div class="glass-form">
-            <div class="form-row-precise">
-              <div class="field-protocol">
-                <label>协议</label>
-                <el-select v-model="protocol" class="full-width">
-                  <el-option label="http://" value="http" />
-                  <el-option label="https://" value="https" />
-                </el-select>
-              </div>
-              
-              <div class="field-ip">
-                <label>后端 IP / 域名</label>
-                <el-input v-model="ip" placeholder="127.0.0.1" />
-              </div>
-
-              <div class="field-port">
-                <label>端口</label>
-                <el-input v-model="port" placeholder="8000" />
-              </div>
-            </div>
-
-            <div class="glass-actions">
-              <div class="connection-status-pill" :class="connectionStatus">
-                <span class="pulse-dot"></span>
-                <span class="status-label">
-                  {{ connectionStatus === 'connected' ? '服务已连接' : (connectionStatus === 'disconnected' ? '连接已断开' : '等待测试') }}
-                </span>
-              </div>
-              
-              <el-button 
-                type="primary" 
-                @click="testAndSave" 
-                :loading="testLoading"
-                class="btn-premium"
-              >
-                测试并保存
-              </el-button>
-            </div>
-          </div>
-        </section>
-
         <!-- AI 模型设置卡片 -->
         <section class="glass-settings-card">
           <div class="card-header-minimal">

@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import axios from 'axios'
+import http from '@/utils/http'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
@@ -81,11 +81,11 @@ const forecastOption = computed(() => {
 const loadProject = async () => {
   loading.value = true
   try {
-    const { data } = await axios.get(`/api/projects/${route.params.id}`)
+    const { data } = await http.get(`/api/projects/${route.params.id}/`)
     if (data.success) project.value = data.data
-  } catch (error) { 
+  } catch (error) {
     ElMessage.error('加载项目失败')
-    router.push('/projects') 
+    router.push('/projects')
   } finally { loading.value = false }
 }
 
@@ -96,7 +96,7 @@ const reanalyze = async () => {
       '重新分析确认',
       { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
     )
-    const { data } = await axios.post(`/api/projects/${route.params.id}/reanalyze`)
+    const { data } = await http.post(`/api/projects/${route.params.id}/reanalyze/`)
     if (data.success) {
       ElMessage.success('重新分析任务已启动')
       setTimeout(loadProject, 1000)
@@ -108,7 +108,7 @@ const fetchClusterCustomers = async (clusterId: number) => {
   selectedClusterId.value = clusterId
   customersLoading.value = true
   try {
-    const { data } = await axios.get(`/api/projects/${project.value?.id}/customers`, {
+    const { data } = await http.get(`/api/projects/${project.value?.id}/customers/`, {
       params: { cluster_id: clusterId }
     })
     if (data.success) clusterCustomers.value = data.data
@@ -123,7 +123,7 @@ const updateRecommendation = async () => {
   if (!selectedAntecedent.value) return
   recLoading.value = true
   try {
-    const { data } = await axios.get('/api/recommend/item', { params: { item: selectedAntecedent.value } })
+    const { data } = await http.get('/api/recommend/item/', { params: { item: selectedAntecedent.value } })
     // API返回的是 {upstream, downstream, target_customers}
     // 前置商品 -> 后置商品 = downstream（下游）
     recommendedItems.value = data.downstream || []
@@ -138,7 +138,7 @@ const calculateRealtimeRules = async () => {
   if (!selectedAntecedent.value) return
   calcLoading.value = true
   try {
-    const { data } = await axios.post('/api/recommend/calculate', { item: selectedAntecedent.value })
+    const { data } = await http.post('/api/recommend/calculate/', { item: selectedAntecedent.value })
     if (data.success) {
       recommendedItems.value = data.rules
       ElMessage.success(`计算完成，发现 ${data.rules.length} 条新规则`)
@@ -155,7 +155,7 @@ const showCustomerRec = async (customer: any) => {
   showRecommendationDialog.value = true
   recsLoading.value = true
   try {
-    const { data } = await axios.get('/api/recommend/user', { params: { user_id: customer.id } })
+    const { data } = await http.get('/api/recommend/user/', { params: { user_id: customer.id } })
     customerRecs.value = data.recommends || []
   } catch (e) {
     console.error('Fetch rec error', e)
@@ -180,7 +180,7 @@ const speakAnalysis = async (type: string, data: any) => {
     const ttsConfig = savedTTS ? JSON.parse(savedTTS) : null
 
     // 使用后端的 AI Voice API，支持 OpenAI 和 Claude
-    const { data: voiceData } = await axios.post('/api/ai-voice/broadcast', {
+    const { data: voiceData } = await http.post('/api/ai-voice/broadcast/', {
       data,
       llm_config: llmConfig,
       tts_config: ttsConfig,
@@ -189,10 +189,9 @@ const speakAnalysis = async (type: string, data: any) => {
 
     if (voiceData.success) {
       subtitleText.value = voiceData.text
-      
-      const baseUrl = localStorage.getItem('API_BASE_URL') || ''
-      currentAudioUrl.value = voiceData.audio_url.startsWith('http') ? voiceData.audio_url : `${baseUrl}${voiceData.audio_url}`
-      
+
+      currentAudioUrl.value = voiceData.audio_url
+
       setTimeout(() => {
         if (audioRef.value) {
           audioRef.value.play()
