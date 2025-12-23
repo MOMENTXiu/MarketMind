@@ -1,26 +1,15 @@
 <script setup lang="ts">
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { computed, ref, onMounted } from 'vue'
-import http from '@/utils/http'
+import axios from 'axios'
 import { Moon, Sunny, Plus } from '@element-plus/icons-vue'
+import ServiceStatus from '@/components/ServiceStatus.vue'
 
 const route = useRoute()
 const isHome = computed(() => route.path === '/')
 const isProjectsActive = computed(() => route.path.startsWith('/projects') || route.path.startsWith('/me/projects'))
 
-const healthStatus = ref<string>('checking')
 const isDark = ref(false)
-
-const checkBackendHealth = async () => {
-  try {
-    const response = await http.get('/api/health/')
-    if (response.data.status === 'healthy') {
-      healthStatus.value = 'healthy'
-    }
-  } catch (error) {
-    healthStatus.value = 'error'
-  }
-}
 
 const toggleTheme = () => {
   isDark.value = !isDark.value
@@ -58,7 +47,6 @@ const initTheme = () => {
 }
 
 onMounted(() => {
-  checkBackendHealth()
   initTheme()
 })
 </script>
@@ -83,12 +71,8 @@ onMounted(() => {
             <el-icon><Sunny v-if="isDark" /><Moon v-else /></el-icon>
           </button>
 
-          <div class="status-pill" :class="healthStatus" title="系统服务连接状态">
-            <span class="status-dot"></span>
-            <span class="status-text" v-if="healthStatus === 'healthy'">服务在线</span>
-            <span class="status-text" v-else-if="healthStatus === 'error'">服务离线</span>
-            <span class="status-text" v-else>检查连接</span>
-          </div>
+          <!-- Service Status Component -->
+          <ServiceStatus />
           
           <RouterLink to="/projects/new">
             <el-button type="primary" round>
