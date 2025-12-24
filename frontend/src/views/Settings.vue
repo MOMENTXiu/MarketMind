@@ -170,8 +170,17 @@ const saveTTSConfig = () => {
 }
 
 const testTTS = async () => {
+  console.log('[TTS Frontend] 开始测试 TTS 功能')
+  console.log('[TTS Frontend] 请求参数:', {
+    text: "测试语音播报效果，欢迎使用超市 AI 营销系统。",
+    voice: ttsConfig.value.voice,
+    rate: ttsConfig.value.rate,
+    volume: ttsConfig.value.volume
+  })
+
   ttsTesting.value = true
   try {
+    console.log('[TTS Frontend] 发送 POST 请求到 /api/voice/tts/')
     const { data } = await http.post('/api/voice/tts/', {
       text: "测试语音播报效果，欢迎使用超市 AI 营销系统。",
       voice: ttsConfig.value.voice,
@@ -179,16 +188,55 @@ const testTTS = async () => {
       volume: ttsConfig.value.volume
     })
 
+    console.log('[TTS Frontend] 收到响应:', data)
+
     if (data.success) {
       const fullAudioUrl = data.audio_url
+      console.log('[TTS Frontend] 音频 URL:', fullAudioUrl)
+      console.log('[TTS Frontend] 创建 Audio 对象并播放')
+
       const audio = new Audio(fullAudioUrl)
-      audio.play()
-      ElMessage.success('试听成功')
+
+      audio.addEventListener('loadstart', () => {
+        console.log('[TTS Frontend] Audio 开始加载')
+      })
+
+      audio.addEventListener('canplay', () => {
+        console.log('[TTS Frontend] Audio 可以播放')
+      })
+
+      audio.addEventListener('error', (e) => {
+        console.error('[TTS Frontend] Audio 播放错误:', e)
+        console.error('[TTS Frontend] Audio error code:', audio.error?.code)
+        console.error('[TTS Frontend] Audio error message:', audio.error?.message)
+      })
+
+      audio.addEventListener('play', () => {
+        console.log('[TTS Frontend] Audio 开始播放')
+      })
+
+      audio.play().then(() => {
+        console.log('[TTS Frontend] Audio.play() 成功')
+        ElMessage.success('试听成功')
+      }).catch(err => {
+        console.error('[TTS Frontend] Audio.play() 失败:', err)
+        ElMessage.error('音频播放失败: ' + err.message)
+      })
+    } else {
+      console.error('[TTS Frontend] 响应 success=false')
+      ElMessage.error('TTS 生成失败')
     }
   } catch (error: any) {
-    ElMessage.error('TTS 测试失败')
+    console.error('[TTS Frontend] 请求失败:', error)
+    console.error('[TTS Frontend] 错误详情:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    })
+    ElMessage.error('TTS 测试失败: ' + (error.response?.data?.detail || error.message))
   } finally {
     ttsTesting.value = false
+    console.log('[TTS Frontend] 测试完成')
   }
 }
 
