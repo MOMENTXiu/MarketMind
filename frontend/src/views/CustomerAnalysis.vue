@@ -56,10 +56,10 @@ const fetchCustomerDetail = async () => {
 
     const clusterInfo = recData.target_customers?.[0] || null
 
-    // Build complete customer object - Mock name '丁娇' for aesthetic consistency
+    // Build complete customer object
     customer.value = {
       id: customerId.value,
-      name: '丁娇', 
+      name: customerData?.name || customerId.value, // Use actual name from backend
       cluster_name: clusterInfo?.cluster_name || customerData?.cluster_name || '普通活跃客户',
       cluster_id: clusterInfo?.cluster_id ?? customerData?.cluster_id ?? 0,
       monetary: customerData?.monetary || 5247,

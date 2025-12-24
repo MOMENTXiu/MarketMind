@@ -166,6 +166,8 @@ const showCustomerRec = async (customer: any) => {
 
 const speakAnalysis = async (type: string, data: any) => {
   const key = `${type}_${data.cluster_id ?? 'global'}`
+  console.log(`[Clustering TTS] 开始播报`, { type, key, data })
+
   voiceLoading.value[key] = true
   try {
     const savedLLM = localStorage.getItem('llm_config')
@@ -178,8 +180,10 @@ const speakAnalysis = async (type: string, data: any) => {
 
     const llmConfig = JSON.parse(savedLLM)
     const ttsConfig = savedTTS ? JSON.parse(savedTTS) : null
+    console.log('[Clustering TTS] 配置:', { llmConfig: { provider: llmConfig.provider, model: llmConfig.modelName }, ttsConfig })
 
     // 使用后端的 AI Voice API，支持 OpenAI 和 Claude
+    console.log('[Clustering TTS] 发送请求到 /api/ai-voice/broadcast/')
     const { data: voiceData } = await http.post('/api/ai-voice/broadcast/', {
       data,
       llm_config: llmConfig,
@@ -187,20 +191,41 @@ const speakAnalysis = async (type: string, data: any) => {
       scene_type: type === 'cluster' || type === 'list' ? 'clustering' : 'summary'
     })
 
+    console.log('[Clustering TTS] 收到响应:', voiceData)
+
     if (voiceData.success) {
       subtitleText.value = voiceData.text
+      console.log('[Clustering TTS] LLM生成文本:', voiceData.text)
 
       currentAudioUrl.value = voiceData.audio_url
+      console.log('[Clustering TTS] 音频URL:', voiceData.audio_url)
 
       setTimeout(() => {
         if (audioRef.value) {
-          audioRef.value.play()
-          showSubtitle.value = true
+          console.log('[Clustering TTS] 准备播放音频, audioRef存在:', !!audioRef.value)
+          console.log('[Clustering TTS] Audio src:', audioRef.value.src)
+
+          audioRef.value.play().then(() => {
+            console.log('[Clustering TTS] 音频播放成功')
+            showSubtitle.value = true
+          }).catch(err => {
+            console.error('[Clustering TTS] 音频播放失败:', err)
+            ElMessage.error('音频播放失败: ' + err.message)
+          })
+        } else {
+          console.error('[Clustering TTS] audioRef不存在')
         }
       }, 100)
+    } else {
+      console.error('[Clustering TTS] 响应success=false')
     }
   } catch (error: any) {
-    console.error('Voice broadcast error:', error)
+    console.error('[Clustering TTS] 请求失败:', error)
+    console.error('[Clustering TTS] 错误详情:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    })
     const msg = error.response?.data?.detail || error.message
     ElMessage.error(`播报失败: ${msg}`)
   } finally {

@@ -6,8 +6,13 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 from pathlib import Path
+import logging
 
 from backend.services.ai_voice_service import AIVoiceService
+
+# 配置日志
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 router = APIRouter()
@@ -43,6 +48,12 @@ async def generate_voice_broadcast(request: VoiceBroadcastRequest):
         - text: LLM 生成的播报文案
         - audio_url: 音频文件访问地址
     """
+    logger.info("=" * 80)
+    logger.info("[AI Voice Broadcast] 收到AI语音播报请求")
+    logger.info(f"[AI Voice Broadcast] 场景类型: {request.scene_type}")
+    logger.info(f"[AI Voice Broadcast] LLM配置: provider={request.llm_config.get('provider')}, model={request.llm_config.get('modelName')}")
+    logger.info(f"[AI Voice Broadcast] TTS配置: {request.tts_config}")
+
     result = await AIVoiceService.generate_voice_broadcast(
         data=request.data,
         llm_config=request.llm_config,
@@ -50,18 +61,26 @@ async def generate_voice_broadcast(request: VoiceBroadcastRequest):
         tts_config=request.tts_config
     )
 
+    logger.info(f"[AI Voice Broadcast] AI Voice Service 处理结果: success={result['success']}")
+
     if not result["success"]:
+        logger.error(f"[AI Voice Broadcast] 语音生成失败: {result.get('error')}")
         raise HTTPException(status_code=500, detail=result.get("error", "语音生成失败"))
 
     # 转换为相对 URL
     audio_path = result["audio_path"]
-    audio_url = f"/api/ai-voice/audio/{Path(audio_path).name}"
+    audio_url = f"/api/ai-voice/audio/{Path(audio_path).name}/"  # Add trailing slash
+    logger.info(f"[AI Voice Broadcast] 生成的音频URL: {audio_url}")
+    logger.info(f"[AI Voice Broadcast] LLM生成的文本: {result['text'][:100]}...")
 
-    return {
+    response = {
         "success": True,
         "text": result["text"],
         "audio_url": audio_url
     }
+    logger.info(f"[AI Voice Broadcast] 返回响应")
+    logger.info("=" * 80)
+    return response
 
 
 @router.post("/tts/")
@@ -85,7 +104,7 @@ async def text_to_speech(request: TTSRequest):
             rate=request.rate,
             volume=request.volume
         )
-        audio_url = f"/api/ai-voice/audio/{Path(audio_path).name}"
+        audio_url = f"/api/ai-voice/audio/{Path(audio_path).name}/"  # Add trailing slash
 
         return {
             "success": True,
