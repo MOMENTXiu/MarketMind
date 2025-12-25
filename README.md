@@ -95,3 +95,7 @@ MarketMind/
 ```bash
 uv run streamlit run app.py
 ```
+
+## License
+
+MIT License. See `LICENSE`.
