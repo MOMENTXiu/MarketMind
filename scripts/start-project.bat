@@ -14,17 +14,19 @@ echo ========================================
 echo.
 
 REM Get the directory where this script is located
-cd /d %~dp0
+set "SCRIPT_DIR=%~dp0"
+set "ROOT_DIR=%SCRIPT_DIR%.."
+cd /d "%ROOT_DIR%"
 
 REM Check if startup scripts exist
 echo [1/4] Checking startup scripts...
-if not exist "start-backend.bat" (
+if not exist "%SCRIPT_DIR%start-backend.bat" (
     echo Error: start-backend.bat not found
     pause
     exit /b 1
 )
 
-if not exist "start-frontend.bat" (
+if not exist "%SCRIPT_DIR%start-frontend.bat" (
     echo Error: start-frontend.bat not found
     pause
     exit /b 1
@@ -91,7 +93,7 @@ echo + Backend dependencies installed
 
 REM Frontend dependencies
 echo Installing frontend dependencies...
-cd frontend
+cd /d "%ROOT_DIR%\frontend"
 if not exist "node_modules" (
     npm install
     if errorlevel 1 (
@@ -100,7 +102,7 @@ if not exist "node_modules" (
         exit /b 1
     )
 )
-cd ..
+cd /d "%ROOT_DIR%"
 echo + Frontend dependencies installed
 echo.
 
@@ -113,7 +115,7 @@ echo.
 
 REM Start backend in new window
 echo Starting backend server...
-start "MarketMind Backend" cmd /c "start-backend.bat > logs\backend.log 2>&1"
+start "MarketMind Backend" cmd /c "\"%SCRIPT_DIR%start-backend.bat\" > logs\backend.log 2>&1"
 echo + Backend server started
 echo   Backend logs: logs\backend.log
 
@@ -122,7 +124,7 @@ timeout /t 3 /nobreak >nul
 
 REM Start frontend in new window
 echo Starting frontend server...
-start "MarketMind Frontend" cmd /c "start-frontend.bat > logs\frontend.log 2>&1"
+start "MarketMind Frontend" cmd /c "\"%SCRIPT_DIR%start-frontend.bat\" > logs\frontend.log 2>&1"
 echo + Frontend server started
 echo   Frontend logs: logs\frontend.log
 

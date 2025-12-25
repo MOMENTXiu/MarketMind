@@ -36,23 +36,24 @@ echo ""
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$SCRIPT_DIR"
+ROOT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
+cd "$ROOT_DIR"
 
 # Check if startup scripts exist
 echo -e "${YELLOW}[1/4] Checking startup scripts...${NC}"
-if [ ! -f "start-backend.sh" ]; then
+if [ ! -f "$SCRIPT_DIR/start-backend.sh" ]; then
     echo -e "${RED}Error: start-backend.sh not found${NC}"
     exit 1
 fi
 
-if [ ! -f "start-frontend.sh" ]; then
+if [ ! -f "$SCRIPT_DIR/start-frontend.sh" ]; then
     echo -e "${RED}Error: start-frontend.sh not found${NC}"
     exit 1
 fi
 
 # Make sure scripts are executable
-chmod +x start-backend.sh
-chmod +x start-frontend.sh
+chmod +x "$SCRIPT_DIR/start-backend.sh"
+chmod +x "$SCRIPT_DIR/start-frontend.sh"
 echo -e "${GREEN}✓ Startup scripts ready${NC}"
 echo ""
 
@@ -124,7 +125,7 @@ echo ""
 
 # Start backend in background
 echo -e "${BLUE}Starting backend server...${NC}"
-./start-backend.sh > logs/backend.log 2>&1 &
+"$SCRIPT_DIR/start-backend.sh" > logs/backend.log 2>&1 &
 BACKEND_PID=$!
 echo -e "${GREEN}✓ Backend server started (PID: $BACKEND_PID)${NC}"
 echo -e "${CYAN}  Backend logs: logs/backend.log${NC}"
@@ -134,7 +135,7 @@ sleep 3
 
 # Start frontend in background
 echo -e "${BLUE}Starting frontend server...${NC}"
-./start-frontend.sh > logs/frontend.log 2>&1 &
+"$SCRIPT_DIR/start-frontend.sh" > logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo -e "${GREEN}✓ Frontend server started (PID: $FRONTEND_PID)${NC}"
 echo -e "${CYAN}  Frontend logs: logs/frontend.log${NC}"

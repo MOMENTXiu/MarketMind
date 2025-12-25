@@ -10,7 +10,9 @@ echo ========================================
 echo.
 
 REM Get the directory where this script is located and enter frontend directory
-cd /d %~dp0\frontend
+set "SCRIPT_DIR=%~dp0"
+set "ROOT_DIR=%SCRIPT_DIR%.."
+cd /d "%ROOT_DIR%\frontend"
 
 REM Check Node.js version
 echo [1/5] Checking Node.js version...

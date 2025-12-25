@@ -10,7 +10,9 @@ echo ========================================
 echo.
 
 REM Get the directory where this script is located
-cd /d %~dp0
+set "SCRIPT_DIR=%~dp0"
+set "ROOT_DIR=%SCRIPT_DIR%.."
+cd /d "%ROOT_DIR%"
 
 REM Check Python version
 echo [1/6] Checking Python version...
