@@ -57,6 +57,10 @@ Before commit:
 - Treat echo-only Makefile targets as placeholders, not proof that verification passed.
 - Use package managers detected by repo setup unless project files change.
 - Current `make check` includes backend Ruff lint, backend Ruff format check, backend pytest, and frontend `npm run build`.
-- The repository currently has no test files; do not claim `make test` or `make check` passed unless those commands are actually run and succeed after tests exist or pytest behavior is handled explicitly.
+- Current backend test baseline is 104 pytest tests across API contracts, controller thinness, business pipelines, `ProjectAnalysisFlow`, ability atoms, provider adapters, runtime checks, and architecture import rules.
+- The backend architecture baseline is `API Controller -> Business Pipeline/ProjectAnalysisFlow -> Ability Atom -> Provider Interface -> Infrastructure Adapter`.
+- Key architecture paths: `backend/business/pipelines/`, `backend/business/flows/`, `backend/abilities/`, `backend/providers/`, `backend/infrastructure/`, and `backend/core/runtime_checks.py`.
+- `backend/api/prediction.py` and `backend/api/clustering.py` are inactive routers; do not register or expose them without a separate protected task.
+- `backend/services/*` contains legacy compatibility services that are still referenced by provider factory / flow paths; do not delete or rewrite them unless reference search and tests prove the path is unreachable.
 - Do not bypass `.editorconfig`, `.gitignore`, pre-commit, or CI rules.
 - Expand this file only when a stable convention is confirmed by project files or user decision.

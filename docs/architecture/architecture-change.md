@@ -2,12 +2,9 @@
 
 ## 1. Scope
 
-本文件只规划 `/backend` 的后端架构重构，不执行代码迁移。允许的本阶段改动仅为：
+本文件记录 `/backend` 后端架构重构的设计、迁移路径、行为锚点和当前实现状态。最初阶段只允许文档规划；截至 2026-05-25，Phase 5-9 已完成代码迁移，当前运行路径已经采用分层架构。
 
-- `docs/architecture/architecture-change.md`
-- `docs/architecture/construction-checklist.md`
-
-本阶段禁止修改 `/backend`、`/frontend`、数据 schema、API 行为、环境变量语义、前端调用方式或测试文件。后续迁移必须保持公开 API、状态码、响应字段、文件副作用和前端依赖行为等价。
+所有后续迁移仍必须保持公开 API、状态码、响应字段、文件副作用和前端依赖行为等价。
 
 固定目标方向：
 
