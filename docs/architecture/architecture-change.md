@@ -93,12 +93,12 @@ frontend/
 | `/src` at project root | 未发现；存在 `frontend/src/`。 |
 | `/app` directory | 未发现；存在根文件 `app.py`。 |
 | `/packages` | 未发现。 |
-| `.env.example` | 未发现。 |
+| `.env.example` | 已存在；作为 committed template，不写入 secrets。 |
 | `docker-compose.yml` | 未发现。 |
 | `Dockerfile` | 未发现。 |
-| `Makefile` | 未发现。 |
+| `Makefile` | 已存在；提供 `setup`、`lint`、`format`、`fix`、`test`、`build`、`check`、`verify`、`hooks`、`clean` 入口。 |
 | `justfile` | 未发现。 |
-| `.github/workflows` | 未发现。 |
+| `.github/workflows` | 已存在；`check.yml` 分离 backend / frontend 检查。 |
 | `tox.ini` / `pytest.ini` / `ruff.toml` / `mypy.ini` | 未发现独立文件；pytest/ruff 在 `pyproject.toml` 中配置。 |
 | `.eslintrc` / prettier config | 未发现。 |
 | `docs/architecture/architecture-change.md` | 本次创建。 |
@@ -609,6 +609,8 @@ backend/infrastructure/
     openai_compatible_llm_adapter.py
     anthropic_llm_adapter.py
     fastapi_background_analysis_job_adapter.py
+    console_telemetry_adapter.py
+    file_telemetry_adapter.py
   factories/
     provider_factory.py
 ```
@@ -630,6 +632,7 @@ Infrastructure Adapters implement Provider Interfaces and may import SDKs, files
 | `SpeechSynthesisProvider` | Text-to-speech generation | `synthesize` | `SpeechSynthesisRequest` | `GeneratedAudio` | `EdgeTtsSpeechSynthesisAdapter` | `tts_service.py`, `ai_voice_service.py`, `api/voice.py`, `recommender_service.py` |
 | `LLMProvider` | Broadcast/script text generation | `generate_broadcast_script` | `LLMGenerationRequest` | `GeneratedScript` | `OpenAICompatibleLLMAdapter`, `AnthropicLLMAdapter` | `ai_voice_service.py`; frontend external calls remain out of backend scope |
 | `AnalysisJobProvider` | Analysis background scheduling | `schedule_project_analysis` | `ProjectAnalysisJobRequest` | `JobSubmission` | `FastApiBackgroundAnalysisJobAdapter` or in-process adapter | `backend/api/projects.py` |
+| `TelemetryProvider` | Layer-level debug logging, audit events, trace/span lifecycle | `emit_debug_event`, `emit_audit_event`, `emit_error_event`, `start_span`, `end_span` | `DebugEvent`, `AuditEvent`, `ErrorEvent`, `SpanContext` | `TelemetryResult`, `SpanHandle` | `ConsoleTelemetryAdapter`, `FileTelemetryAdapter`; future `OpenTelemetryAdapter`, `SentryAdapter`, database audit adapter, self-hosted trace adapter | current `logging` in `backend/api/voice.py`, `backend/api/ai_voice.py`, `backend/services/tts_service.py`; current `print` in analysis/recommendation services |
 
 ### 11.2 Providers Container
 
@@ -647,13 +650,13 @@ class ProvidersContainer:
     speech: SpeechSynthesisProvider
     llm: LLMProvider
     analysis_jobs: AnalysisJobProvider
+    telemetry: TelemetryProvider
 ```
 
 Fields intentionally not included because current backend has no direct use:
 
 - `browser`
 - `queue` as external queue client; `analysis_jobs` covers current FastAPI BackgroundTasks semantics.
-- `telemetry`
 - `auth`
 - `email`
 - `payment`
@@ -688,6 +691,9 @@ Target responsibilities:
 | `OpenAICompatibleLLMAdapter` | `LLMProvider` | `httpx` `/chat/completions` | HTTP/parse/timeouts -> `ProviderError` |
 | `AnthropicLLMAdapter` | `LLMProvider` | `httpx` `/messages` | HTTP/parse/timeouts -> `ProviderError` |
 | `FastApiBackgroundAnalysisJobAdapter` | `AnalysisJobProvider` | FastAPI `BackgroundTasks` bridge | scheduling failure -> `InfrastructureError` |
+| `ConsoleTelemetryAdapter` | `TelemetryProvider` | structured JSON events to console/stdout | telemetry failure -> best-effort `TelemetryResult` failure, no business failure |
+| `FileTelemetryAdapter` | `TelemetryProvider` | local debug/audit event files if approved | file write errors -> best-effort failure unless strong audit mode is configured |
+| future `OpenTelemetryAdapter` / `SentryAdapter` / database audit adapter / self-hosted trace adapter | `TelemetryProvider` | optional external or self-hosted observability sinks | must map sink errors to internal telemetry errors and avoid leaking SDK types |
 
 ## 12. Migration Mapping
 
@@ -716,6 +722,8 @@ Target responsibilities:
 | `backend/api/recommend.py` | local request models | Controller-local DTOs | DTOs not centralized | DTO / Schema | `backend/models/recommendation.py` | `RecommendationTtsRequest`, `CalculateRulesRequest` | Move after behavior tests exist. |
 | `backend/core/config.py` | `Settings` | config/env reader | Provider factory absent | Provider Factory | `backend/infrastructure/factories/provider_factory.py` | `create_providers(settings)` | Assemble adapters once from settings. |
 | whole backend | provider wiring | no Providers Container | Business layers would have no stable injection point | Providers Container | `backend/providers/container.py` | `ProvidersContainer` | Add typed container with actual current fields. |
+| `backend/api/voice.py`, `backend/api/ai_voice.py`, `backend/services/tts_service.py` | stdlib `logging` usage | ad hoc debug logging | concrete logging calls are scattered and not schema-bound | Provider Interface | `backend/providers/telemetry_provider.py` | `TelemetryProvider` | Route structured debug/error/audit events through provider boundary. |
+| `backend/services/analysis_service.py`, `backend/services/recommender_service.py`, `backend/services/model_builder_service.py`, `backend/core/storage.py` | `print` debugging/status output | lifecycle and error diagnostics | no request/trace correlation or redaction policy | Business Pipeline / Business Flow | `backend/business/**` with `TelemetryProvider` | trace-aware debug events | Replace ad hoc prints during migration after behavior protection exists. |
 | whole backend | exception handling | mixed `HTTPException`, strings, prints | No internal error model | Internal Error | `backend/core/errors.py` | `MarketMindError` subclasses | Add internal errors before adapter migration. |
 | whole backend | import rules | no architecture lint | Violations can regress | Architecture Lint | `tests/test_architecture_imports.py` or `backend/tests/test_architecture_imports.py` | import boundary tests | Add minimal mechanical checks. |
 | whole backend | runtime provider facts | no runtime check | Provider wiring/config can be broken silently | Runtime Check | `backend/core/runtime_checks.py` | `check_providers`, `check_config` | Add minimal provider/config checks. |
@@ -754,6 +762,306 @@ Controller mapping must preserve current public behavior:
 
 External Adapter must not return SDK raw response or expose SDK exception types to business code.
 
+## Debug Logger and Audit Trace Strategy
+
+### 1. Observability Goals
+
+Debug Logger / Audit Trace is an architecture-level diagnostic and audit chain, not ordinary `print` output. The goal is to make every important request, pipeline step, ability execution, provider call, external adapter call, configuration load, runtime check, and side effect searchable by stable identifiers and layer metadata.
+
+Target capabilities:
+
+- Locate which layer produced a bug: API Controller, Business Flow, Business Pipeline, Ability Atom, Provider Interface, External Adapter, Provider Factory, Settings / Config, or Runtime Check.
+- Locate the exact module, operation, stage, pipeline step, provider interface, adapter, and external capability involved.
+- Correlate HTTP requests, background jobs, Business Flow executions, Pipeline runs, Ability runs, Provider calls, and external side effects.
+- Support Runtime Check, trace inspection, and future Agent-assisted troubleshooting.
+- Preserve behavior equivalence: logging/audit failure must not change normal business behavior unless a future strong-audit requirement explicitly chooses fail-closed semantics.
+
+Current state to migrate:
+
+- `backend/api/voice.py`, `backend/api/ai_voice.py`, and `backend/services/tts_service.py` use Python standard library `logging` directly.
+- `backend/services/analysis_service.py`, `backend/services/recommender_service.py`, `backend/services/model_builder_service.py`, `backend/services/ai_voice_service.py`, `backend/services/clustering_service.py`, and `backend/core/storage.py` use `print` for lifecycle or error diagnostics.
+- No `TelemetryProvider`, `request_id`, `trace_id`, structured audit event, audit sink, OpenTelemetry, Sentry, Datadog, `structlog`, or `loguru` integration was found.
+
+### 2. Trace Context Model
+
+All layers pass trace information through an explicit context object or DTO. Global variables must not carry business trace context. Framework request context may hold request-level metadata, but Business Flow, Business Pipeline, and Ability Atom still receive explicit context.
+
+| Field | Meaning | Created By | Propagated To | Required | Notes |
+|---|---|---|---|---|---|
+| `request_id` | HTTP request correlation id | API Controller accepts inbound header or creates one | all downstream layers | required for HTTP entrypoints | Do not expose internal details through this value. |
+| `trace_id` | end-to-end trace id across request/job/pipeline | API Controller or job scheduler | all layers and telemetry events | required | Stable root id for `inspect-trace`. |
+| `actor_id` | user or anonymous actor identity | API Controller when auth/user context exists | Flow/Pipeline/Audit events | optional | Use `UNKNOWN` when identity strategy is unavailable. |
+| `session_id` | UI/session correlation id | API Controller if provided | Flow/Pipeline/Audit events | optional | Not the same as secret session token. |
+| `flow_run_id` | one Business Flow execution | Business Flow | Flow, Pipeline, Ability, Provider, Adapter events | required when flow exists | Current candidate: `ProjectAnalysisFlow`. |
+| `pipeline_run_id` | one Business Pipeline execution | Business Pipeline | Pipeline, Ability, Provider, Adapter events | required for pipeline execution | Created per pipeline call. |
+| `ability_run_id` | one Ability Atom execution | Ability Atom or caller pipeline | Ability, Provider, Adapter events | required for ability execution | May be pre-created by pipeline for planned steps. |
+| `provider_call_id` | one provider boundary call | External Adapter or provider wrapper | Provider and Adapter events | required for provider calls | Created before external side effect attempt. |
+| `job_id` | async/background job id | AnalysisJobProvider or Business Flow | Flow/Pipeline/Audit events | required for async jobs | Current FastAPI BackgroundTasks lacks durable job id; use generated id until real job system exists. |
+| `source_id` | source dataset/document/request source id | API Controller, Pipeline, or Provider | Pipeline/Audit events | optional | Avoid raw source contents. |
+| `content_id` | generated or processed content id | Ability or Provider | Ability/Audit events | optional | Prefer stable id/hash over content body. |
+| `operation` | business operation name | Controller/Pipeline | all events | required | Stable value such as `project_analysis`, not user input. |
+| `layer` | architecture layer name | each emitting layer | telemetry event | required | Values match architecture boundaries. |
+| `module` | module/component name | each emitting layer | telemetry event | required | Must map to an architecture module, not `misc` or `helper`. |
+| `stage` | current stage/step | Flow/Pipeline/Ability/Adapter | telemetry event | required for multi-step work | Use stable stage names. |
+
+Creation rules:
+
+- API Controller creates or accepts `request_id` / `trace_id`.
+- Business Flow creates `flow_run_id` only for complex lifecycle execution.
+- Business Pipeline creates `pipeline_run_id`.
+- Ability Atom creates or receives `ability_run_id`.
+- External Adapter creates `provider_call_id` for each external capability call.
+- Provider Factory emits provider assembly events but does not create business run ids.
+
+### 3. Layer-level Logging Contract
+
+| Layer | Required Events | Required Fields | Forbidden Fields | Notes |
+|---|---|---|---|---|
+| API Controller | `api.request.received`, `api.request.validated`, `api.response.returned`, `api.error.mapped` | `request_id`, `trace_id`, `route`, `method`, `status_code`, `duration_ms`, `actor_id`, `error_code` | `raw_password`, `raw_token`, `raw_file_content`, `full_llm_prompt` | Controller maps errors and starts request trace. |
+| Business Flow | `flow.started`, `flow.stage.completed`, `flow.stage.failed`, `flow.compensation.started`, `flow.completed`, `flow.cancelled` | `flow_run_id`, `trace_id`, `flow_name`, `stage`, `state_before`, `state_after`, `error_type` | raw dataset/document content, full prompt/response | Required only for complex lifecycle such as project analysis. |
+| Business Pipeline | `pipeline.started`, `pipeline.step.started`, `pipeline.step.completed`, `pipeline.step.failed`, `pipeline.completed`, `pipeline.failed` | `pipeline_run_id`, `trace_id`, `pipeline_name`, `step_name`, `stage`, `duration_ms`, `error_type`, `is_retryable` | concrete SDK response, raw file content, secret values | Step-level events are required before controller thinning. |
+| Ability Atom | `ability.started`, `ability.completed`, `ability.failed` | `ability_run_id`, `trace_id`, `ability_name`, `input_summary`, `output_summary`, `provider_used`, `error_type` | full raw content, full LLM prompt, complete uploaded file | `input_summary` / `output_summary` use counts, hashes, ids, and field names. |
+| Provider Boundary | `provider.call.requested`, `provider.call.completed`, `provider.call.failed` | `provider_call_id`, `trace_id`, `provider_name`, `provider_interface`, `operation`, `timeout_ms`, `retry_policy` | concrete adapter object, SDK raw response | Provider Interface must not import concrete telemetry adapters. |
+| External Adapter | `adapter.external_call.started`, `adapter.external_call.completed`, `adapter.external_call.failed`, `adapter.error.mapped` | `adapter_name`, `provider_name`, `provider_call_id`, `external_service`, `external_operation`, `latency_ms`, `external_status`, `mapped_error_type`, `retry_count` | raw SDK response, raw authorization headers, API key values | Adapter maps external error to internal DTO/error before logging. |
+| Provider Factory / Settings | `provider_factory.started`, `provider_factory.completed`, `provider_factory.failed`, `settings.loaded`, `settings.validation_failed` | `profile`, `provider_fields`, `missing_config`, `config_source` | secret value, api key value, token value, password value | Only log config sources, field names, and missing field names. |
+
+### 4. Debug Event Naming Convention
+
+Event names use stable dot-separated identifiers:
+
+```text
+<layer>.<module>.<event>
+```
+
+Examples:
+
+- `api.project_upload.request.received`
+- `pipeline.project_upload.step.completed`
+- `ability.cluster_customers.completed`
+- `provider.llm.call.failed`
+- `adapter.openai.external_call.failed`
+- `factory.providers.completed`
+- `settings.validation_failed`
+
+Rules:
+
+- Use lowercase only.
+- Use dot-separated hierarchy.
+- Do not concatenate user input into event names.
+- Keep event names stable for search, alerting, Runtime Check, and trace inspection.
+- Module names must correspond to architecture modules; do not use `misc`, `common`, `helper`, or `utils` as event modules.
+
+### 5. Debug Log Schema
+
+Target schema, not implemented in this planning stage:
+
+```json
+{
+  "timestamp": "2026-05-25T00:00:00.000Z",
+  "level": "INFO",
+  "event": "pipeline.project_analysis.step.completed",
+  "trace_id": "trace_...",
+  "request_id": "req_...",
+  "layer": "BusinessPipeline",
+  "module": "ProjectAnalysisPipeline",
+  "operation": "project_analysis",
+  "stage": "cluster_customers",
+  "duration_ms": 123,
+  "status": "success",
+  "error": null,
+  "context": {
+    "pipeline_run_id": "pipeline_...",
+    "job_id": "job_...",
+    "source_id": "dataset_...",
+    "content_id": "report_..."
+  }
+}
+```
+
+Required fields: `timestamp`, `level`, `event`, `trace_id`, `layer`, `module`, `operation`, `stage`, `status`.
+
+Required when available: `request_id`, `duration_ms`, `context.pipeline_run_id`, `context.flow_run_id`, `context.ability_run_id`, `context.provider_call_id`, `error.error_type`, `error.error_code`, `error.is_retryable`.
+
+Optional fields: `actor_id`, `session_id`, `job_id`, `source_id`, `content_id`, `external_status`, `retry_count`, `timeout_ms`.
+
+Masking rules:
+
+- PII and secrets are redacted before emission.
+- Large text content records `sha256`, `length`, `mime_type`, `field_names`, `content_id`, or short safe summary, not full text.
+- LLM prompt/response logs record prompt hash, response hash, model name, token usage if available, latency, and mapped status, not full prompt or response.
+- Uploaded files record file hash, size, mime type, and object key, not content.
+
+### 6. Audit Event Schema
+
+Audit events focus on side effects, not ordinary debug information.
+
+```json
+{
+  "timestamp": "2026-05-25T00:00:00.000Z",
+  "audit_event": "storage.object.write.completed",
+  "trace_id": "trace_...",
+  "actor_id": "UNKNOWN",
+  "layer": "ExternalAdapter",
+  "module": "LocalGeneratedAssetAdapter",
+  "operation": "write_object",
+  "resource_type": "file_system",
+  "resource_id": "data/projects/project_123/outputs/reports/report_project_123.md",
+  "action": "write",
+  "result": "success",
+  "state_before": null,
+  "state_after": {
+    "object_key": "data/projects/project_123/outputs/reports/report_project_123.md",
+    "size_bytes": 12345,
+    "sha256": "..."
+  },
+  "risk_level": "medium"
+}
+```
+
+Audit action categories:
+
+- `read`
+- `write`
+- `delete`
+- `publish`
+- `transition`
+- `external_call`
+- `auth_decision`
+- `permission_check`
+- `config_load`
+
+Risk levels:
+
+- `low`: read-only or local debug event with no sensitive content.
+- `medium`: local file write, generated asset write, cache write, job status transition.
+- `high`: external API call, destructive delete, audit-required state transition.
+- `critical`: auth decision, permission decision, irreversible destructive action, strong-audit failure.
+
+Audit failure policy options:
+
+- `best-effort`: telemetry failure does not fail business flow; default for debug and current project migration.
+- `required`: operation reports telemetry failure but may still use business-defined fallback.
+- `fallback buffer`: write to local safe buffer when primary sink fails.
+- `fail-open`: continue business operation and record sink failure when possible.
+- `fail-closed`: block business operation if audit cannot be written; only allowed for explicitly approved strong-audit paths.
+
+### 7. Error Correlation Strategy
+
+Internal errors carry `error_code`. Error telemetry must answer:
+
+- Which request failed?
+- Which flow, pipeline, step, ability, provider, and adapter failed?
+- Which external service/status was involved?
+- Is the error retryable?
+- Did a side effect occur?
+- Does a side effect need compensation or rollback?
+
+Correlation requirements:
+
+- `ProviderError` records `provider_name`, `provider_interface`, `provider_call_id`, `adapter_name`, `operation`, `timeout_ms`, `retry_count`, and `mapped_error_type`.
+- `InfrastructureError` records `external_service`, `resource_type`, `resource_id`, and `mapped_error_type`.
+- `PipelineExecutionError` records `pipeline_run_id`, `failed_step`, `stage`, `error_code`, and `is_retryable`.
+- `BusinessFlowError` records `flow_run_id`, `failed_stage`, `state_before`, `state_after`, and compensation status.
+- API Controller preserves internal `trace_id` in logs and safe support metadata, but public responses must not expose internal sensitive details.
+
+### 8. Telemetry Provider Boundary
+
+Business and Ability layers must not call concrete logging, audit, tracing, Sentry, Datadog, OpenTelemetry, `structlog`, `loguru`, or standard library `logging` directly. They use a Provider Boundary.
+
+| Provider Interface | Methods | Used By | External Adapter Candidates | Notes |
+|---|---|---|---|---|
+| `TelemetryProvider` | `emit_debug_event(event)`, `emit_audit_event(event)`, `emit_error_event(event)`, `start_span(context)`, `end_span(span, result)` | API Controller, Business Flow, Business Pipeline, Ability Atom, Provider Factory, External Adapter wrappers, Runtime Check | `ConsoleTelemetryAdapter`, `FileTelemetryAdapter`, future `OpenTelemetryAdapter`, `SentryAdapter`, database audit writer, self-hosted trace adapter | Start with one provider because the project is small; split `AuditProvider` only if strong audit requirements emerge. |
+
+Current logging migration:
+
+- Replace direct `logging` in `backend/api/voice.py`, `backend/api/ai_voice.py`, and `backend/services/tts_service.py` with structured events through `TelemetryProvider` during controller/adapter migration.
+- Replace `print` in analysis/recommendation/model/storage services with trace-aware debug/audit events after behavior tests exist.
+- Concrete output remains in Infrastructure Layer. Initial adapters should be console/file only unless the project explicitly adopts another sink later.
+
+### 9. Runtime Check Extension
+
+This Python project should adapt runtime check commands to the `backend` package:
+
+| Runtime Check | Purpose | Suggested Command |
+|---|---|---|
+| inspect trace | Query one request/job/pipeline chain by `trace_id` | `uv run python -m backend.core.runtime_checks inspect-trace <trace_id>` |
+| telemetry check | Verify `TelemetryProvider` can emit debug/error/span events to configured sink | `uv run python -m backend.core.runtime_checks check-telemetry` |
+| audit sink check | Verify audit events can be emitted or buffered according to failure policy | `uv run python -m backend.core.runtime_checks check-audit-sink` |
+| traced pipeline dry-run | Validate Pipeline execution emits required trace events with sample input | `uv run python -m backend.core.runtime_checks dry-run-pipeline <pipeline_name> --sample <sample_file> --trace` |
+| debug schema validation | Validate debug event structure | `uv run python -m backend.core.runtime_checks validate-log-schema tests/fixtures/logging/debug_event.json` |
+| audit schema validation | Validate audit event structure | `uv run python -m backend.core.runtime_checks validate-audit-schema tests/fixtures/logging/audit_event.json` |
+
+### 10. Architecture Lint Extension
+
+Additional lint rules:
+
+1. Business Pipeline, Business Flow, and Ability Atom must not import concrete logging/tracing/audit SDKs.
+2. Business layers must not directly import OpenTelemetry, Sentry, Datadog, `structlog`, `loguru`, or standard library `logging`; standard library `logging` is allowed only inside Telemetry External Adapters if used as an implementation detail.
+3. Business layers must not directly write audit database/files.
+4. External Adapters must not call Business layer logger helpers or business modules.
+5. Secret-like fields must not be logged directly.
+6. Event names must not be dynamically built from user input.
+7. Key Pipelines must define required trace events.
+8. External Adapter external-call failures must record `adapter.error.mapped`.
+9. Provider Factory must record provider assembly failures.
+10. Runtime Check must include telemetry, audit, and trace-inspection commands.
+
+Architecture Lint keeps the fixed error format:
+
+```text
+Architecture violation:
+<specific file> violated <rule>.
+
+Reason:
+<why this violates architecture boundary>.
+
+Fix:
+<specific fix>.
+
+Expected direction:
+<API Controller -> Business Pipeline / Business Flow -> Ability Atom -> Provider Interface -> External Adapter>
+```
+
+### 11. Privacy and Redaction Policy
+
+Forbidden in debug/audit logs:
+
+- password
+- token
+- authorization header
+- cookie
+- api key
+- secret
+- private key
+- raw uploaded file content
+- raw document full text
+- full LLM prompt
+- full LLM response
+- personal sensitive content
+
+Allowed in debug/audit logs:
+
+- hash
+- length
+- mime_type
+- object_key
+- content_id
+- source_id
+- job_id
+- model_name
+- provider_name
+- duration_ms
+- status_code
+- error_code
+- retry_count
+
+Adapter rules:
+
+- All Adapter logs of external responses first convert the response to an internal DTO summary.
+- LLM logs default to prompt hash, response hash, token usage if available, model name, provider name, latency, retry count, and mapped status.
+- File-processing logs default to file hash, size, mime type, object key, and content id.
+- `actor_id` follows the project identity strategy; until that strategy exists, audit events use `UNKNOWN`.
+
 ## 15. Architecture Lint Strategy
 
 No current Architecture Lint was found. Add a minimal mechanical lint before migration.
@@ -768,6 +1076,11 @@ Minimum rules:
 6. No new `utils`, `helpers`, or `common` fallback modules.
 7. Provider Interfaces must not contain vendor names such as OpenAI, Anthropic, EdgeTTS, Postgres, S3, Playwright.
 8. External Adapters must return internal DTOs, not raw SDK response types.
+9. Business layers must not import concrete logging/tracing/audit SDKs or standard library `logging`; use `TelemetryProvider`.
+10. Business layers must not write audit sinks directly.
+11. Event names must be stable and must not include user input.
+12. Secret-like fields must not be emitted directly in debug or audit event payloads.
+13. Provider Factory and External Adapter failure paths must emit required telemetry events through the provider boundary.
 
 Suggested command after implementation: `uv run pytest tests/test_architecture_imports.py`.
 
@@ -787,6 +1100,11 @@ Minimum checks:
 | pipeline dry-run | Project analysis pipeline can run against fixture without changing real data | `uv run python -m backend.core.runtime_checks dry-run-project-analysis --fixture tests/fixtures/sample_dataset.csv` |
 | schema validation | sample request/response contracts validate | `uv run python -m backend.core.runtime_checks validate-api-schemas` |
 | trace/log inspection | core flow emits expected phase logs | `uv run python -m backend.core.runtime_checks inspect-logs --latest` |
+| telemetry check | TelemetryProvider can emit debug/error/span events to configured sink | `uv run python -m backend.core.runtime_checks check-telemetry` |
+| audit sink check | Audit events can be emitted or buffered according to configured failure policy | `uv run python -m backend.core.runtime_checks check-audit-sink` |
+| inspect trace | trace id can reconstruct one request/job/pipeline chain | `uv run python -m backend.core.runtime_checks inspect-trace <trace_id>` |
+| log schema validation | sample debug event validates required fields and redaction rules | `uv run python -m backend.core.runtime_checks validate-log-schema tests/fixtures/logging/debug_event.json` |
+| audit schema validation | sample audit event validates required fields and redaction rules | `uv run python -m backend.core.runtime_checks validate-audit-schema tests/fixtures/logging/audit_event.json` |
 
 ## 17. Test Strategy
 
@@ -797,15 +1115,15 @@ Existing tests: none found. Existing test tooling exists in `pyproject.toml`:
 | Install Python deps | `uv sync` | YES | Documented in README/scripts. |
 | Run backend dev server | `uv run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000` | YES | Used by `scripts/start-backend.sh`. |
 | Python tests | `uv run pytest tests/` | PARTIAL | pytest configured, but no tests found. |
-| Python formatter | `uv run black .` | YES | black configured in `pyproject.toml`. |
-| Python linter | `uv run ruff check .` | YES | ruff configured in `pyproject.toml`. |
+| Python formatter | `uv run ruff format .` | YES | exposed through `make format` and pre-commit `ruff-format`; black remains configured in `pyproject.toml` but is not the current harness formatter. |
+| Python linter | `uv run ruff check .` | YES | exposed through `make lint`. |
 | Frontend dev server | `cd frontend && npm run dev` | YES | `frontend/package.json`. |
 | Frontend build/type check | `cd frontend && npm run build` | YES | runs `vue-tsc && vite build`. |
 | Frontend preview | `cd frontend && npm run preview` | YES | Vite preview. |
 | Architecture Lint | `uv run pytest tests/test_architecture_imports.py` | NO | Must be added before migration. |
 | Runtime Check | `uv run python -m backend.core.runtime_checks check-providers` | NO | Must be added after provider factory exists. |
-| CI | UNKNOWN | `.github/workflows` not found. |
-| Makefile / justfile | NO | Not present. |
+| CI | YES | `.github/workflows/check.yml` runs split backend and frontend checks. |
+| Makefile / justfile | YES | `Makefile` exposes setup, lint, format, fix, test, build, check, verify, hooks, and clean targets. |
 
 Required validation order for migration phases:
 
@@ -815,7 +1133,7 @@ Required validation order for migration phases:
 4. Affected tests: API smoke / pipeline / provider contract tests for touched path
 5. Full tests: `uv run pytest tests/`
 6. Runtime Check: provider/config/storage/dry-run commands
-7. Trace/log inspection: inspect flow logs and error paths
+7. Trace/log inspection: inspect flow logs, debug events, audit events, and error paths
 
 Minimum behavior protection before code migration:
 
@@ -823,18 +1141,21 @@ Minimum behavior protection before code migration:
 - Business flow test for project analysis status transitions and output paths using fixtures and fake providers.
 - Provider contract tests for JSON project repository, local asset storage, Edge TTS fake adapter, LLM fake adapter.
 - Architecture import lint to prevent new direct SDK/storage access from controllers/business layers.
+- Debug/audit schema fixture validation for `tests/fixtures/logging/debug_event.json` and `tests/fixtures/logging/audit_event.json`.
 
 ## 18. Phased Migration Plan
 
-1. Establish behavior anchors: add tests for current public API contracts, status strings, generated asset URLs, and analysis status transitions.
-2. Add Provider Interfaces, internal DTOs, internal errors, Providers Container, and Provider Factory without rewiring behavior.
-3. Add External Adapters that wrap current JSON/filesystem/LLM/TTS behavior while preserving paths and response shapes.
-4. Extract Ability Atoms from analysis, recommendation, clustering, prediction, report, and voice code behind provider interfaces.
-5. Extract Business Pipelines for CRUD, recommendation, customer read model, association analysis, voice synthesis, and AI broadcast.
-6. Extract `ProjectAnalysisFlow` for upload/reanalysis background lifecycle.
-7. Thin API Controllers to protocol conversion and error mapping only.
-8. Add Architecture Lint, Runtime Check, full test run, and trace/log inspection.
-9. Remove dead compatibility code only after tests prove no frontend/API behavior changed.
+1. Establish behavior anchors: add fake/sandbox test support, tests for current public API contracts, status strings, generated asset URLs, analysis status transitions, and debug/audit schema fixtures.
+2. Add Architecture Lint with a temporary allowlist for known current violations; prohibit new boundary, SDK, telemetry, and fallback utility violations before migration continues.
+3. Add Provider Interfaces, internal DTOs, internal errors, Providers Container, and Provider Factory without rewiring behavior.
+4. Add minimal Runtime Check commands for provider/config/storage/telemetry validation once provider assembly exists.
+5. Add External Adapters that wrap current JSON/filesystem/LLM/TTS/telemetry behavior while preserving paths and response shapes.
+6. Extract Ability Atoms from analysis, recommendation, clustering, prediction, report, and voice code behind provider interfaces.
+7. Extract Business Pipelines for CRUD, recommendation, customer read model, association analysis, voice synthesis, and AI broadcast.
+8. Extract `ProjectAnalysisFlow` for upload/reanalysis background lifecycle.
+9. Thin API Controllers to protocol conversion and error mapping only.
+10. Run full validation and trace/log inspection.
+11. Remove dead compatibility code only after tests prove no frontend/API behavior changed.
 
 ## 19. Rollback Strategy
 
@@ -862,8 +1183,36 @@ No database schema rollback is needed currently because no DB was found. File ou
 - Should FastAPI `BackgroundTasks` remain the runtime for project analysis, or should a real queue be introduced later? Current phase must preserve behavior.
 - Current error responses are mostly route-specific `detail` strings. Should migration preserve exact strings or standardize later behind a versioned API contract?
 - Current generated audio paths differ: `/outputs/audio/...` vs `/api/ai-voice/audio/{filename}/`. Preserve both unless product decides to normalize.
+- Should audit events use only best-effort console/file output for the first migration, or does any path require durable audit storage?
+- What trace header names should the API accept from upstream clients: `X-Request-ID`, `traceparent`, both, or generated ids only?
+- What retention period and access policy should apply to audit events once a durable sink exists?
+- Which fields are considered personal sensitive content for customer analytics outputs beyond obvious secrets/tokens?
 
 ## 21. Risks
+
+Architecture violation:
+`backend/api/voice.py`, `backend/api/ai_voice.py`, and `backend/services/tts_service.py` violated direct logging implementation dependency rule.
+
+Reason:
+These files import and use Python standard library `logging` directly. Target architecture requires structured debug/error/audit events through `TelemetryProvider`, with concrete logging implementation isolated in External Adapters.
+
+Fix:
+During controller and adapter migration, replace ad hoc logging calls with `TelemetryProvider.emit_debug_event`, `emit_error_event`, or `emit_audit_event`; keep console/file logging inside `ConsoleTelemetryAdapter` or `FileTelemetryAdapter`.
+
+Expected direction:
+API Controller -> Business Pipeline / Business Flow -> Ability Atom -> Provider Interface -> External Adapter
+
+Architecture violation:
+`backend/services/analysis_service.py`, `backend/services/recommender_service.py`, `backend/services/model_builder_service.py`, and `backend/core/storage.py` violated trace-correlated debug event rule.
+
+Reason:
+These modules use `print` for lifecycle and error diagnostics. The output has no `trace_id`, `request_id`, layer, module, operation, stage, error code, retryability, or redaction contract.
+
+Fix:
+After behavior tests exist, replace lifecycle prints with schema-bound debug/audit events emitted through `TelemetryProvider`; keep side-effect audit events focused on state transitions and file/model writes.
+
+Expected direction:
+API Controller -> Business Pipeline / Business Flow -> Ability Atom -> Provider Interface -> External Adapter
 
 Architecture violation:
 `backend/api/projects.py` violated API Controller direct storage access rule.

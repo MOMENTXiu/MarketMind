@@ -9,6 +9,59 @@
 - 未建立行为保护前，不允许移动或重写业务代码。
 - 所有任务必须保持公开 API、状态码、响应字段、文件路径副作用、前端依赖行为等价。
 - Business Flow 只用于复杂生命周期；当前仅 `ProjectAnalysisFlow` 符合条件。
+- `STATUS` 只使用 `pending`、`in_progress`、`completed`、`blocked`。`blocked` 必须写明解除条件。
+- 第一阶段允许新增测试锚点、fixture、Architecture Lint、Provider Interface / DTO 契约文件；仍禁止迁移 controller/service 业务路径。
+- 当前直接开工边界：先完成 `## 0. Ready-to-Start Gate`，再进入 `## 1. 测试锚点`。
+
+## 0. Ready-to-Start Gate
+
+### [ ] Confirm stage boundary and command entry points
+
+- WHERE: `docs/architecture/architecture-change.md`, `docs/architecture/construction-checklist.md`.
+- WHY: 实现者开工前必须知道当前能改什么、不能改什么、用哪些命令验证。
+- HOW: Review the scope, command inventory, and phase order. Confirm next implementation stage may create tests, fixtures, architecture lint, provider interfaces, DTOs, and provider container only. Confirm it must not thin controllers, move service logic, create external adapters, alter API response shape, or change frontend calls.
+- EXPECTED_RESULT: Stage boundary is explicit and there is no conflict between architecture plan and checklist.
+- VERIFY: Manual review plus `git status --short docs/architecture/architecture-change.md docs/architecture/construction-checklist.md`.
+- STATUS: pending
+- RESULT: Not started.
+- RISK: If this is skipped, implementation may start with business migration before behavior protection exists.
+- ROLLBACK: Revert only the doc clarification if the phase boundary changes.
+
+### [ ] Prepare fake and sandbox testing strategy
+
+- WHERE: `tests/conftest.py`, `tests/fixtures/`, `tests/fakes/`, or project-approved equivalent paths.
+- WHY: First behavior tests must not call real LLM/TTS providers or write outside temporary directories.
+- HOW: Define the exact test support files to create before behavior tests: fake LLM client, fake speech synthesis provider, temporary project data directory, temporary outputs directory, BackgroundTasks runner/spy, and sample CSV/project fixtures. Keep this as a test support plan until implementation starts.
+- EXPECTED_RESULT: Test-anchor work has a concrete fake/sandbox map and can avoid real external side effects.
+- VERIFY: Checklist contains concrete fake/sandbox paths and no test task requires real secrets or external network calls.
+- STATUS: pending
+- RESULT: Not started.
+- RISK: Without this strategy, first tests may be flaky or may perform real external calls.
+- ROLLBACK: Replace the fake/sandbox plan before creating tests if the project selects a different test layout.
+
+### [ ] Define current architecture violation allowlist policy
+
+- WHERE: `tests/test_architecture_imports.py`, `docs/architecture/architecture-change.md`.
+- WHY: Initial Architecture Lint must prevent new violations without falsely blocking the staged migration because current direct imports already exist.
+- HOW: Define an allowlist policy for known current violations and a rule that new files or migrated files must satisfy target boundaries. Include telemetry boundaries: business layers must not import concrete logging/tracing/audit SDKs.
+- EXPECTED_RESULT: Architecture Lint can be introduced at the beginning of migration and tightened over time.
+- VERIFY: Checklist clearly states current violations are allowlisted only while staged and must not expand.
+- STATUS: pending
+- RESULT: Not started.
+- RISK: A strict first lint may fail immediately on known legacy imports; a loose lint may allow new violations.
+- ROLLBACK: Adjust allowlist policy before writing the lint test.
+
+### [ ] Define Provider DTO and Telemetry DTO contract map
+
+- WHERE: `backend/providers/dtos.py`, `backend/providers/telemetry_dtos.py`, or project-approved equivalent paths.
+- WHY: Provider interfaces must share stable internal DTOs instead of each interface inventing incompatible input/output shapes.
+- HOW: Define DTO groups before interface implementation: provider result/error DTOs, uploaded file summary DTO, asset reference DTO, LLM request/response summary DTO, speech synthesis DTO, `DebugEvent`, `AuditEvent`, `ErrorEvent`, `SpanContext`, `TelemetryResult`, and `SpanHandle`. Include redaction summary fields for telemetry DTOs.
+- EXPECTED_RESULT: Provider Interface tasks have concrete DTO paths and names to use.
+- VERIFY: DTO contract map is present in this checklist and aligned with Provider Boundary table in `docs/architecture/architecture-change.md`.
+- STATUS: pending
+- RESULT: Not started.
+- RISK: Missing DTO contract map can cause provider interfaces to leak SDK or framework types.
+- ROLLBACK: Revise DTO paths/names before creating provider interface files.
 
 ## 1. 测试锚点
 
@@ -47,6 +100,42 @@
 - RESULT: Not started.
 - RISK: Tests can become over-specified if they assert data values instead of schema/field presence.
 - ROLLBACK: Relax assertions to public fields only; do not modify frontend or backend behavior.
+
+### [ ] Add debug log schema fixtures
+
+- WHERE: `tests/fixtures/logging/debug_event.json`, `tests/fixtures/logging/audit_event.json`.
+- WHY: Debug Logger and Audit Trace need stable schemas before code migration.
+- HOW: Define sample debug event and audit event fixtures based on `docs/architecture/architecture-change.md`. Include `request_id`, `trace_id`, `layer`, `module`, `operation`, `stage`, `event`, `status`, and `error` fields. Use redaction-safe examples only.
+- EXPECTED_RESULT: Debug and audit event schema fixtures exist and can be used by future schema validation tests.
+- VERIFY: Files exist, JSON can be parsed, and no secret-like field values are present.
+- STATUS: pending
+- RESULT: Not started.
+- RISK: If skipped, later logging implementation may drift across layers.
+- ROLLBACK: Remove fixtures if schema design is rejected.
+
+### [ ] Add minimal architecture lint
+
+- WHERE: `tests/test_architecture_imports.py`.
+- WHY: Boundary rules must exist before Provider Interface and business migration so new violations are caught mechanically.
+- HOW: Add import-boundary tests for API, business, abilities, providers, and infrastructure layers. Start with an allowlist for known current legacy violations. Enforce that new files and migrated files follow target boundaries. Include checks against SDK imports in business/API and against new `utils/helpers/common` fallback modules.
+- EXPECTED_RESULT: Architecture violations fail mechanically while known current violations are documented as staged debt.
+- VERIFY: `uv run pytest tests/test_architecture_imports.py`
+- STATUS: pending
+- RESULT: Not started.
+- RISK: Initial test may fail until planned phases finish; mark known current violations explicitly only while migration is staged.
+- ROLLBACK: Revert lint file only if the rule is incorrectly detecting allowed imports; do not delete rules to hide real violations.
+
+### [ ] Extend Architecture Lint for telemetry boundaries
+
+- WHERE: `tests/test_architecture_imports.py`.
+- WHY: Observability must not become a backdoor dependency from business layer to infrastructure SDKs.
+- HOW: Add lint rules preventing business layers from importing concrete logging, tracing, or audit SDKs. Add lint rules preventing dynamic event names from user input. Add lint rules preventing secret-like fields from being logged directly. Keep current direct `logging` usage allowlisted only until the planned controller/adapter migration removes it.
+- EXPECTED_RESULT: Architecture Lint covers telemetry boundary violations before telemetry code is introduced.
+- VERIFY: `uv run pytest tests/test_architecture_imports.py`
+- STATUS: pending
+- RESULT: Not started.
+- RISK: Logger SDK imports may silently spread across business code.
+- ROLLBACK: Keep rules as warning or allowlisted debt initially if existing project usage needs staged cleanup, then tighten later.
 
 ## 2. Provider Interface
 
@@ -110,16 +199,28 @@
 - RISK: LLM interface may accidentally bind OpenAI/Anthropic response shapes; return internal DTOs only.
 - ROLLBACK: Remove provider files before wiring if contract is wrong.
 
+### [ ] Define TelemetryProvider interface
+
+- WHERE: `backend/providers/telemetry_provider.py`.
+- WHY: Business layers need structured logging and audit capability without depending on concrete logging SDKs.
+- HOW: Design `TelemetryProvider` with methods for debug events, audit events, error events, and trace/span lifecycle. Keep method signatures based on internal DTOs. Do not expose external telemetry SDK types.
+- EXPECTED_RESULT: `TelemetryProvider` is listed in provider boundary design, and Providers Container includes `telemetry` because this migration now makes observability a first-class architecture capability.
+- VERIFY: `docs/architecture/architecture-change.md` Provider Boundary Design includes `TelemetryProvider`, and no business layer direct dependency on logging SDK is planned.
+- STATUS: pending
+- RESULT: Not started.
+- RISK: Interface may become too wide if it tries to support every future observability backend.
+- ROLLBACK: Collapse into a smaller debug-event / audit-event interface.
+
 ### [ ] Define Providers Container
 
 - WHERE: `backend/providers/container.py`.
 - WHY: Current code uses global storage, global services, and cached singletons rather than explicit dependency injection.
-- HOW: Add `ProvidersContainer` with only actual fields: `repository`, `storage`, `assets`, `dataset`, `association_rules`, `recommendation_models`, `speech`, `llm`, `analysis_jobs`.
+- HOW: Add `ProvidersContainer` with only actual fields: `repository`, `storage`, `assets`, `dataset`, `association_rules`, `recommendation_models`, `speech`, `llm`, `analysis_jobs`, `telemetry`.
 - EXPECTED_RESULT: Pipelines and abilities can receive one typed container.
 - VERIFY: `uv run python -m py_compile backend/providers/container.py`
 - STATUS: pending
 - RESULT: Not started.
-- RISK: Adding unused fields such as browser, queue, or telemetry would create speculative architecture.
+- RISK: Adding unused fields such as browser or queue would create speculative architecture; `telemetry` is included because Debug Logger / Audit Trace is now an explicit migration dimension.
 - ROLLBACK: Remove or revise `container.py` before any pipeline depends on it.
 
 ## 3. External Adapter
@@ -184,6 +285,18 @@
 - RISK: Real external calls require secrets; tests must use fake HTTP/TTS clients.
 - ROLLBACK: Remove adapter files before production wiring if contract is wrong.
 
+### [ ] Plan Telemetry external adapters
+
+- WHERE: `backend/infrastructure/adapters/console_telemetry_adapter.py`, `backend/infrastructure/adapters/file_telemetry_adapter.py`, future telemetry adapter design notes.
+- WHY: Concrete logging, audit, and tracing sinks must stay in Infrastructure Layer.
+- HOW: Plan `ConsoleTelemetryAdapter` or `FileTelemetryAdapter` as the first implementation. Optionally document future OpenTelemetry, Sentry, database audit, or self-hosted trace adapters. Define adapter error handling: telemetry failure must not break normal business flow unless audit mode is explicitly required.
+- EXPECTED_RESULT: `docs/architecture/architecture-change.md` lists concrete telemetry adapter candidates and failure behavior.
+- VERIFY: Adapter candidates are documented under Infrastructure Layer, and Business Layer does not instantiate telemetry adapters.
+- STATUS: pending
+- RESULT: Not started.
+- RISK: Logging sink failure strategy may be unclear.
+- ROLLBACK: Keep only console/file adapter plan until audit storage is clarified.
+
 ### [ ] Implement provider factory
 
 - WHERE: `backend/infrastructure/factories/provider_factory.py`.
@@ -245,6 +358,18 @@
 - RESULT: Not started.
 - RISK: Prompt text or report formatting changes may alter user-visible output; assert key sections/fields, not exact generated prose unless required.
 - ROLLBACK: Revert to existing service methods.
+
+### [ ] Add Ability-level debug event requirements
+
+- WHERE: `docs/architecture/architecture-change.md`, future `backend/abilities/**` modules.
+- WHY: Ability failures must be traceable to exact atomic business action.
+- HOW: For each planned Ability Atom, document required events: `ability.started`, `ability.completed`, `ability.failed`. Define `input_summary` and `output_summary` rules. Prohibit full raw content logging.
+- EXPECTED_RESULT: Each Ability Atom has a planned observability contract.
+- VERIFY: `docs/architecture/architecture-change.md` contains Ability-level logging contract.
+- STATUS: pending
+- RESULT: Not started.
+- RISK: Without Ability-level events, Pipeline failures may be too coarse to debug.
+- ROLLBACK: Keep Pipeline-level logging only if project is too small, but document the limitation.
 
 ## 5. Business Pipeline
 
@@ -308,6 +433,18 @@
 - RISK: External LLM/TTS behavior must be faked in tests; never require real secrets in CI.
 - ROLLBACK: Revert route handlers to current service calls.
 
+### [ ] Add Pipeline-level trace events
+
+- WHERE: `docs/architecture/architecture-change.md`, future `backend/business/pipelines/**` modules.
+- WHY: Pipeline execution must be debuggable by step and stage.
+- HOW: For each planned Business Pipeline, define `pipeline.started`, `pipeline.step.started`, `pipeline.step.completed`, `pipeline.step.failed`, `pipeline.completed`, and `pipeline.failed`. Include `pipeline_run_id`, `trace_id`, `step_name`, `stage`, `duration_ms`, and `error_type`.
+- EXPECTED_RESULT: Pipeline-level trace contract exists before implementation.
+- VERIFY: `docs/architecture/architecture-change.md` contains Pipeline logging contract, and this checklist includes future tests for trace event emission.
+- STATUS: pending
+- RESULT: Not started.
+- RISK: Missing step-level events will make multi-step bugs hard to localize.
+- ROLLBACK: Reduce event set but keep started / completed / failed minimum.
+
 ## 6. Business Flow
 
 ### [ ] Create ProjectAnalysisFlow for upload and reanalysis lifecycle
@@ -322,7 +459,31 @@
 - RISK: Background behavior can change if flow execution becomes synchronous; preserve current scheduling semantics.
 - ROLLBACK: Revert upload/reanalysis to call `run_project_analysis` directly.
 
+### [ ] Add Flow lifecycle audit requirements
+
+- WHERE: `docs/architecture/architecture-change.md`, future `backend/business/flows/project_analysis_flow.py`.
+- WHY: Long-running flows need lifecycle audit for pause, resume, cancel, compensation, and replay.
+- HOW: Apply only because `ProjectAnalysisFlow` exists as a planned complex lifecycle. Define audit events for state transitions: `flow.started`, `flow.stage.completed`, `flow.stage.failed`, `flow.compensation.started`, `flow.completed`, and `flow.cancelled`. Include `state_before` and `state_after` summaries.
+- EXPECTED_RESULT: Flow lifecycle state transitions are auditable.
+- VERIFY: `docs/architecture/architecture-change.md` documents lifecycle audit events for Business Flow.
+- STATUS: pending
+- RESULT: Not started.
+- RISK: Long-running jobs may become impossible to replay or debug without lifecycle audit.
+- ROLLBACK: Mark as NOT_APPLICABLE if the project later removes complex Business Flow.
+
 ## 7. API Controller
+
+### [ ] Add request-level trace context requirements
+
+- WHERE: `docs/architecture/architecture-change.md`, future controller rewiring in `backend/api/*.py`.
+- WHY: Every external request needs a trace root for downstream debugging.
+- HOW: Document how `request_id` and `trace_id` are created or accepted. Document how `actor_id` / `session_id` is attached when available. Document how API errors preserve `trace_id` internally while returning safe public error responses.
+- EXPECTED_RESULT: API Controller layer has request-level trace context requirements.
+- VERIFY: `docs/architecture/architecture-change.md` contains API Controller trace context strategy.
+- STATUS: pending
+- RESULT: Not started.
+- RISK: Without request-level trace root, downstream logs cannot be correlated.
+- ROLLBACK: Use generated `request_id` only if upstream trace headers are not supported.
 
 ### [ ] Thin project API controller
 
@@ -374,18 +535,6 @@
 
 ## 8. Architecture Lint / Runtime Check / 全量验证
 
-### [ ] Add minimal architecture lint
-
-- WHERE: `tests/test_architecture_imports.py`.
-- WHY: Current code has multiple cross-layer imports and there is no guard against regressions.
-- HOW: Add import-boundary tests for API, business, abilities, providers, and infrastructure layers. Include checks against SDK imports in business/API and against new `utils/helpers/common` fallback modules.
-- EXPECTED_RESULT: Architecture violations fail mechanically before migration continues.
-- VERIFY: `uv run pytest tests/test_architecture_imports.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Initial test may fail until planned phases finish; mark known current violations explicitly only while migration is staged.
-- ROLLBACK: Revert lint file only if the rule is incorrectly detecting allowed imports; do not delete rules to hide real violations.
-
 ### [ ] Add minimal runtime checks
 
 - WHERE: `backend/core/runtime_checks.py`.
@@ -397,6 +546,18 @@
 - RESULT: Not started.
 - RISK: Runtime checks must not perform irreversible writes outside sandbox mode.
 - ROLLBACK: Remove or disable only the incorrect check command; keep provider wiring tests.
+
+### [ ] Add Runtime Check for telemetry and audit
+
+- WHERE: runtime check plan and future `backend/core/runtime_checks.py`.
+- WHY: Runtime Check must verify that trace events and audit sinks work after migration.
+- HOW: Plan commands: `check-telemetry`, `check-audit-sink`, `inspect-trace`, `validate-log-schema`, `validate-audit-schema`, and `dry-run-pipeline --trace`. Adapt command names to the Python backend package.
+- EXPECTED_RESULT: Runtime Check strategy includes telemetry and audit validation.
+- VERIFY: `docs/architecture/architecture-change.md` Runtime Check Strategy includes telemetry and audit checks.
+- STATUS: pending
+- RESULT: Not started.
+- RISK: Logs may exist but be unqueryable or schema-inconsistent.
+- ROLLBACK: Keep only `validate-log-schema` and `dry-run-pipeline --trace` for MVP.
 
 ### [ ] Run staged and full validation
 
@@ -459,3 +620,15 @@
 - RESULT: Not started.
 - RISK: Marking tasks complete without command evidence violates the migration gate.
 - ROLLBACK: Reopen any item that lacks evidence.
+
+### [ ] Verify debug and audit documentation completeness
+
+- WHERE: `docs/architecture/architecture-change.md`, `docs/architecture/construction-checklist.md`.
+- WHY: Debug Logger and Audit Trace must be part of final architecture acceptance.
+- HOW: Confirm trace context model exists. Confirm layer-level logging contract exists. Confirm audit event schema exists. Confirm telemetry provider boundary exists. Confirm privacy and redaction policy exists. Confirm lint and runtime check extensions exist.
+- EXPECTED_RESULT: Final architecture documents include observability as a first-class dimension.
+- VERIFY: Manual doc review; checklist items are not missing required WHERE / WHY / HOW / EXPECTED_RESULT / VERIFY fields.
+- STATUS: pending
+- RESULT: Not started.
+- RISK: Observability may be implemented inconsistently if not documented before code migration.
+- ROLLBACK: Revert documentation changes and re-run planning.
