@@ -21,6 +21,7 @@
 - 2026-05-25: 继续实现 Retail V2 feature engineering slice；目标是价格带、顾客画像、商品画像、复购周期、CRITIC/TOPSIS 纯 Ability。
 - 2026-05-25: touched-scope quality gate passed for Retail V2 feature engineering slice；full `make lint` still blocked by pre-existing debt in `analysis/code_files/*.py`.
 - 2026-05-25: 继续实现 Retail V2 segmentation slice；默认后端先落地 deterministic GMM soft segmentation，UMAP/HDBSCAN/Torch 作为后续 heavy dependency gate。
+- 2026-05-25: §4.4 association + HUIM abilities implemented and tested
 
 ## 0. Ready-to-Start Gate
 
@@ -236,15 +237,15 @@
 - RISK:
 - ROLLBACK:
 
-### [ ] Extract association and HUIM abilities
+### [x] Extract association and HUIM abilities
 
 - WHERE: `backend/abilities/retail/mine_retail_association_rules.py`, `mine_high_utility_itemsets.py`.
 - WHY: 新逻辑使用 FP-Growth 和高效用项集作为组合营销基础。
 - HOW: 提取事务构建、规则筛选、中文字段输出、HUIM 计算。
 - EXPECTED_RESULT: 输出 rules、rule metrics、bundle candidates。
 - VERIFY: `uv run pytest tests/abilities/retail/test_retail_association.py`
-- STATUS: pending
-- RESULT:
+- STATUS: completed
+- RESULT: 已新增 `mine_retail_association_rules`（FP-Growth 商品级/小类级/中类级）和 `mine_high_utility_itemsets`（HUIM 高效用项集），配套 `tests/abilities/retail/test_retail_association.py`（3 测试），全部 12 个 retail ability 测试通过。
 - RISK:
 - ROLLBACK:
 
