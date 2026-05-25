@@ -24,6 +24,11 @@
   - `make test` after sandbox escalation for uv cache access.
 - Full quality gate is currently blocked by pre-existing repository lint debt outside this task. `make lint` fails on legacy files including `analysis/marketing_modeling.py` and `backend/services/*` with import ordering, unused imports, bare except, naming, whitespace, and one-line statement issues. Do not commit or push until the project either fixes that debt or explicitly scopes the quality gate differently.
 - `make typecheck` is a placeholder and only prints `No confirmed typecheck command; configure this target before claiming type checks passed.`
+- 2026-05-25: Second implementation pass completed API smoke tests, project analysis behavior tests, frontend API matrix tests, JSON/file/dataset/rule/model/speech/LLM/telemetry adapters, FastAPI background job adapter, and Provider Factory. Touched-scope verification passed:
+  - `uv run ruff check backend/core/errors.py backend/providers backend/infrastructure tests`
+  - `uv run ruff format --check backend/core/errors.py backend/providers backend/infrastructure tests`
+  - `uv run pytest tests` with 35 passed and 5 warnings.
+  - Full `make lint` remains blocked by the same pre-existing repository lint debt in `analysis/marketing_modeling.py` and legacy `backend/services/*`.
 
 ## 0. Ready-to-Start Gate
 
@@ -77,40 +82,40 @@
 
 ## 1. 测试锚点
 
-### [ ] Add API smoke tests for current public contracts
+### [x] Add API smoke tests for current public contracts
 
 - WHERE: `tests/api/test_current_api_contracts.py` or project-approved equivalent test path.
 - WHY: Current project has no tests, while frontend depends on concrete response shapes and status/error behavior.
 - HOW: Use FastAPI `TestClient` or async HTTP client to cover `/`, `/api/health/`, project CRUD, upload validation, reanalyze validation, customers response shape, recommendation endpoints, `/api/voice/tts/`, `/api/ai-voice/broadcast/`, and audio lookup. Use fixtures/fakes for external LLM/TTS/file effects where needed.
 - EXPECTED_RESULT: Tests document current route paths, methods, status codes, response fields, and FastAPI `detail` error shape.
 - VERIFY: `uv run pytest tests/api/test_current_api_contracts.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Tests may reveal existing inactive or inconsistent routes; do not fix unrelated behavior in this task.
-- ROLLBACK: Remove only the newly added test file if the test design is invalid; do not change backend behavior.
+- STATUS: completed
+- RESULT: Added `tests/api/test_current_api_contracts.py` and `tests/conftest.py`. The tests cover `/`, `/api/health/`, project CRUD, upload validation/success, reanalysis validation/success, customers shape, project recommendation, recommendation endpoints, association status/analyze, `/api/voice/tts/`, `/api/voice/generate/`, `/api/ai-voice/broadcast/`, `/api/tts/`, and AI voice audio lookup. External recommendation, LLM, and TTS behavior is monkeypatched; project storage uses `tmp_path`. `uv run pytest tests/api/test_current_api_contracts.py` passes with 7 tests and 2 existing Pydantic deprecation warnings. `uv run pytest tests/test_architecture_imports.py tests/api/test_current_api_contracts.py` passes with 10 tests and 2 warnings.
+- RISK: These are smoke/contract anchors and do not yet cover the full project analysis lifecycle; that remains the next checklist item.
+- ROLLBACK: Remove only `tests/api/test_current_api_contracts.py` and `tests/conftest.py` if the test design is invalid; do not change backend behavior.
 
-### [ ] Add project analysis behavior anchor tests
+### [x] Add project analysis behavior anchor tests
 
 - WHERE: `tests/business/test_project_analysis_current_behavior.py`.
 - WHY: Upload/reanalysis currently triggers a background lifecycle that writes files, updates statuses, builds a model, and handles failure state.
 - HOW: Create fixture project data and monkeypatch concrete services or providers to avoid real external TTS. Assert status transitions `处理中 -> 已完成` and failure `失败 + error_message`, output path fields, and cache invalidation call.
 - EXPECTED_RESULT: Current analysis behavior is executable and protected before extracting Business Flow.
 - VERIFY: `uv run pytest tests/business/test_project_analysis_current_behavior.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Current analysis function has multiple filesystem side effects; fixture isolation must avoid writing outside temp directories.
-- ROLLBACK: Remove test fixtures and test file if isolation is incorrect.
+- STATUS: completed
+- RESULT: Added `tests/business/test_project_analysis_current_behavior.py`. The tests monkeypatch concrete analysis, prediction, clustering, TTS, model builder, and recommender cache dependencies while using `tmp_path`-backed `ProjectStorage`. Success path verifies status `处理中 -> 已完成`, report/audio/customers/model side effects, result fields, and cache invalidation. Failure path verifies missing dataset sets `失败 + error_message`. `uv run pytest tests/business/test_project_analysis_current_behavior.py` passes with 2 tests and existing Pydantic serialization/deprecation warnings.
+- RISK: Current persistence serializes association rules and `AnalysisResults` through dicts with Pydantic warnings; preserve this behavior until a separately approved schema cleanup.
+- ROLLBACK: Remove `tests/business/test_project_analysis_current_behavior.py` if isolation is incorrect; do not change backend behavior.
 
-### [ ] Add frontend-dependent API matrix contract tests
+### [x] Add frontend-dependent API matrix contract tests
 
 - WHERE: `tests/api/test_frontend_api_matrix_contracts.py`.
 - WHY: Frontend uses specific fields such as `success`, `data.id`, `status`, `results`, `audio_url`, `recommends`, `downstream`, and FastAPI `detail`.
 - HOW: Encode the API Matrix from `docs/architecture/architecture-change.md` into response shape assertions for active internal frontend calls. Mark external LLM calls out of backend scope.
 - EXPECTED_RESULT: Frontend-dependent fields are locked before controller thinning.
 - VERIFY: `uv run pytest tests/api/test_frontend_api_matrix_contracts.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Tests can become over-specified if they assert data values instead of schema/field presence.
+- STATUS: completed
+- RESULT: Added `tests/api/test_frontend_api_matrix_contracts.py`. The tests lock frontend-dependent fields for project create/list/detail, FastAPI `detail`, customer rows, recommendation item/user/calculate responses, voice TTS, and AI voice broadcast. External LLM/TTS/recommendation behavior is monkeypatched and external LLM calls remain out of backend scope. `uv run pytest tests/api/test_frontend_api_matrix_contracts.py` passes with 4 tests and existing Pydantic warnings.
+- RISK: Tests assert public field presence rather than full payload equality except where frontend URL formats are contract-critical.
 - ROLLBACK: Relax assertions to public fields only; do not modify frontend or backend behavior.
 
 ### [x] Add debug log schema fixtures
@@ -237,88 +242,88 @@
 
 ## 3. External Adapter
 
-### [ ] Implement JSON project repository adapter
+### [x] Implement JSON project repository adapter
 
 - WHERE: `backend/infrastructure/adapters/json_project_repository_adapter.py`.
 - WHY: `backend/core/storage.py` currently stores project metadata in `data/projects.json` and is globally imported by controllers/services.
 - HOW: Implement `ProjectRepositoryProvider` using the existing JSON behavior. Preserve project fields, sorting by `created_at`, update semantics, and delete behavior. Do not remove `ProjectStorage` yet.
 - EXPECTED_RESULT: Adapter can pass contract tests against the same behavior as current `ProjectStorage`.
 - VERIFY: `uv run pytest tests/providers/test_json_project_repository_adapter.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: JSON writes are not atomic today; do not introduce different write semantics unless documented and tested.
+- STATUS: completed
+- RESULT: Added `backend/infrastructure/adapters/json_project_repository_adapter.py` and `tests/providers/test_json_project_repository_adapter.py`. The adapter composes existing `ProjectStorage` to preserve JSON persistence, project directory creation, created-at descending list order, update behavior, delete behavior, count, and missing-resource return values. `uv run pytest tests/providers/test_json_project_repository_adapter.py` passes with 2 tests and existing Pydantic deprecation warnings.
+- RISK: JSON writes remain non-atomic because this adapter intentionally preserves current behavior.
 - ROLLBACK: Delete adapter file and tests if not wired into production code.
 
-### [ ] Implement local file and generated asset adapters
+### [x] Implement local file and generated asset adapters
 
 - WHERE: `backend/infrastructure/adapters/local_project_file_storage_adapter.py`, `backend/infrastructure/adapters/local_generated_asset_adapter.py`.
 - WHY: Uploads, customers CSV, reports, TTS outputs, `/outputs`, `/tmp`, and `backend/data/audio` are scattered across controllers/services.
 - HOW: Implement current path layout exactly. Preserve `/outputs/audio/...` and `/api/ai-voice/audio/{filename}/` lookup behavior until product approves normalization.
 - EXPECTED_RESULT: File and asset behavior can be tested behind provider contracts without controller filesystem logic.
 - VERIFY: `uv run pytest tests/providers/test_local_file_adapters.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Path changes would break frontend audio playback and report downloads.
+- STATUS: completed
+- RESULT: Added `backend/infrastructure/adapters/local_project_file_storage_adapter.py`, `backend/infrastructure/adapters/local_generated_asset_adapter.py`, and `tests/providers/test_local_file_adapters.py`. Tests verify current `data/projects/{id}/dataset.csv`, `customers.csv`, project report/audio, `/outputs/audio/...`, and AI voice `/tmp` before `backend/data/audio` lookup behavior. `uv run pytest tests/providers/test_local_file_adapters.py` passes with 2 tests.
+- RISK: Path changes would break frontend audio playback and report downloads; adapter intentionally preserves current layouts.
 - ROLLBACK: Revert adapter files; current direct filesystem logic remains untouched.
 
-### [ ] Implement dataset and rule store adapters
+### [x] Implement dataset and rule store adapters
 
 - WHERE: `backend/infrastructure/adapters/csv_dataset_adapter.py`, `backend/infrastructure/adapters/local_association_rule_store_adapter.py`.
 - WHY: Dataset/rule reads and dynamic rule writes are mixed into core recommendation and service functions.
 - HOW: Wrap pandas CSV reads, rule pickle/CSV fallback, and dynamic rules append. Convert IO/parse failures to internal errors or current-compatible not-found behavior.
 - EXPECTED_RESULT: Association/recommendation abilities can load data and store rules through providers.
 - VERIFY: `uv run pytest tests/providers/test_dataset_and_rule_store_adapters.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Current fallback order between project dataset and global rule files must remain unchanged.
+- STATUS: completed
+- RESULT: Added `backend/infrastructure/adapters/csv_dataset_adapter.py`, `backend/infrastructure/adapters/local_association_rule_store_adapter.py`, and `tests/providers/test_dataset_and_rule_store_adapters.py`. Tests verify CSV dataset save/load, project dataset path loading, default rule artifact fallback order, explicit rule artifact loading, dynamic rule append, and rule save. `uv run pytest tests/providers/test_dataset_and_rule_store_adapters.py` passes with 3 tests.
+- RISK: Current fallback order between explicit rule artifact and configured global rule files is preserved at the adapter level; project dataset rule calculation remains an ability/core concern, not a provider method.
 - ROLLBACK: Remove adapter files before wiring if fallback behavior is wrong.
 
-### [ ] Implement recommendation model store adapter
+### [x] Implement recommendation model store adapter
 
 - WHERE: `backend/infrastructure/adapters/local_recommendation_model_store_adapter.py`.
 - WHY: Model artifact persistence currently writes and reads `backend/data/model_data.pkl` directly.
 - HOW: Wrap pickle load/save behavior and current missing-model fallback semantics used by `RecommendationSystem`.
 - EXPECTED_RESULT: Model build and recommendation pipelines can use a provider for model artifact storage.
 - VERIFY: `uv run pytest tests/providers/test_recommendation_model_store_adapter.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Pickle compatibility must be preserved; changing artifact shape would break existing generated models.
+- STATUS: completed
+- RESULT: Added `backend/infrastructure/adapters/local_recommendation_model_store_adapter.py` and `tests/providers/test_recommendation_model_store_adapter.py`. Tests verify missing model returns `None`, pickle save/load preserves payload, and `clear_cache` delegates to an injected cache clearer. `uv run pytest tests/providers/test_recommendation_model_store_adapter.py` passes with 2 tests.
+- RISK: Pickle compatibility is intentionally preserved; changing artifact shape would break existing generated models.
 - ROLLBACK: Remove adapter and keep direct model service behavior.
 
-### [ ] Implement speech synthesis and LLM adapters
+### [x] Implement speech synthesis and LLM adapters
 
 - WHERE: `backend/infrastructure/adapters/edge_tts_speech_synthesis_adapter.py`, `backend/infrastructure/adapters/openai_compatible_llm_adapter.py`, `backend/infrastructure/adapters/anthropic_llm_adapter.py`.
 - WHY: `edge_tts` and `httpx` provider calls currently live in service/business code.
 - HOW: Move SDK/HTTP calls into adapters implementing `SpeechSynthesisProvider` and `LLMProvider`. Preserve timeout, provider request shape, response parsing, voice/rate/volume behavior, and generated script text.
 - EXPECTED_RESULT: Business code no longer imports `edge_tts` or `httpx` after later wiring.
 - VERIFY: `uv run pytest tests/providers/test_speech_and_llm_adapters.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Real external calls require secrets; tests must use fake HTTP/TTS clients.
+- STATUS: completed
+- RESULT: Added `backend/infrastructure/adapters/edge_tts_speech_synthesis_adapter.py`, `openai_compatible_llm_adapter.py`, `anthropic_llm_adapter.py`, and `tests/providers/test_speech_and_llm_adapters.py`. Tests use injected fake TTS and HTTP clients, verifying request shape, timeout, header, response parsing, and internal DTO outputs without real network or secrets. `uv run pytest tests/providers/test_speech_and_llm_adapters.py` passes with 3 tests.
+- RISK: Real external calls require secrets; production wiring must keep fake/injected client test paths and avoid logging raw prompts or API keys.
 - ROLLBACK: Remove adapter files before production wiring if contract is wrong.
 
-### [ ] Plan Telemetry external adapters
+### [x] Plan Telemetry external adapters
 
 - WHERE: `backend/infrastructure/adapters/console_telemetry_adapter.py`, `backend/infrastructure/adapters/file_telemetry_adapter.py`, future telemetry adapter design notes.
 - WHY: Concrete logging, audit, and tracing sinks must stay in Infrastructure Layer.
 - HOW: Plan `ConsoleTelemetryAdapter` or `FileTelemetryAdapter` as the first implementation. Optionally document future OpenTelemetry, Sentry, database audit, or self-hosted trace adapters. Define adapter error handling: telemetry failure must not break normal business flow unless audit mode is explicitly required.
 - EXPECTED_RESULT: `docs/architecture/architecture-change.md` lists concrete telemetry adapter candidates and failure behavior.
 - VERIFY: Adapter candidates are documented under Infrastructure Layer, and Business Layer does not instantiate telemetry adapters.
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Logging sink failure strategy may be unclear.
+- STATUS: completed
+- RESULT: Added `backend/infrastructure/adapters/console_telemetry_adapter.py`, `file_telemetry_adapter.py`, and `tests/providers/test_telemetry_adapters.py`. Tests verify JSON line emission, debug/audit/error event append, span end event emission, and best-effort failure behavior. `uv run pytest tests/providers/test_telemetry_adapters.py` passes with 3 tests.
+- RISK: Console/file adapters are MVP telemetry sinks; future OpenTelemetry/Sentry/database audit adapters must still avoid leaking sink SDK types into business layers.
 - ROLLBACK: Keep only console/file adapter plan until audit storage is clarified.
 
-### [ ] Implement provider factory
+### [x] Implement provider factory
 
 - WHERE: `backend/infrastructure/factories/provider_factory.py`.
 - WHY: Business layers need a single Settings -> Adapter -> ProvidersContainer assembly point.
 - HOW: Create `create_providers(settings)` that instantiates current local adapters and provider container. Keep request-provided LLM config behavior available to AI voice pipeline instead of forcing env-only config.
 - EXPECTED_RESULT: Providers Container can be created in tests and app bootstrap.
 - VERIFY: `uv run pytest tests/providers/test_provider_factory.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Factory may read env outside `Settings`; prohibit that in architecture lint.
+- STATUS: completed
+- RESULT: Added `backend/infrastructure/factories/provider_factory.py`, `backend/infrastructure/adapters/fastapi_background_analysis_job_adapter.py`, and `tests/providers/test_provider_factory.py`. Factory assembles local JSON/file/dataset/rule/model/TTS/LLM/job/telemetry providers from `Settings`; LLM provider can select OpenAI-compatible or Anthropic-compatible adapter. Background job adapter schedules through FastAPI `BackgroundTasks` when available and supports sync handlers without background tasks for tests. `uv run pytest tests/providers/test_provider_factory.py` passes with 4 tests and existing Pydantic deprecation warnings.
+- RISK: Factory currently uses known current path defaults (`data`, `backend/data/model_data.pkl`, `backend/data/audio`, `/tmp`) because Settings does not yet expose every path as a typed field.
 - ROLLBACK: Remove factory before app bootstrap wiring.
 
 ## 4. Ability Atom
