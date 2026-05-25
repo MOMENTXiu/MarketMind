@@ -1,7 +1,7 @@
 """Local project workspace file storage adapter."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 import pandas as pd
 
@@ -32,6 +32,21 @@ class LocalProjectFileStorageAdapter:
         return DatasetReferenceDTO(
             project_id=project_id, path=dataset_path, filename=upload.filename
         )
+
+    def save_dataset(
+        self,
+        project_id: str,
+        filename: str,
+        stream: BinaryIO,
+    ) -> DatasetReferenceDTO:
+        project_dir = self.get_project_dir(project_id)
+        project_dir.mkdir(parents=True, exist_ok=True)
+        dataset_path = project_dir / "dataset.csv"
+        content = stream.read()
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+        dataset_path.write_bytes(content)
+        return DatasetReferenceDTO(project_id=project_id, path=dataset_path, filename=filename)
 
     def read_customers(self, project_id: str) -> list[dict[str, Any]]:
         customers_path = self.get_project_dir(project_id) / "customers.csv"

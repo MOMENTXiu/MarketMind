@@ -1,9 +1,11 @@
 """
 应用配置
 """
-from pydantic_settings import BaseSettings
-from pydantic import ConfigDict
+
 from typing import List
+
+from pydantic import ConfigDict
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -49,10 +51,7 @@ class Settings(BaseSettings):
     # 语音合成
     TTS_VOICE: str = "zh-CN-YunxiNeural"
 
-    model_config = ConfigDict(
-        env_file=".env",
-        case_sensitive=True
-    )
+    model_config = ConfigDict(env_file=".env", case_sensitive=True)
 
 
 settings = Settings()

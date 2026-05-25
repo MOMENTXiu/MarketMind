@@ -1,12 +1,13 @@
 """
 项目存储管理器 - 使用JSON文件存储
 """
+
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
-from datetime import datetime
 
-from backend.models.project import Project, ProjectStatus
+from backend.models.project import Project
 
 
 class ProjectStorage:
@@ -28,7 +29,7 @@ class ProjectStorage:
     def _load_projects(self) -> List[Project]:
         """加载所有项目"""
         try:
-            with open(self.projects_file, 'r', encoding='utf-8') as f:
+            with open(self.projects_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 return [Project(**item) for item in data]
         except Exception as e:
@@ -37,8 +38,8 @@ class ProjectStorage:
 
     def _save_projects(self, projects: List[Project]):
         """保存所有项目"""
-        with open(self.projects_file, 'w', encoding='utf-8') as f:
-            data = [p.model_dump(mode='json') for p in projects]
+        with open(self.projects_file, "w", encoding="utf-8") as f:
+            data = [p.model_dump(mode="json") for p in projects]
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
 
     def create_project(self, project: Project) -> Project:
@@ -70,7 +71,7 @@ class ProjectStorage:
         projects = self._load_projects()
         # 按创建时间倒序排列
         projects.sort(key=lambda x: x.created_at, reverse=True)
-        return projects[skip:skip + limit]
+        return projects[skip : skip + limit]
 
     def update_project(self, project_id: str, updates: dict) -> Optional[Project]:
         """更新项目"""
@@ -98,6 +99,7 @@ class ProjectStorage:
 
             # 删除项目文件夹
             import shutil
+
             project_dir = self.projects_dir / project_id
             if project_dir.exists():
                 shutil.rmtree(project_dir)

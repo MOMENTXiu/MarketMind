@@ -1,15 +1,18 @@
 """
 项目数据模型
 """
+
+import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field, ConfigDict
-import uuid
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProjectStatus(str, Enum):
     """项目状态枚举"""
+
     PENDING = "待处理"
     PROCESSING = "处理中"
     COMPLETED = "已完成"
@@ -18,6 +21,7 @@ class ProjectStatus(str, Enum):
 
 class AnalysisParameters(BaseModel):
     """分析参数"""
+
     min_support: float = Field(0.02, ge=0.0, le=1.0, description="最小支持度")
     min_confidence: float = Field(0.3, ge=0.0, le=1.0, description="最小置信度")
     min_lift: float = Field(1.0, ge=0.0, description="最小提升度")
@@ -27,6 +31,7 @@ class AnalysisParameters(BaseModel):
 
 class AnalysisResults(BaseModel):
     """分析结果"""
+
     association_rules: Optional[List[Dict[str, Any]]] = None
     prediction_data: Optional[Dict[str, Any]] = None
     clustering_data: Optional[Dict[str, Any]] = None
@@ -37,13 +42,16 @@ class AnalysisResults(BaseModel):
 
 class Project(BaseModel):
     """项目模型"""
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="项目ID")
     name: str = Field(..., min_length=1, max_length=100, description="项目名称")
     description: Optional[str] = Field(None, max_length=500, description="项目描述")
     dataset_filename: Optional[str] = Field(None, description="数据集文件名")
     dataset_path: Optional[str] = Field(None, description="数据集路径")
     status: ProjectStatus = Field(ProjectStatus.PENDING, description="项目状态")
-    parameters: AnalysisParameters = Field(default_factory=AnalysisParameters, description="分析参数")
+    parameters: AnalysisParameters = Field(
+        default_factory=AnalysisParameters, description="分析参数"
+    )
     results: Optional[AnalysisResults] = Field(None, description="分析结果")
     error_message: Optional[str] = Field(None, description="错误信息")
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
@@ -58,6 +66,7 @@ class Project(BaseModel):
 
 class ProjectCreate(BaseModel):
     """创建项目请求"""
+
     name: str = Field(..., min_length=1, max_length=100, description="项目名称")
     description: Optional[str] = Field(None, max_length=500, description="项目描述")
     parameters: Optional[AnalysisParameters] = None
@@ -65,14 +74,18 @@ class ProjectCreate(BaseModel):
 
 class ProjectUpdate(BaseModel):
     """更新项目请求"""
+
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = None
     status: Optional[ProjectStatus] = None
     parameters: Optional[AnalysisParameters] = None
+    dataset_filename: Optional[str] = None
+    dataset_path: Optional[str] = None
 
 
 class ProjectResponse(BaseModel):
     """项目响应"""
+
     success: bool
     message: str
     data: Optional[Project] = None
@@ -80,6 +93,7 @@ class ProjectResponse(BaseModel):
 
 class ProjectListResponse(BaseModel):
     """项目列表响应"""
+
     success: bool
     message: str
     total: int

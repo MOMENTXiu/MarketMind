@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from backend.models.project import Project, ProjectCreate, ProjectUpdate
+from backend.models.project import AnalysisResults, Project, ProjectCreate, ProjectUpdate
 
 
 class ProjectRepositoryProvider(Protocol):
@@ -17,6 +17,12 @@ class ProjectRepositoryProvider(Protocol):
 
     def update_project(self, project_id: str, update_data: ProjectUpdate) -> Project | None:
         """Update a project and return the persisted result."""
+
+    def mark_analysis_completed(self, project_id: str, results: AnalysisResults) -> Project | None:
+        """Persist successful analysis outcome (status=已完成, results, clear error_message)."""
+
+    def mark_analysis_failed(self, project_id: str, error_message: str) -> Project | None:
+        """Persist failed analysis outcome (status=失败, error_message)."""
 
     def delete_project(self, project_id: str) -> bool:
         """Delete a project and its metadata."""

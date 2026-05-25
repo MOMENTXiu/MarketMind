@@ -29,6 +29,7 @@ from backend.infrastructure.adapters.openai_compatible_llm_adapter import (
     OpenAICompatibleLLMAdapter,
 )
 from backend.providers.container import ProvidersContainer
+from backend.services.analysis_service import run_project_analysis
 from backend.services.recommender_service import clear_recommender_cache
 
 
@@ -58,6 +59,9 @@ def create_providers(
         ),
         speech=EdgeTtsSpeechSynthesisAdapter(),
         llm=llm,
-        analysis_jobs=FastApiBackgroundAnalysisJobAdapter(background_tasks),
+        analysis_jobs=FastApiBackgroundAnalysisJobAdapter(
+            background_tasks,
+            default_handler=run_project_analysis,
+        ),
         telemetry=ConsoleTelemetryAdapter(),
     )

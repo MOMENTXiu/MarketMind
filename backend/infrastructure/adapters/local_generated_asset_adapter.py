@@ -63,6 +63,17 @@ class LocalGeneratedAssetAdapter:
             media_type="audio/mpeg",
         )
 
+    def save_ai_audio(self, filename: str, source_path: Path) -> AssetReferenceDTO:
+        self.ai_audio_dir.mkdir(parents=True, exist_ok=True)
+        audio_path = self.ai_audio_dir / filename
+        if source_path.resolve() != audio_path.resolve():
+            shutil.copy2(source_path, audio_path)
+        return AssetReferenceDTO(
+            path=audio_path,
+            url=f"/api/ai-voice/audio/{filename}/",
+            media_type="audio/mpeg",
+        )
+
     def resolve_ai_audio(self, filename: str) -> AssetReferenceDTO | None:
         temp_path = self.temp_dir / filename
         if temp_path.exists():

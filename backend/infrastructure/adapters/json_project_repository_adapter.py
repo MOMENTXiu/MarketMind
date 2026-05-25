@@ -1,7 +1,14 @@
 """JSON-backed project repository adapter."""
 
 from backend.core.storage import ProjectStorage
-from backend.models.project import AnalysisParameters, Project, ProjectCreate, ProjectUpdate
+from backend.models.project import (
+    AnalysisParameters,
+    AnalysisResults,
+    Project,
+    ProjectCreate,
+    ProjectStatus,
+    ProjectUpdate,
+)
 
 
 class JsonProjectRepositoryAdapter:
@@ -26,6 +33,25 @@ class JsonProjectRepositoryAdapter:
 
     def update_project(self, project_id: str, update_data: ProjectUpdate) -> Project | None:
         return self._storage.update_project(project_id, update_data.model_dump(exclude_none=True))
+
+    def mark_analysis_completed(self, project_id: str, results: AnalysisResults) -> Project | None:
+        return self._storage.update_project(
+            project_id,
+            {
+                "status": ProjectStatus.COMPLETED,
+                "results": results.model_dump(),
+                "error_message": None,
+            },
+        )
+
+    def mark_analysis_failed(self, project_id: str, error_message: str) -> Project | None:
+        return self._storage.update_project(
+            project_id,
+            {
+                "status": ProjectStatus.FAILED,
+                "error_message": error_message,
+            },
+        )
 
     def delete_project(self, project_id: str) -> bool:
         return self._storage.delete_project(project_id)

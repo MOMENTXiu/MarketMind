@@ -26,5 +26,8 @@ class GeneratedAssetProvider(Protocol):
     def save_public_audio(self, filename: str, source_path: Path) -> AssetReferenceDTO:
         """Persist audio served from the public outputs directory."""
 
+    def save_ai_audio(self, filename: str, source_path: Path) -> AssetReferenceDTO:
+        """Persist audio served by the AI voice broadcast endpoint."""
+
     def resolve_ai_audio(self, filename: str) -> AssetReferenceDTO | None:
         """Resolve AI voice audio using the current lookup order."""

@@ -11,6 +11,6 @@ class AnalysisJobProvider(Protocol):
     def submit_project_analysis(
         self,
         job: AnalysisJobDTO,
-        handler: ProjectAnalysisCallable,
+        handler: ProjectAnalysisCallable | None = None,
     ) -> None:
-        """Schedule or execute a project analysis job."""
+        """Schedule or execute a project analysis job using bound or supplied handler."""
