@@ -69,6 +69,8 @@ ignore = ["E501"]
 "backend/services/clustering_service.py" = ["N806", "N803"]
 "backend/services/recommender_service.py" = ["N806", "N803"]
 "backend/services/model_builder_service.py" = ["N806", "N803"]
+"backend/abilities/retail/build_retail_recommendation_signals.py" = ["N806"]
+"backend/abilities/retail/rank_retail_recommendations.py" = ["N806"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

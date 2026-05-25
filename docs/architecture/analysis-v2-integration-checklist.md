@@ -22,6 +22,7 @@
 - 2026-05-25: touched-scope quality gate passed for Retail V2 feature engineering slice；full `make lint` still blocked by pre-existing debt in `analysis/code_files/*.py`.
 - 2026-05-25: 继续实现 Retail V2 segmentation slice；默认后端先落地 deterministic GMM soft segmentation，UMAP/HDBSCAN/Torch 作为后续 heavy dependency gate。
 - 2026-05-25: §4.4 association + HUIM abilities implemented and tested
+- 2026-05-25: §4.5 recommendation abilities implemented: build_retail_recommendation_signals + rank_retail_recommendations
 
 ## 0. Ready-to-Start Gate
 
@@ -249,15 +250,15 @@
 - RISK:
 - ROLLBACK:
 
-### [ ] Extract recommendation abilities
+### [x] Extract recommendation abilities
 
 - WHERE: `backend/abilities/retail/build_retail_recommendation_signals.py`, `rank_retail_recommendations.py`, optional `train_graph_recommender.py`.
 - WHY: 新逻辑使用多召回 + CRITIC-TOPSIS，不再沿用旧分群偏好推荐。
 - HOW: 先迁移非 Torch 的 SVD/规则/类目/复购/促销信号；LightGCN 独立 gated。
 - EXPECTED_RESULT: 输出用户 Top-K、score breakdown、推荐理由。
 - VERIFY: `uv run pytest tests/abilities/retail/test_retail_recommendation.py`
-- STATUS: pending
-- RESULT:
+- STATUS: completed
+- RESULT: 已新增 `build_retail_recommendation_signals`（SVD 图嵌入 + 关联规则 + 类目偏好 + 复购周期 + 促销/价格信号）和 `rank_retail_recommendations`（CRITIC-TOPSIS 多信号融合排序 + 推荐理由），配套 `tests/abilities/retail/test_retail_recommendation.py`（3 测试），全部 15 个 retail ability 测试通过。
 - RISK:
 - ROLLBACK:
 
