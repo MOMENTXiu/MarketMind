@@ -1,0 +1,21 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar.gz binary
+*.jar binary
+*.woff binary
+*.woff2 binary
+*.sh text eol=lf
+*.py text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.java text eol=lf
+*.go text eol=lf
+*.rs text eol=lf
+*.swift text eol=lf

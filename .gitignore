@@ -64,3 +64,190 @@ data/llm_config.json
 *.tmp
 *.bak
 *.log
+
+# >>> harness: common
+# OS files
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor / IDE local state
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+log/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.asc
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+secrets/
+secret/
+credentials/
+credentials.json
+service-account.json
+service-account*.json
+*.credentials.json
+
+# Local runtime files
+*.pid
+*.seed
+*.local
+tmp/
+temp/
+.cache/
+.cache-loader/
+
+# Archives / packages
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# Coverage / reports
+coverage/
+htmlcov/
+.coverage
+.coverage.*
+reports/
+test-results/
+
+# Generated files
+generated/
+out/
+build/
+dist/
+# <<< harness: common
+
+# >>> harness: node
+# Node dependencies
+node_modules/
+
+# Package manager caches
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# Keep Yarn Berry project config when committed intentionally
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+
+# Node build outputs
+dist/
+build/
+.next/
+.nuxt/
+.output/
+.cache/
+.parcel-cache/
+
+# Node logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.pid.lock
+
+# TypeScript
+*.tsbuildinfo
+# <<< harness: node
+
+# >>> harness: python
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python build / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python tools
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.tox/
+.nox/
+.hypothesis/
+.dmypy.json
+dmypy.json
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local databases
+*.sqlite3
+*.db
+local.db
+# <<< harness: python
+
+# >>> harness: vue3-vite
+# Vue 3 / Vite
+dist/
+dist-ssr/
+.vite/
+.vite-inspect/
+*.local
+
+# Vite env
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Vue / TypeScript generated declarations
+auto-imports.d.ts
+components.d.ts
+env.d.ts
+
+# Frontend test outputs
+playwright-report/
+blob-report/
+test-results/
+coverage/
+# <<< harness: vue3-vite
