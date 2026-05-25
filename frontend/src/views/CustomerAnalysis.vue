@@ -22,13 +22,6 @@ const audioRef = ref<HTMLAudioElement>()
 const audioUrl = ref('')
 const projectInfo = ref<any>(null)
 
-// 提取真实姓名（去除ID后缀）
-const extractName = (fullName: string) => {
-  if (!fullName) return null
-  const parts = fullName.split('-')
-  return parts[0] || fullName
-}
-
 const fetchCustomerDetail = async () => {
   loading.value = true
   try {

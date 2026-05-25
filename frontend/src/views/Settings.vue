@@ -46,20 +46,6 @@ const volumeValue = ref(0)
 const updateRate = (val: number) => { ttsConfig.value.rate = val >= 0 ? `+${val}%` : `${val}%` }
 const updateVolume = (val: number) => { ttsConfig.value.volume = val >= 0 ? `+${val}%` : `${val}%` }
 
-const getVoiceName = (voice: string) => {
-  const names: Record<string, string> = {
-    'zh-CN-XiaoxiaoNeural': '晓晓 (女声)',
-    'zh-CN-YunyangNeural': '云扬 (男声)',
-    'zh-CN-XiaoyiNeural': '晓伊 (女声)',
-    'zh-CN-YunjianNeural': '云健 (男声)',
-    'zh-CN-XiaohanNeural': '晓涵 (女声)',
-    'zh-CN-XiaomengNeural': '晓梦 (女声)',
-    'zh-CN-YunyeNeural': '云野 (男声)',
-    'zh-CN-XiaomoNeural': '晓墨 (女声)'
-  }
-  return names[voice] || voice
-}
-
 const loadConfig = () => {
   // Load LLM config
   const savedLLM = localStorage.getItem('llm_config')

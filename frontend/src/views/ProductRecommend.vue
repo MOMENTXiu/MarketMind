@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import http from '@/utils/http'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import { Search, User, Goods, ArrowLeft, MagicStick, Refresh, Loading, VideoPlay } from '@element-plus/icons-vue'
+import { Search, ArrowLeft, Refresh, VideoPlay } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
-
-type Mode = 'user' | 'item'
 
 interface RelationNode {
   item: string
@@ -24,7 +22,6 @@ interface RecommendResponse {
   success: boolean
 }
 
-const mode = ref<Mode>('item')
 const keyword = ref('')
 const loading = ref(false)
 const data = ref<RecommendResponse | null>(null)

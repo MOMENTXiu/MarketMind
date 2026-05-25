@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import http from '@/utils/http'
@@ -8,7 +8,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
-import { Refresh, Download, VideoPlay, VideoPause, ArrowLeft, Connection, User, ShoppingCart, TrendCharts, Search } from '@element-plus/icons-vue'
+import { VideoPlay, ArrowLeft, User, ShoppingCart, TrendCharts, Search } from '@element-plus/icons-vue'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent])
 
@@ -147,20 +147,6 @@ const calculateRealtimeRules = async () => {
     ElMessage.error('实时计算失败')
   } finally {
     calcLoading.value = false
-  }
-}
-
-const showCustomerRec = async (customer: any) => {
-  selectedCustomer.value = customer
-  showRecommendationDialog.value = true
-  recsLoading.value = true
-  try {
-    const { data } = await http.get('/api/recommend/user/', { params: { user_id: customer.id } })
-    customerRecs.value = data.recommends || []
-  } catch (e) {
-    console.error('Fetch rec error', e)
-  } finally {
-    recsLoading.value = false
   }
 }
 
@@ -451,7 +437,7 @@ onMounted(() => { loadProject() })
                   v-loading="customersLoading"
                   height="550"
                   row-class-name="clickable-row"
-                  @row-click="(row) => router.push(`/projects/${project?.id}/customer/${row.id}`)"
+                  @row-click="(row: any) => router.push(`/projects/${project?.id}/customer/${row.id}`)"
                 >
                   <el-table-column label="会员信息" width="200" fixed>
                     <template #default="{ row }">

@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import axios from 'axios'
 
 // --- 1. 类型定义 ---
 type StatusLevel = 'healthy' | 'degraded' | 'down'

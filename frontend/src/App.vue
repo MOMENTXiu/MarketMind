@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { computed, ref, onMounted } from 'vue'
-import axios from 'axios'
 import { Moon, Sunny, Plus } from '@element-plus/icons-vue'
 import ServiceStatus from '@/components/ServiceStatus.vue'
 
