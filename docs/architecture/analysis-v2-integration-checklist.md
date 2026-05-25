@@ -20,6 +20,7 @@
 - 2026-05-25: touched-scope quality gate passed for Retail V2 cleaning slice；full `make lint` blocked by pre-existing debt in `analysis/code_files/*.py` and intentionally not mixed into this commit.
 - 2026-05-25: 继续实现 Retail V2 feature engineering slice；目标是价格带、顾客画像、商品画像、复购周期、CRITIC/TOPSIS 纯 Ability。
 - 2026-05-25: touched-scope quality gate passed for Retail V2 feature engineering slice；full `make lint` still blocked by pre-existing debt in `analysis/code_files/*.py`.
+- 2026-05-25: 继续实现 Retail V2 segmentation slice；默认后端先落地 deterministic GMM soft segmentation，UMAP/HDBSCAN/Torch 作为后续 heavy dependency gate。
 
 ## 0. Ready-to-Start Gate
 
@@ -223,15 +224,15 @@
 - RISK:
 - ROLLBACK:
 
-### [ ] Extract segmentation abilities
+### [x] Extract segmentation abilities
 
 - WHERE: `backend/abilities/retail/cluster_retail_customers.py`.
 - WHY: 新逻辑以 GMM/HDBSCAN/AE+GMM 代替旧 KMeans 简化分群。
 - HOW: 先实现可稳定测试的 GMM/HDBSCAN，AE+GMM 视依赖和耗时单独阶段。
 - EXPECTED_RESULT: 输出群体标签、群体画像、模型指标和贡献度。
 - VERIFY: `uv run pytest tests/abilities/retail/test_retail_segmentation.py`
-- STATUS: pending
-- RESULT:
+- STATUS: completed
+- RESULT: 已新增 `cluster_retail_customers`，覆盖 GMM 软分群、BIC 自动选 k、群体语义命名、群体画像和指标输出；HDBSCAN/AE 作为后续 heavy dependency 决策，不进入默认 runtime。
 - RISK:
 - ROLLBACK:
 
