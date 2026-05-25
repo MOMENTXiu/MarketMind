@@ -15,7 +15,9 @@
 
 - 2026-05-25: 已拉取并切换到 `add-analysis-2`，执行 `rm -rf analysis && mv analysis_2 analysis`。
 - 2026-05-25: 已按新版 `analysis` 作为唯一目标逻辑重写设计和清单。
-- 当前未执行后端代码迁移，未新增 runtime dependency，未提交 API replacement。
+- 当前已完成 Retail V2 raw -> clean Ability 迁移，未新增 runtime dependency，未提交 API replacement。
+- 2026-05-25: 开始实现 Analysis V2 Backend Processing Logic；首个内聚切片为 Retail V2 raw -> clean Ability 和测试锚点。
+- 2026-05-25: touched-scope quality gate passed for Retail V2 cleaning slice；full `make lint` blocked by pre-existing debt in `analysis/code_files/*.py` and intentionally not mixed into this commit.
 
 ## 0. Ready-to-Start Gate
 
@@ -57,27 +59,27 @@
 
 ## 1. 测试锚点
 
-### [ ] Add Retail V2 raw dataset fixture
+### [x] Add Retail V2 raw dataset fixture
 
 - WHERE: `tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv`.
 - WHY: 新后端逻辑以新版 `analysis/data/销售数据.csv` 字段为唯一数据契约，需要小型可执行 fixture。
 - HOW: 从大 CSV 抽取最小样本，覆盖正常销售、退货、促销、单位脏值、错位行、单价 0、规格空白。
 - EXPECTED_RESULT: 测试不依赖大文件，也能锁定清洗边界。
 - VERIFY: `uv run pytest tests/abilities/retail/test_clean_retail_sales.py`
-- STATUS: pending
-- RESULT:
+- STATUS: completed
+- RESULT: 已新增最小 fixture，覆盖正常销售、重复行、退货、促销、单位脏值、错位行、单价 0、规格空白、非法日期订正。
 - RISK:
 - ROLLBACK:
 
-### [ ] Add clean dataset contract tests
+### [x] Add clean dataset contract tests
 
 - WHERE: `tests/abilities/retail/test_clean_retail_sales.py`.
 - WHY: 所有后续能力依赖 clean schema。
 - HOW: 断言 clean 字段、dtype、日期派生、促销映射、退货标记、单位归一、错误语义。
 - EXPECTED_RESULT: raw -> clean 行为先被测试固定。
 - VERIFY: `uv run pytest tests/abilities/retail/test_clean_retail_sales.py`
-- STATUS: pending
-- RESULT:
+- STATUS: completed
+- RESULT: 已新增 clean schema、dtype、日期派生、促销映射、退货标记、单位归一、错误语义测试。
 - RISK:
 - ROLLBACK:
 
@@ -195,15 +197,15 @@
 
 ## 4. Ability Atom
 
-### [ ] Extract retail cleaning abilities
+### [x] Extract retail cleaning abilities
 
 - WHERE: `backend/abilities/retail/normalize_unit.py`, `repair_shifted_sales_rows.py`, `clean_retail_sales.py`.
 - WHY: `data_preprocessing.py` 混合字段映射、清洗、IO、图表；后端需要纯能力。
 - HOW: 输入 raw DataFrame，输出 clean DataFrame + quality summary DTO；不得写文件或画图。
 - EXPECTED_RESULT: 清洗能力可被 Pipeline 调用和单测。
 - VERIFY: `uv run pytest tests/abilities/retail/test_clean_retail_sales.py`
-- STATUS: pending
-- RESULT:
+- STATUS: completed
+- RESULT: 已新增 `normalize_unit`、`repair_shifted_sales_rows`、`clean_retail_sales`，以纯函数返回 clean DataFrame + quality summary，不做文件写入或图表输出。
 - RISK:
 - ROLLBACK:
 
