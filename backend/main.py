@@ -1,12 +1,15 @@
 """
 FastAPI 主应用入口
 """
+
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
 
-from backend.api import association, voice, projects, recommend, ai_voice
+from backend.api import ai_voice, association, projects, recommend, voice
+
 # 注释掉独立的 prediction 和 clustering API，现在通过 projects API 使用
 # from backend.api import prediction, clustering
 from backend.core.config import settings
@@ -48,28 +51,16 @@ app.include_router(ai_voice.router, prefix="/api", tags=["AI 语音播报"])
 @app.get("/")
 async def root():
     """根路径 - API 健康检查"""
-    return {
-        "message": "MarketMind API is running",
-        "version": "1.0.0",
-        "docs": "/api/docs"
-    }
+    return {"message": "MarketMind API is running", "version": "1.0.0", "docs": "/api/docs"}
 
 
 @app.get("/api/health/")
 async def health_check():
     """健康检查接口"""
-    return {
-        "status": "healthy",
-        "service": "MarketMind Backend"
-    }
+    return {"status": "healthy", "service": "MarketMind Backend"}
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "backend.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")

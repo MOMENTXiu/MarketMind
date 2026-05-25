@@ -51,15 +51,7 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
 }
 
 LEGACY_IMPORT_ALLOWLIST = {
-    ("api/projects.py", "pandas"),
-    ("api/projects.py", "backend.core.storage"),
-    ("api/projects.py", "backend.core.recommend"),
-    ("api/projects.py", "backend.services.analysis_service"),
-    ("api/association.py", "backend.services.association_service"),
-    ("api/voice.py", "backend.services.voice_service"),
-    ("api/voice.py", "backend.services.tts_service"),
-    ("api/recommend.py", "backend.services.recommender_service"),
-    ("api/ai_voice.py", "backend.services.ai_voice_service"),
+    ("api/dependencies.py", "backend.infrastructure.factories.provider_factory"),
 }
 
 GENERIC_FALLBACK_NAMES = {"helpers", "common", "misc"}

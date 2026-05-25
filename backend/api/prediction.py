@@ -1,7 +1,9 @@
 """
 销售预测 API
 """
+
 from fastapi import APIRouter, HTTPException
+
 from backend.models.schemas import PredictionRequest, PredictionResponse
 from backend.services.prediction_service import PredictionService
 
@@ -19,8 +21,7 @@ async def forecast_sales(request: PredictionRequest):
     """
     try:
         result = await service.forecast(
-            forecast_weeks=request.forecast_weeks,
-            model_type=request.model_type
+            forecast_weeks=request.forecast_weeks, model_type=request.model_type
         )
         return result
     except Exception as e:
@@ -30,8 +31,4 @@ async def forecast_sales(request: PredictionRequest):
 @router.get("/status/")
 async def get_prediction_status():
     """获取预测服务状态"""
-    return {
-        "success": True,
-        "status": "ready",
-        "message": "销售预测服务正常运行"
-    }
+    return {"success": True, "status": "ready", "message": "销售预测服务正常运行"}
