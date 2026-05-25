@@ -1,0 +1,1 @@
+"""Report generation ability atoms."""

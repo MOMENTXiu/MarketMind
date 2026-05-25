@@ -1,0 +1,1 @@
+"""Voice ability atoms."""

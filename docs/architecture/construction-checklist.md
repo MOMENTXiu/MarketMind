@@ -29,6 +29,12 @@
   - `uv run ruff format --check backend/core/errors.py backend/providers backend/infrastructure tests`
   - `uv run pytest tests` with 35 passed and 5 warnings.
   - Full `make lint` remains blocked by the same pre-existing repository lint debt in `analysis/marketing_modeling.py` and legacy `backend/services/*`.
+- 2026-05-25: Third implementation pass completed Ability Atom extraction for association, forecast, clustering, recommendation, report, and voice. Touched-scope verification passed:
+  - `uv run pytest tests/abilities tests/test_architecture_imports.py` with 22 passed and 1 mlxtend runtime warning.
+  - `uv run ruff check backend/abilities tests/abilities tests/test_architecture_imports.py`
+  - `uv run ruff format --check backend/abilities tests/abilities tests/test_architecture_imports.py`
+  - `git diff --check`
+  - Full `make lint` remains blocked by pre-existing repository lint debt in `analysis/marketing_modeling.py` and legacy `backend/services/*`; this commit intentionally does not mix old lint debt fixes.
 
 ## 0. Ready-to-Start Gate
 
@@ -328,64 +334,64 @@
 
 ## 4. Ability Atom
 
-### [ ] Extract association rule abilities
+### [x] Extract association rule abilities
 
 - WHERE: `backend/abilities/association/analyze_association_rules.py`, `backend/abilities/association/calculate_realtime_rules.py`.
 - WHY: Association calculation is mixed with services, file reads, and dynamic rule persistence.
 - HOW: Extract pure functions for Apriori analysis and realtime rule calculation. Inputs are dataset/rule DTOs and thresholds. Outputs are existing rule DTO-compatible structures. Persistence remains in providers.
 - EXPECTED_RESULT: Association logic can be unit-tested without filesystem or controller imports.
 - VERIFY: `uv run pytest tests/abilities/test_association_rule_abilities.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Changing rule sort/order/field names can break frontend visualizations.
+- STATUS: completed
+- RESULT: Added `backend/abilities/association/analyze_association_rules.py`, `calculate_realtime_rules.py`, and `tests/abilities/test_association_rule_abilities.py`. Functions accept explicit DataFrames and thresholds, return `AssociationRuleResponse` or realtime rule results plus rows-to-persist, and perform no filesystem writes. `uv run pytest tests/abilities/test_association_rule_abilities.py` passes with 4 tests and one mlxtend runtime warning from zero-denominator certainty metrics.
+- RISK: Changing rule sort/order/field names can break frontend visualizations; current ability keeps confidence/lift sort and current downstream realtime fields.
 - ROLLBACK: Revert ability extraction and call existing services.
 
-### [ ] Extract forecast and clustering abilities
+### [x] Extract forecast and clustering abilities
 
 - WHERE: `backend/abilities/prediction/forecast_sales.py`, `backend/abilities/clustering/cluster_customers.py`, `backend/abilities/clustering/build_cluster_association_rules.py`.
 - WHY: Prediction and clustering currently read data and write outputs inside service classes.
 - HOW: Extract algorithmic actions that accept explicit tabular input and parameters. Return existing result shapes used by `AnalysisResults` and frontend.
 - EXPECTED_RESULT: Forecast and clustering logic has unit tests with fixture datasets and no direct storage calls.
 - VERIFY: `uv run pytest tests/abilities/test_prediction_and_clustering_abilities.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Numeric output drift can occur if preprocessing changes; keep preprocessing identical.
+- STATUS: completed
+- RESULT: Added `backend/abilities/prediction/forecast_sales.py`, `backend/abilities/clustering/cluster_customers.py`, `backend/abilities/clustering/build_cluster_association_rules.py`, and `tests/abilities/test_prediction_and_clustering_abilities.py`. Functions accept explicit DataFrames and parameters, return current-compatible forecast, clustering, and per-cluster rule shapes, and perform no filesystem writes. `uv run pytest tests/abilities` passes with 9 tests and one mlxtend runtime warning from zero-denominator certainty metrics. `uv run ruff check backend/abilities tests/abilities` and `uv run ruff format --check backend/abilities tests/abilities` pass.
+- RISK: Numeric output drift can occur if preprocessing changes; current ability keeps feature engineering, KMeans defaults, and result field names aligned with existing service output.
 - ROLLBACK: Revert ability calls to existing `PredictionService` and `ClusteringService`.
 
-### [ ] Extract recommendation abilities
+### [x] Extract recommendation abilities
 
 - WHERE: `backend/abilities/recommendation/recommend_for_user.py`, `backend/abilities/recommendation/recommend_for_item.py`, `backend/abilities/recommendation/build_recommendation_model.py`.
 - WHY: Recommendation code mixes model loading, fallback dataset selection, rule calculation, dynamic persistence, and TTS in one service module.
 - HOW: Extract model build and recommendation lookup actions. Keep storage and cache concerns outside abilities.
 - EXPECTED_RESULT: Recommendation algorithms can be tested with fake model/rule inputs.
 - VERIFY: `uv run pytest tests/abilities/test_recommendation_abilities.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Current fallback behavior when model is missing must remain visible through `warning` fields.
+- STATUS: completed
+- RESULT: Added `backend/abilities/recommendation/build_recommendation_model.py`, `recommend_for_user.py`, `recommend_for_item.py`, and `tests/abilities/test_recommendation_abilities.py`. Model build returns in-memory model data and stats without writing pickle files; user/item recommendation accepts explicit dataset/model inputs and keeps storage, cache, TTS, and fallback warning mapping outside the ability. `uv run pytest tests/abilities` passes with 14 tests and one mlxtend runtime warning. `uv run ruff check backend/abilities tests/abilities` and `uv run ruff format --check backend/abilities tests/abilities` pass.
+- RISK: Current fallback behavior when model is missing must remain visible through controller/pipeline `warning` fields; the ability returns the same fallback cluster/recommendation payload and leaves public warning text to orchestration.
 - ROLLBACK: Revert to `RecommendationSystem` calls.
 
-### [ ] Extract report and voice abilities
+### [x] Extract report and voice abilities
 
 - WHERE: `backend/abilities/report/generate_analysis_report.py`, `backend/abilities/report/generate_speech_text.py`, `backend/abilities/voice/synthesize_speech.py`, `backend/abilities/voice/generate_broadcast_script.py`.
 - WHY: Report/speech text and AI broadcast generation are mixed into service-level orchestration and provider calls.
 - HOW: Move pure text/report composition into abilities. `synthesize_speech` and `generate_broadcast_script` call provider interfaces, not Edge TTS or HTTP clients.
 - EXPECTED_RESULT: Report and voice behavior can be unit-tested with fake providers.
 - VERIFY: `uv run pytest tests/abilities/test_report_and_voice_abilities.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Prompt text or report formatting changes may alter user-visible output; assert key sections/fields, not exact generated prose unless required.
+- STATUS: completed
+- RESULT: Added `backend/abilities/report/generate_analysis_report.py`, `generate_speech_text.py`, `backend/abilities/voice/synthesize_speech.py`, `generate_broadcast_script.py`, and `tests/abilities/test_report_and_voice_abilities.py`. Report and speech text composition are pure functions; voice abilities call `SpeechSynthesisProvider` and `LLMProvider` DTO contracts with fake providers in tests and no real SDK/network calls. `uv run pytest tests/abilities` passes with 19 tests and one mlxtend runtime warning. `uv run ruff check backend/abilities tests/abilities` and `uv run ruff format --check backend/abilities tests/abilities` pass.
+- RISK: Prompt text or report formatting changes may alter user-visible output; tests assert key sections/fields and provider DTO usage, not full generated prose.
 - ROLLBACK: Revert to existing service methods.
 
-### [ ] Add Ability-level debug event requirements
+### [x] Add Ability-level debug event requirements
 
 - WHERE: `docs/architecture/architecture-change.md`, future `backend/abilities/**` modules.
 - WHY: Ability failures must be traceable to exact atomic business action.
 - HOW: For each planned Ability Atom, document required events: `ability.started`, `ability.completed`, `ability.failed`. Define `input_summary` and `output_summary` rules. Prohibit full raw content logging.
 - EXPECTED_RESULT: Each Ability Atom has a planned observability contract.
 - VERIFY: `docs/architecture/architecture-change.md` contains Ability-level logging contract.
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Without Ability-level events, Pipeline failures may be too coarse to debug.
+- STATUS: completed
+- RESULT: Added the Ability-Level Debug Event Contract to `docs/architecture/architecture-change.md`, including required `ability.started`, `ability.completed`, and `ability.failed` events; common fields; prohibited raw/secret values; and per-Ability `input_summary`, `output_summary`, and `provider_used` rules. Pure abilities may be logged by caller Pipelines; provider-calling abilities may emit only through `TelemetryProvider`.
+- RISK: Without implementation tests in future Pipeline tasks, the documented contract could drift; Pipeline-level trace tests must assert ability events when wiring begins.
 - ROLLBACK: Keep Pipeline-level logging only if project is too small, but document the limitation.
 
 ## 5. Business Pipeline

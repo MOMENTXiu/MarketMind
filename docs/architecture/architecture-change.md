@@ -571,6 +571,56 @@ backend/abilities/
 
 Ability Atoms receive explicit DTO/dataframes/values and Providers Container. They do not import FastAPI request/response, SDK clients, storage clients, env readers, or External Adapters.
 
+#### Ability-Level Debug Event Contract
+
+Every Ability Atom must emit or allow its caller Pipeline to emit the same stable event set:
+
+- `ability.started`
+- `ability.completed`
+- `ability.failed`
+
+Required common fields:
+
+| Field | Rule |
+|---|---|
+| `ability_run_id` | Required per ability execution; may be created by the caller Pipeline before invoking the ability. |
+| `trace_id` | Required; inherited from API request, background job, Flow, or Pipeline context. |
+| `pipeline_run_id` | Required when the ability is invoked by a Pipeline. |
+| `flow_run_id` | Required when the ability is invoked inside `ProjectAnalysisFlow`. |
+| `ability_name` | Stable code-facing name, for example `forecast_sales` or `generate_broadcast_script`; never derived from user input. |
+| `operation` | Stable business operation, for example `project_analysis`, `recommendation_lookup`, or `voice_broadcast`. |
+| `stage` | Stable stage name matching the Pipeline step that invoked the ability. |
+| `input_summary` | Redaction-safe summary only: row counts, field names, thresholds, top-n values, item/user ids, dataset/project ids, and content hashes. |
+| `output_summary` | Redaction-safe summary only: result counts, boolean flags, artifact ids/paths after provider storage, score ranges, and model/rule counts. |
+| `provider_used` | Provider interface names used by this ability, or empty list for pure algorithm abilities. |
+| `duration_ms` | Required on completed/failed events. |
+| `error_type` | Required on failed events; use internal error class or stable exception category. |
+
+Prohibited fields and values:
+
+- Raw uploaded file content, full dataset rows, full prompt text, full LLM response text, raw generated speech text, API keys, authorization headers, tokens, cookies, environment variables, and raw external SDK responses.
+- User input concatenated into event names, `ability_name`, `operation`, or `stage`.
+- Generic module names such as `utils`, `helpers`, `common`, or `misc`.
+
+Ability-specific summaries:
+
+| Ability | `input_summary` | `output_summary` | `provider_used` |
+|---|---|---|---|
+| `analyze_association_rules` | `row_count`, `order_count`, `item_column_present`, `min_support`, `min_confidence`, `min_lift`, `top_n` | `rule_count`, `chart_count`, `success` | `[]` |
+| `calculate_realtime_rules` | `row_count`, `order_count`, `item_name`, `min_confidence`, `top_n` | `rule_count`, `rows_to_persist_count` | `[]` |
+| `forecast_sales` | `row_count`, `week_count`, `forecast_weeks`, available numeric fields | `success`, `forecast_count`, `train_samples`, `sales_r2`, `profit_r2` | `[]` |
+| `cluster_customers` | `row_count`, `customer_count`, `n_clusters` | `success`, `customer_count`, `cluster_count`, `silhouette_score` | `[]` |
+| `build_cluster_association_rules` | `row_count`, `customer_count`, `cluster_count`, `min_support`, `min_confidence` | `cluster_count`, `rule_count_by_cluster` | `[]` |
+| `build_recommendation_model` | `row_count`, `customer_count`, `n_clusters`, `association_rule_count` | `success`, `total_customers`, `n_clusters`, `n_rules`, `n_subcategories` | `[]` |
+| `recommend_for_user` | `row_count`, `user_id`, `has_model`, `top_n` | `recommend_count`, `has_cluster`, `fallback_used` | `[]` |
+| `recommend_for_item` | `item_name`, `has_model`, `has_dataset`, `top_n` | `upstream_count`, `downstream_count`, `target_customer_count` | `[]` |
+| `generate_analysis_report` | `project_id`, `has_results`, `association_rule_count`, `forecast_count`, `cluster_count` | `report_character_count`, `section_count` | `[]` |
+| `generate_speech_text` | `project_id`, `association_rule_count`, `forecast_count`, `cluster_count` | `speech_character_count` | `[]` |
+| `synthesize_speech` | `text_hash`, `text_length`, `voice`, `rate`, `volume`, `output_path_kind` | `audio_path_kind`, `has_audio_url`, `duration_seconds` | `["SpeechSynthesisProvider"]` |
+| `generate_broadcast_script` | `scene_type`, `data_field_names`, `data_hash`, `provider`, `model` | `script_hash`, `script_length`, `fallback_used` | `["LLMProvider"]` |
+
+If a pure Ability Atom does not receive a `TelemetryProvider` directly, its caller Pipeline is responsible for emitting `ability.started`, `ability.completed`, and `ability.failed` around the call using these summaries. Provider-calling abilities may emit directly only through `TelemetryProvider`; they must still avoid concrete logging or tracing imports.
+
 ### 10.4 Provider Boundary
 
 Target directory:
