@@ -4,25 +4,20 @@
 功能: 关联规则分析、销售预测、客户聚类、语音播报
 """
 
-import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from datetime import datetime
 import os
-import sys
+
+import numpy as np
+import pandas as pd
+import streamlit as st
 
 # 设置页面配置
 st.set_page_config(
-    page_title="超市AI营销系统",
-    page_icon="🛒",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="超市AI营销系统", page_icon="🛒", layout="wide", initial_sidebar_state="expanded"
 )
 
 # 自定义CSS样式
-st.markdown("""
+st.markdown(
+    """
 <style>
     .main-header {
         font-size: 2.5rem;
@@ -37,7 +32,9 @@ st.markdown("""
         margin: 0.5rem 0;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # 标题
 st.markdown('<h1 class="main-header">🛒 超市AI营销系统</h1>', unsafe_allow_html=True)
@@ -57,15 +54,15 @@ with st.sidebar:
             "📈 销售预测",
             "👥 客户聚类",
             "🔊 语音播报",
-            "📑 完整报告"
-        ]
+            "📑 完整报告",
+        ],
     )
 
     st.markdown("---")
 
     # 数据上传
     st.header("📁 数据管理")
-    uploaded_file = st.file_uploader("上传数据文件", type=['csv'])
+    uploaded_file = st.file_uploader("上传数据文件", type=["csv"])
 
     if uploaded_file is None:
         # 使用默认数据
@@ -85,9 +82,9 @@ with st.sidebar:
     if use_default or uploaded_file:
         try:
             if use_default:
-                df = pd.read_csv(data_path, encoding='utf-8')
+                df = pd.read_csv(data_path, encoding="utf-8")
             else:
-                df = pd.read_csv(uploaded_file, encoding='utf-8')
+                df = pd.read_csv(uploaded_file, encoding="utf-8")
 
             st.metric("订单记录数", f"{len(df):,}")
             st.metric("订单数量", f"{df['订单 ID'].nunique():,}")
@@ -103,7 +100,8 @@ if module == "🏠 系统首页":
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.markdown("""
+        st.markdown(
+            """
         <div class="metric-card">
             <h3>📊 关联规则分析</h3>
             <p>挖掘商品关联关系，制定促销策略</p>
@@ -113,10 +111,13 @@ if module == "🏠 系统首页":
                 <li>组合促销建议</li>
             </ul>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
     with col2:
-        st.markdown("""
+        st.markdown(
+            """
         <div class="metric-card">
             <h3>📈 销售预测</h3>
             <p>预测未来销售额和利润</p>
@@ -126,10 +127,13 @@ if module == "🏠 系统首页":
                 <li>岭回归模型</li>
             </ul>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
     with col3:
-        st.markdown("""
+        st.markdown(
+            """
         <div class="metric-card">
             <h3>👥 客户聚类</h3>
             <p>客户分群与精准营销</p>
@@ -139,10 +143,13 @@ if module == "🏠 系统首页":
                 <li>营销策略定制</li>
             </ul>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
     with col4:
-        st.markdown("""
+        st.markdown(
+            """
         <div class="metric-card">
             <h3>🔊 语音播报</h3>
             <p>AI自动生成分析报告</p>
@@ -152,7 +159,9 @@ if module == "🏠 系统首页":
                 <li>自动播报</li>
             </ul>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
     st.markdown("---")
     st.subheader("🚀 快速开始")
@@ -167,7 +176,9 @@ if module == "🏠 系统首页":
     # 系统架构图
     st.markdown("---")
     st.subheader("🏗️ 系统架构")
-    st.image("https://via.placeholder.com/800x400.png?text=System+Architecture", use_column_width=True)
+    st.image(
+        "https://via.placeholder.com/800x400.png?text=System+Architecture", use_column_width=True
+    )
 
 elif module == "📊 关联规则分析":
     st.header("商品关联规则分析")
@@ -205,13 +216,15 @@ elif module == "📊 关联规则分析":
         st.subheader("Top 10 关联规则")
 
         # 模拟数据展示（实际应该调用analysis模块）
-        mock_rules = pd.DataFrame({
-            '前项商品': ['纸张, 系固件', '纸张, 用具', '配件, 电话'],
-            '后项商品': ['椅子', '椅子', '复印机'],
-            '支持度': [0.0312, 0.0298, 0.0276],
-            '置信度': [0.4779, 0.4737, 0.4727],
-            '提升度': [1.52, 1.51, 1.62]
-        })
+        mock_rules = pd.DataFrame(
+            {
+                "前项商品": ["纸张, 系固件", "纸张, 用具", "配件, 电话"],
+                "后项商品": ["椅子", "椅子", "复印机"],
+                "支持度": [0.0312, 0.0298, 0.0276],
+                "置信度": [0.4779, 0.4737, 0.4727],
+                "提升度": [1.52, 1.51, 1.62],
+            }
+        )
 
         st.dataframe(mock_rules, use_container_width=True)
 
@@ -258,7 +271,7 @@ elif module == "📊 关联规则分析":
             label="📥 下载完整策略报告",
             data="促销策略详细报告内容...",
             file_name="promotion_strategy.txt",
-            mime="text/plain"
+            mime="text/plain",
         )
 
 elif module == "📈 销售预测":
@@ -271,10 +284,7 @@ elif module == "📈 销售预测":
 
         col1, col2 = st.columns(2)
         with col1:
-            model_type = st.selectbox(
-                "选择预测模型",
-                ["岭回归 (Ridge)", "随机森林", "梯度提升"]
-            )
+            model_type = st.selectbox("选择预测模型", ["岭回归 (Ridge)", "随机森林", "梯度提升"])
             st.caption("当前推荐: 岭回归")
 
         with col2:
@@ -304,11 +314,13 @@ elif module == "📈 销售预测":
         st.subheader("下季度预测结果")
 
         # 模拟预测数据
-        mock_forecast = pd.DataFrame({
-            '周次': [f'第{i}周' for i in range(1, 14)],
-            '预测销售额(万元)': np.random.uniform(4, 12, 13).round(2),
-            '预测利润(万元)': np.random.uniform(0.3, 1.5, 13).round(2)
-        })
+        mock_forecast = pd.DataFrame(
+            {
+                "周次": [f"第{i}周" for i in range(1, 14)],
+                "预测销售额(万元)": np.random.uniform(4, 12, 13).round(2),
+                "预测利润(万元)": np.random.uniform(0.3, 1.5, 13).round(2),
+            }
+        )
 
         st.dataframe(mock_forecast, use_container_width=True)
 
@@ -394,14 +406,16 @@ elif module == "👥 客户聚类":
         st.subheader("客户分群画像")
 
         # 模拟分群数据
-        cluster_profile = pd.DataFrame({
-            '客户群体': ['高价值活跃客户', '普通活跃客户', '低价值流失客户', '高价值流失预警'],
-            '客户数': [258, 425, 106, 1],
-            '平均R(天)': [107, 102, 467, 1328],
-            '平均F(次)': [8.34, 5.64, 3.86, 1.00],
-            '平均M(元)': [35969, 13308, 10241, 47540],
-            '销售额占比': ['57.8%', '35.2%', '6.8%', '0.3%']
-        })
+        cluster_profile = pd.DataFrame(
+            {
+                "客户群体": ["高价值活跃客户", "普通活跃客户", "低价值流失客户", "高价值流失预警"],
+                "客户数": [258, 425, 106, 1],
+                "平均R(天)": [107, 102, 467, 1328],
+                "平均F(次)": [8.34, 5.64, 3.86, 1.00],
+                "平均M(元)": [35969, 13308, 10241, 47540],
+                "销售额占比": ["57.8%", "35.2%", "6.8%", "0.3%"],
+            }
+        )
 
         st.dataframe(cluster_profile, use_container_width=True)
 
@@ -486,10 +500,9 @@ elif module == "🔊 语音播报":
 
     col1, col2 = st.columns(2)
     with col1:
-        voice = st.selectbox("选择语音", [
-            "zh-CN-YunxiNeural (中文男声)",
-            "zh-CN-XiaoxiaoNeural (中文女声)"
-        ])
+        voice = st.selectbox(
+            "选择语音", ["zh-CN-YunxiNeural (中文男声)", "zh-CN-XiaoxiaoNeural (中文女声)"]
+        )
 
     with col2:
         if st.button("🎙️ 生成语音", type="primary"):
@@ -504,12 +517,9 @@ elif module == "🔊 语音播报":
     if os.path.exists(audio_path):
         st.audio(audio_path)
 
-        with open(audio_path, 'rb') as f:
+        with open(audio_path, "rb") as f:
             st.download_button(
-                label="📥 下载语音文件",
-                data=f,
-                file_name="marketing_report.mp3",
-                mime="audio/mpeg"
+                label="📥 下载语音文件", data=f, file_name="marketing_report.mp3", mime="audio/mpeg"
             )
     else:
         st.info("请先生成语音文件")
@@ -531,7 +541,7 @@ elif module == "📑 完整报告":
     # 显示Markdown报告
     report_path = "analysis/分析报告.md"
     if os.path.exists(report_path):
-        with open(report_path, 'r', encoding='utf-8') as f:
+        with open(report_path, "r", encoding="utf-8") as f:
             report_content = f.read()
         st.markdown(report_content)
 
@@ -539,16 +549,19 @@ elif module == "📑 完整报告":
             label="📥 下载Markdown报告",
             data=report_content,
             file_name="analysis_report.md",
-            mime="text/markdown"
+            mime="text/markdown",
         )
     else:
         st.info("请先生成完整报告")
 
 # 页脚
 st.markdown("---")
-st.markdown("""
+st.markdown(
+    """
 <div style='text-align: center; color: #666;'>
     <p>超市AI营销系统 v1.0 | Powered by MarketMind Team</p>
     <p>技术栈: Python • Streamlit • scikit-learn • mlxtend • edge-tts</p>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
