@@ -44,7 +44,7 @@ const startTypewriter = (text: string) => {
   displayedText.value = ''
   let i = 0
   const speed = 30 // ms per char
-  
+
   const type = () => {
     if (i < text.length) {
       displayedText.value += text.charAt(i)
@@ -60,7 +60,7 @@ const startTypewriter = (text: string) => {
 const search = async (targetItem?: string) => {
   const query = targetItem || keyword.value.trim()
   if (!query) return
-  
+
   keyword.value = query
   loading.value = true
   data.value = null
@@ -69,14 +69,14 @@ const search = async (targetItem?: string) => {
   targetRefs.value = []
   insightText.value = ''
   displayedText.value = ''
-  
+
   try {
     const { data: res } = await http.get('/api/recommend/item/', { params: { item: query } })
     data.value = res
 
     // Trigger LLM insight
     generateLLMInsight()
-    
+
     // Wait for DOM to render then draw lines
     setTimeout(() => {
       updateLines()
@@ -95,20 +95,20 @@ const generateLLMInsight = async () => {
   insightLoading.value = true
   insightText.value = ''
   displayedText.value = ''
-  
+
   try {
     const savedLLM = localStorage.getItem('llm_config')
     if (!savedLLM) return
     const llmConfig = JSON.parse(savedLLM)
-    
+
     const prompt = `你是一位商业顾问。请分析以下商品的双向关联数据，生成一段专业、客观、富有建议的简评（80字以内）。直接输出结论，严禁废话。
 数据: ${JSON.stringify({ item: data.value.item, upstream: data.value.upstream, downstream: data.value.downstream })}`
-    
+
     const res = await axios.post(`${llmConfig.baseUrl}/chat/completions`, {
       model: llmConfig.modelName,
       messages: [{ role: 'user', content: prompt }]
     }, { headers: { 'Authorization': `Bearer ${llmConfig.apiKey}` } })
-    
+
     insightText.value = res.data.choices[0].message.content.trim()
     startTypewriter(insightText.value)
   } catch (e) {
@@ -146,18 +146,18 @@ const playInsightVoice = async () => {
 
 const updateLines = () => {
   if (!centerNodeRef.value || !data.value) return
-  
+
   const container = document.querySelector('.topology-container')
   if (!container) return
   const rect = container.getBoundingClientRect()
   const cRect = centerNodeRef.value.getBoundingClientRect()
-  
+
   const cx = cRect.left - rect.left
   const cy = cRect.top - rect.top + cRect.height / 2
   const cw = cRect.width
-  
+
   const paths: {d: string, width: number}[] = []
-  
+
   // Upstream -> Center
   data.value.upstream.forEach((node, idx) => {
     const el = sourceRefs.value[idx]
@@ -170,7 +170,7 @@ const updateLines = () => {
       width: Math.max(1, node.confidence * 10)
     })
   })
-  
+
   // Center -> Downstream
   data.value.downstream.forEach((node, idx) => {
     const el = targetRefs.value[idx]
@@ -183,7 +183,7 @@ const updateLines = () => {
       width: Math.max(1, node.confidence * 10)
     })
   })
-  
+
   svgPathData.value = paths
 }
 
@@ -261,11 +261,11 @@ watch(data, () => {
                   <stop offset="100%" style="stop-color:var(--color-accent);stop-opacity:0.2" />
                 </linearGradient>
               </defs>
-              <path 
-                v-for="(pathObj, idx) in svgPathData" 
-                :key="idx" 
-                :d="pathObj.d" 
-                class="flow-line" 
+              <path
+                v-for="(pathObj, idx) in svgPathData"
+                :key="idx"
+                :d="pathObj.d"
+                class="flow-line"
                 :style="{ strokeWidth: pathObj.width + 'px' }"
               />
             </svg>
@@ -274,9 +274,9 @@ watch(data, () => {
             <div class="topo-col side">
               <h4 class="col-label">关联来源</h4>
               <div class="node-list">
-                <div 
-                  v-for="node in data?.upstream || []" 
-                  :key="node.item" 
+                <div
+                  v-for="node in data?.upstream || []"
+                  :key="node.item"
                   class="topo-node source"
                   :ref="setSourceRef"
                   @click="search(node.item)"
@@ -305,9 +305,9 @@ watch(data, () => {
             <div class="topo-col side">
               <h4 class="col-label">推荐去向</h4>
               <div class="node-list">
-                <div 
-                  v-for="node in data?.downstream || []" 
-                  :key="node.item" 
+                <div
+                  v-for="node in data?.downstream || []"
+                  :key="node.item"
                   class="topo-node target"
                   :ref="setTargetRef"
                   @click="search(node.item)"
@@ -326,10 +326,10 @@ watch(data, () => {
               <div class="insight-title-group">
                 <span>AI 商业洞察建议</span>
               </div>
-              
-              <el-button 
+
+              <el-button
                 v-if="insightText && !typewriterActive"
-                round 
+                round
                 size="small"
                 @click="playInsightVoice"
                 :loading="voiceLoading"
@@ -338,7 +338,7 @@ watch(data, () => {
                 <el-icon style="margin-right: 4px"><VideoPlay /></el-icon> 语音播报
               </el-button>
             </div>
-            
+
             <div class="insight-text-flow">
               <p v-if="displayedText">{{ displayedText }}</p>
               <div v-else-if="insightLoading" class="skeleton-lines">

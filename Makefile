@@ -50,7 +50,7 @@ verify:
 	$(MAKE) hooks
 
 hooks:
-	pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 clean:
 	@echo "No confirmed clean command; customize this target if generated files need cleanup."

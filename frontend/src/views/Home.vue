@@ -26,7 +26,7 @@ const goToProjects = () => {
             MarketMind 是您的超市 AI 营销专家。<br>
             通过关联规则、预测模型与客户聚类，释放数据潜力。
           </p>
-          
+
           <div class="hero-actions">
             <el-button type="primary" size="large" @click="goToProjects" class="btn-hero">
               开始探索

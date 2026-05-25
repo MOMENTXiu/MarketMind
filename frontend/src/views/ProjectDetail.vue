@@ -253,9 +253,9 @@ onMounted(() => { loadProject() })
           <button class="btn-back-round" @click="$router.push('/projects')">
             <el-icon><ArrowLeft /></el-icon>
           </button>
-          
+
           <h1 class="project-main-title">{{ project?.name }}</h1>
-          
+
           <div class="mini-divider"></div>
 
           <div class="project-metadata-flow">
@@ -263,9 +263,9 @@ onMounted(() => { loadProject() })
               <span class="m-label">源文件：</span>
               <span class="m-value">{{ project?.dataset_filename }}</span>
             </div>
-            
+
             <div class="mini-divider"></div>
-            
+
             <div class="meta-segment">
               <span class="m-label">处理状态：</span>
               <div class="status-wrap-micro">
@@ -322,7 +322,7 @@ onMounted(() => { loadProject() })
             <div class="lookup-label">
               <el-icon><ShoppingCart /></el-icon> 关联查询
             </div>
-            
+
             <div class="lookup-controls">
               <el-select
                 v-model="selectedAntecedent"
@@ -402,8 +402,8 @@ onMounted(() => { loadProject() })
               <div v-for="cluster in clusterProfiles" :key="cluster.cluster_id" class="cluster-card-modern">
                 <div class="card-head">
                   <span class="badge">Group {{ cluster.cluster_id + 1 }}</span>
-                  <el-button 
-                    circle size="small" 
+                  <el-button
+                    circle size="small"
                     class="btn-voice"
                     @click.stop="speakAnalysis('cluster', cluster)"
                     :loading="voiceLoading[`cluster_${cluster.cluster_id}`]"
@@ -521,7 +521,7 @@ onMounted(() => { loadProject() })
           <h4 class="strategy-header">
             <el-icon class="icon-align"><TrendCharts /></el-icon> 营销建议
           </h4>
-          
+
           <div v-if="customerRecs.length" class="rec-grid-compact">
             <p class="strategy-text-relaxed">
               根据该客户在 <span class="group-highlight">Group {{ (selectedCustomer?.cluster_id ?? 0) + 1 }}</span> 的消费行为特征，建议采取以下精准触达方案：
@@ -554,7 +554,7 @@ html.dark .project-detail-layout { background: var(--color-bg-base); }
 .btn-back-round:hover { transform: translateX(-4px); background: var(--color-surface-hover); }
 .header-left-aligned {
   display: flex;
-  align-items: center; 
+  align-items: center;
   gap: 16px;
 }
 
@@ -651,7 +651,7 @@ html.dark .section-block { background: var(--color-surface); border-color: var(-
   border-radius: 20px;
   margin-bottom: 32px;
   border: 1px solid transparent;
-  background-image: linear-gradient(var(--color-surface), var(--color-surface)), 
+  background-image: linear-gradient(var(--color-surface), var(--color-surface)),
                     linear-gradient(135deg, rgba(94, 106, 210, 0.2), rgba(167, 139, 250, 0.2));
   background-origin: border-box;
   background-clip: padding-box, border-box;
@@ -659,7 +659,7 @@ html.dark .section-block { background: var(--color-surface); border-color: var(-
 }
 
 html.dark .association-lookup-wrapper {
-  background-image: linear-gradient(var(--color-surface), var(--color-surface)), 
+  background-image: linear-gradient(var(--color-surface), var(--color-surface)),
                     linear-gradient(135deg, rgba(94, 106, 210, 0.1), rgba(167, 139, 250, 0.1));
 }
 

@@ -102,19 +102,19 @@ onMounted(() => {
         <h1 class="text-display" style="font-size: 2rem; margin-bottom: 8px;">项目空间</h1>
         <p class="text-subtitle">管理您的所有分析任务</p>
       </div>
-      
+
       <div class="header-actions">
         <!-- Search Pill -->
         <div class="search-pill">
           <el-icon class="search-icon"><Search /></el-icon>
-          <input 
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="搜索项目..." 
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="搜索项目..."
             class="search-input"
           >
         </div>
-        
+
         <el-button type="primary" class="btn-create" @click="createProject" round>
           <el-icon style="margin-right: 4px"><Plus /></el-icon> 新建项目
         </el-button>
@@ -127,9 +127,9 @@ onMounted(() => {
     </div>
 
     <div v-else-if="projects.length > 0" class="project-grid">
-      <div 
-        v-for="project in projects" 
-        :key="project.id" 
+      <div
+        v-for="project in projects"
+        :key="project.id"
         class="project-card"
         @click="viewProject(project.id)"
       >

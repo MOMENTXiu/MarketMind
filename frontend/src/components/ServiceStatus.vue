@@ -14,7 +14,7 @@ interface ServiceNode {
 // --- 2. 状态聚合逻辑 (纯函数) ---
 const calcOverallStatus = (services: ServiceNode[]): StatusLevel => {
   const core = services.find(s => s.id === 'core')
-  
+
   // Rule 1: Core API is the red line
   if (!core || core.status === 'down') {
     return 'down'
@@ -22,14 +22,14 @@ const calcOverallStatus = (services: ServiceNode[]): StatusLevel => {
 
   // Filter out core to check sub-services
   const subServices = services.filter(s => s.id !== 'core')
-  
+
   // Rule 2: Core is healthy/degraded
   const allHealthy = subServices.every(s => s.status === 'healthy')
   const allDown = subServices.length > 0 && subServices.every(s => s.status === 'down')
-  
+
   if (allHealthy) return 'healthy'
   if (allDown) return 'down'
-  
+
   // Partial availability
   return 'degraded'
 }
@@ -44,8 +44,8 @@ const fetchStatus = async () => {
   try {
     // 实际项目中替换为 axios.get('/api/status')
     // 这里使用模拟数据演示逻辑
-    await new Promise(r => setTimeout(r, 800)) 
-    
+    await new Promise(r => setTimeout(r, 800))
+
     // Mock Data
     const mockData: ServiceNode[] = [
       { id: 'core', name: 'Core API', status: 'healthy', latency: 45 },
@@ -53,7 +53,7 @@ const fetchStatus = async () => {
       { id: 'tts', name: 'Edge TTS', status: 'healthy', latency: 300 }, // 模拟正常
       { id: 'llm', name: 'LLM 服务', status: 'degraded', latency: 1500 } // 模拟延迟高
     ]
-    
+
     services.value = mockData
   } catch (e) {
     // Fallback if API fails
@@ -114,7 +114,7 @@ onMounted(() => {
         <span class="header-title">服务状态详情</span>
         <span class="header-refresh" @click="fetchStatus" :class="{ spinning: loading }">↻</span>
       </div>
-      
+
       <div class="divider"></div>
 
       <div class="service-list">

@@ -63,7 +63,7 @@ const createProject = async () => {
     const formData = new FormData()
     formData.append('file', fileList.value[0].raw)
     const { data: uploadRes } = await http.post(`/api/projects/${res.data.id}/upload/`, formData)
-    
+
     if (uploadRes.success) {
       ElMessage.success('项目已创建，开始分析')
       setTimeout(() => router.push(`/projects/${res.data.id}`), 1000)
@@ -89,8 +89,8 @@ const createProject = async () => {
     <div class="focus-card">
       <!-- Custom Stepper -->
       <div class="custom-stepper">
-        <div 
-          v-for="(step, idx) in steps" 
+        <div
+          v-for="(step, idx) in steps"
           :key="idx"
           class="step-item"
           :class="{ active: currentStep === idx, completed: currentStep > idx }"
@@ -113,20 +113,20 @@ const createProject = async () => {
         <div v-if="currentStep === 0" class="step-pane fade-in">
           <div class="input-group">
             <label>项目名称</label>
-            <el-input 
-              v-model="projectForm.name" 
-              placeholder="例如：2024 Q1 销售分析" 
+            <el-input
+              v-model="projectForm.name"
+              placeholder="例如：2024 Q1 销售分析"
               size="large"
               class="large-input"
             />
           </div>
           <div class="input-group">
             <label>项目描述 <span class="optional">(可选)</span></label>
-            <el-input 
-              v-model="projectForm.description" 
-              type="textarea" 
-              :rows="4" 
-              placeholder="简要描述本次分析的目标..." 
+            <el-input
+              v-model="projectForm.description"
+              type="textarea"
+              :rows="4"
+              placeholder="简要描述本次分析的目标..."
             />
           </div>
         </div>
@@ -203,9 +203,9 @@ const createProject = async () => {
       <!-- Actions -->
       <div class="form-actions">
         <el-button v-if="currentStep > 0" @click="prevStep" plain class="btn-secondary">上一步</el-button>
-        <el-button 
-          type="primary" 
-          @click="currentStep === 2 ? createProject() : nextStep()" 
+        <el-button
+          type="primary"
+          @click="currentStep === 2 ? createProject() : nextStep()"
           :loading="uploading"
           class="btn-primary-large"
         >

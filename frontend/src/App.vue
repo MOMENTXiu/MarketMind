@@ -72,7 +72,7 @@ onMounted(() => {
 
           <!-- Service Status Component -->
           <ServiceStatus />
-          
+
           <RouterLink to="/projects/new">
             <el-button type="primary" round>
               <el-icon style="margin-right: 4px"><Plus /></el-icon>
@@ -164,7 +164,7 @@ onMounted(() => {
 }
 
 .on-home .nav-links {
-  background: var(--nav-pill-bg); 
+  background: var(--nav-pill-bg);
 }
 
 .nav-item {

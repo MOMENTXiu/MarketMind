@@ -6,17 +6,17 @@
 :root {
   /* 基础色板 - 极致纯净与高级灰 */
   --color-bg-base: #F7F7F8; /* 纯净浅灰 */
-  
+
   --color-surface: #FFFFFF;
   --color-surface-hover: #FDFDFD;
   --color-surface-active: #F5F5F7;
-  
+
   /* 品牌色 - 像宝石一样克制的蓝 */
   --color-brand: #2E335E;
   --color-brand-hover: #1E2140;
   --color-accent: #5E6AD2;
   --color-accent-soft: rgba(94, 106, 210, 0.1);
-  
+
   /* 文字系统 - 极高对比度与阅读舒适区 */
   --text-primary: #1A1A1C;
   --text-secondary: #5F5F63;
@@ -39,7 +39,7 @@
   --radius-md: 16px;
   --radius-lg: 24px;
   --radius-pill: 9999px;
-  
+
   --spacing-unit: 4px;
   --spacing-xs: 8px;   /* 2u */
   --spacing-sm: 16px;  /* 4u */
@@ -64,11 +64,11 @@ html.dark {
   --color-surface: #1A1A1A; /* 卡片比背景略亮 */
   --color-surface-hover: #222222;
   --color-surface-active: #2A2A2B;
-  
+
   --text-primary: #EDEDF0;
   --text-secondary: #A1A1A6;
   --text-tertiary: #6E6E73;
-  
+
   --border-subtle: rgba(255, 255, 255, 0.05); /* 极细微光边 */
   --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 12px 24px -6px rgba(0, 0, 0, 0.4);
@@ -109,9 +109,9 @@ body {
 
 /* Global Theme Transition for Smooth Switching */
 body, .navbar, .el-card, .el-button, .el-input__wrapper, .status-pill, .nav-item, .silver-glass-background, .orb, .slogan-display {
-  transition: background-color 0.5s var(--ease-smooth), 
-              color 0.5s var(--ease-smooth), 
-              border-color 0.5s var(--ease-smooth), 
+  transition: background-color 0.5s var(--ease-smooth),
+              color 0.5s var(--ease-smooth),
+              border-color 0.5s var(--ease-smooth),
               box-shadow 0.5s var(--ease-smooth),
               background 0.5s var(--ease-smooth),
               opacity 0.5s var(--ease-smooth) !important;
@@ -187,7 +187,7 @@ a {
 }
 
 /* 内部文字高度与行高绝对对齐 */
-.el-input__inner, 
+.el-input__inner,
 .el-select__selection,
 .el-select .el-input__inner {
   height: 50px !important; /* 预留 2px 给边框 */
@@ -202,7 +202,7 @@ a {
 }
 
 /* 聚焦态全站同步上浮与光晕 */
-.el-input__wrapper.is-focus, 
+.el-input__wrapper.is-focus,
 .el-select__wrapper.is-focused,
 .el-textarea__inner:focus {
   background-color: var(--color-surface) !important;
