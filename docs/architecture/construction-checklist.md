@@ -13,55 +13,67 @@
 - 第一阶段允许新增测试锚点、fixture、Architecture Lint、Provider Interface / DTO 契约文件；仍禁止迁移 controller/service 业务路径。
 - 当前直接开工边界：先完成 `## 0. Ready-to-Start Gate`，再进入 `## 1. 测试锚点`。
 
+## Current Execution Notes
+
+- 2026-05-25: First implementation pass completed Ready-to-Start Gate, logging fixtures, minimal Architecture Lint, internal errors, Provider DTOs, Provider Interfaces, TelemetryProvider, and Providers Container.
+- Targeted verification passed:
+  - `uv run python -m py_compile backend/core/errors.py backend/providers/dtos.py backend/providers/telemetry_dtos.py backend/providers/project_repository_provider.py backend/providers/project_file_storage_provider.py backend/providers/generated_asset_provider.py backend/providers/dataset_provider.py backend/providers/association_rule_store_provider.py backend/providers/recommendation_model_store_provider.py backend/providers/speech_synthesis_provider.py backend/providers/llm_provider.py backend/providers/analysis_job_provider.py backend/providers/telemetry_provider.py backend/providers/container.py`
+  - `uv run pytest tests/test_architecture_imports.py`
+  - `uv run ruff check backend/core/errors.py backend/providers tests/fakes tests/test_architecture_imports.py`
+  - `uv run ruff format backend/core/errors.py backend/providers tests/fakes tests/test_architecture_imports.py`
+  - `make test` after sandbox escalation for uv cache access.
+- Full quality gate is currently blocked by pre-existing repository lint debt outside this task. `make lint` fails on legacy files including `analysis/marketing_modeling.py` and `backend/services/*` with import ordering, unused imports, bare except, naming, whitespace, and one-line statement issues. Do not commit or push until the project either fixes that debt or explicitly scopes the quality gate differently.
+- `make typecheck` is a placeholder and only prints `No confirmed typecheck command; configure this target before claiming type checks passed.`
+
 ## 0. Ready-to-Start Gate
 
-### [ ] Confirm stage boundary and command entry points
+### [x] Confirm stage boundary and command entry points
 
 - WHERE: `docs/architecture/architecture-change.md`, `docs/architecture/construction-checklist.md`.
 - WHY: 实现者开工前必须知道当前能改什么、不能改什么、用哪些命令验证。
 - HOW: Review the scope, command inventory, and phase order. Confirm next implementation stage may create tests, fixtures, architecture lint, provider interfaces, DTOs, and provider container only. Confirm it must not thin controllers, move service logic, create external adapters, alter API response shape, or change frontend calls.
 - EXPECTED_RESULT: Stage boundary is explicit and there is no conflict between architecture plan and checklist.
 - VERIFY: Manual review plus `git status --short docs/architecture/architecture-change.md docs/architecture/construction-checklist.md`.
-- STATUS: pending
-- RESULT: Not started.
-- RISK: If this is skipped, implementation may start with business migration before behavior protection exists.
-- ROLLBACK: Revert only the doc clarification if the phase boundary changes.
+- STATUS: completed
+- RESULT: Reviewed `architecture-change.md` and this checklist. Confirmed first implementation stage is limited to tests, fixtures, Architecture Lint, Provider Interface / DTO contracts, provider container, and internal errors; no controller/service migration, external adapter wiring, API response change, or frontend change was made. `git status --short docs/architecture/architecture-change.md docs/architecture/construction-checklist.md` shows only staged migration doc edits from this task.
+- RISK: The next tasks must still add public API behavior anchors before any controller thinning.
+- ROLLBACK: Revert only this checklist/doc update if the phase boundary changes.
 
-### [ ] Prepare fake and sandbox testing strategy
+### [x] Prepare fake and sandbox testing strategy
 
 - WHERE: `tests/conftest.py`, `tests/fixtures/`, `tests/fakes/`, or project-approved equivalent paths.
 - WHY: First behavior tests must not call real LLM/TTS providers or write outside temporary directories.
 - HOW: Define the exact test support files to create before behavior tests: fake LLM client, fake speech synthesis provider, temporary project data directory, temporary outputs directory, BackgroundTasks runner/spy, and sample CSV/project fixtures. Keep this as a test support plan until implementation starts.
 - EXPECTED_RESULT: Test-anchor work has a concrete fake/sandbox map and can avoid real external side effects.
 - VERIFY: Checklist contains concrete fake/sandbox paths and no test task requires real secrets or external network calls.
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Without this strategy, first tests may be flaky or may perform real external calls.
-- ROLLBACK: Replace the fake/sandbox plan before creating tests if the project selects a different test layout.
+- STATUS: completed
+- RESULT: Added `tests/fakes/providers.py` with fake LLM, speech synthesis, analysis job, telemetry, project file storage, and recommendation model providers. Added logging fixture directory under `tests/fixtures/logging/`. Future behavior tests should use pytest `tmp_path` for project/output roots and these fake providers for external side effects.
+- RISK: API smoke tests and project analysis behavior tests still need their own isolated `tmp_path` fixtures before controller/service migration.
+- ROLLBACK: Replace `tests/fakes/providers.py` before behavior tests depend on it if the project selects a different fake layout.
 
-### [ ] Define current architecture violation allowlist policy
+### [x] Define current architecture violation allowlist policy
 
 - WHERE: `tests/test_architecture_imports.py`, `docs/architecture/architecture-change.md`.
 - WHY: Initial Architecture Lint must prevent new violations without falsely blocking the staged migration because current direct imports already exist.
 - HOW: Define an allowlist policy for known current violations and a rule that new files or migrated files must satisfy target boundaries. Include telemetry boundaries: business layers must not import concrete logging/tracing/audit SDKs.
 - EXPECTED_RESULT: Architecture Lint can be introduced at the beginning of migration and tightened over time.
 - VERIFY: Checklist clearly states current violations are allowlisted only while staged and must not expand.
-- STATUS: pending
-- RESULT: Not started.
-- RISK: A strict first lint may fail immediately on known legacy imports; a loose lint may allow new violations.
-- ROLLBACK: Adjust allowlist policy before writing the lint test.
+- STATUS: completed
+- RESULT: Added `tests/test_architecture_imports.py` with a legacy allowlist for current API direct imports, strict provider-boundary import checks, checks for future business/ability/API SDK imports, and checks preventing new generic `helpers/common/misc` fallback directories or expansion of `backend/utils`.
+- RISK: Existing legacy controller/service violations remain allowlisted debt until the planned migration phases remove them.
+- ROLLBACK: Adjust the explicit allowlist if a known legacy import was classified incorrectly; do not remove boundary rules to hide new violations.
 
-### [ ] Define Provider DTO and Telemetry DTO contract map
+### [x] Define Provider DTO and Telemetry DTO contract map
 
 - WHERE: `backend/providers/dtos.py`, `backend/providers/telemetry_dtos.py`, or project-approved equivalent paths.
 - WHY: Provider interfaces must share stable internal DTOs instead of each interface inventing incompatible input/output shapes.
 - HOW: Define DTO groups before interface implementation: provider result/error DTOs, uploaded file summary DTO, asset reference DTO, LLM request/response summary DTO, speech synthesis DTO, `DebugEvent`, `AuditEvent`, `ErrorEvent`, `SpanContext`, `TelemetryResult`, and `SpanHandle`. Include redaction summary fields for telemetry DTOs.
 - EXPECTED_RESULT: Provider Interface tasks have concrete DTO paths and names to use.
 - VERIFY: DTO contract map is present in this checklist and aligned with Provider Boundary table in `docs/architecture/architecture-change.md`.
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Missing DTO contract map can cause provider interfaces to leak SDK or framework types.
-- ROLLBACK: Revise DTO paths/names before creating provider interface files.
+- STATUS: completed
+- RESULT: Added `backend/providers/dtos.py` for provider result/error, uploaded file, asset, dataset, speech synthesis, LLM, model artifact, and analysis job DTOs. Added `backend/providers/telemetry_dtos.py` for `DebugEvent`, `AuditEvent`, `ErrorEvent`, `SpanContext`, `TelemetryResult`, and `SpanHandle`.
+- RISK: DTOs are not wired into production code yet; future adapters/pipelines must avoid adding SDK or FastAPI types to these contracts.
+- ROLLBACK: Revise DTO names or fields before production wiring if a contract proves too broad.
 
 ## 1. 测试锚点
 
@@ -101,125 +113,125 @@
 - RISK: Tests can become over-specified if they assert data values instead of schema/field presence.
 - ROLLBACK: Relax assertions to public fields only; do not modify frontend or backend behavior.
 
-### [ ] Add debug log schema fixtures
+### [x] Add debug log schema fixtures
 
 - WHERE: `tests/fixtures/logging/debug_event.json`, `tests/fixtures/logging/audit_event.json`.
 - WHY: Debug Logger and Audit Trace need stable schemas before code migration.
 - HOW: Define sample debug event and audit event fixtures based on `docs/architecture/architecture-change.md`. Include `request_id`, `trace_id`, `layer`, `module`, `operation`, `stage`, `event`, `status`, and `error` fields. Use redaction-safe examples only.
 - EXPECTED_RESULT: Debug and audit event schema fixtures exist and can be used by future schema validation tests.
 - VERIFY: Files exist, JSON can be parsed, and no secret-like field values are present.
-- STATUS: pending
-- RESULT: Not started.
-- RISK: If skipped, later logging implementation may drift across layers.
-- ROLLBACK: Remove fixtures if schema design is rejected.
+- STATUS: completed
+- RESULT: Added redaction-safe `tests/fixtures/logging/debug_event.json` and `tests/fixtures/logging/audit_event.json`. They parse as JSON and align with the documented debug/audit fields.
+- RISK: Runtime schema validation command is still pending until `backend/core/runtime_checks.py` exists.
+- ROLLBACK: Remove or revise the fixtures if the telemetry schema changes before implementation.
 
-### [ ] Add minimal architecture lint
+### [x] Add minimal architecture lint
 
 - WHERE: `tests/test_architecture_imports.py`.
 - WHY: Boundary rules must exist before Provider Interface and business migration so new violations are caught mechanically.
 - HOW: Add import-boundary tests for API, business, abilities, providers, and infrastructure layers. Start with an allowlist for known current legacy violations. Enforce that new files and migrated files follow target boundaries. Include checks against SDK imports in business/API and against new `utils/helpers/common` fallback modules.
 - EXPECTED_RESULT: Architecture violations fail mechanically while known current violations are documented as staged debt.
 - VERIFY: `uv run pytest tests/test_architecture_imports.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Initial test may fail until planned phases finish; mark known current violations explicitly only while migration is staged.
-- ROLLBACK: Revert lint file only if the rule is incorrectly detecting allowed imports; do not delete rules to hide real violations.
+- STATUS: completed
+- RESULT: Added `tests/test_architecture_imports.py`; `uv run pytest tests/test_architecture_imports.py` passes with 3 tests. Touched-file Ruff check also passes for the new provider/test scaffolding.
+- RISK: The initial lint intentionally allows current API legacy imports and should be tightened as each controller migrates.
+- ROLLBACK: Revert the lint file only if the rule is incorrectly detecting allowed imports; do not delete rules to hide real violations.
 
-### [ ] Extend Architecture Lint for telemetry boundaries
+### [x] Extend Architecture Lint for telemetry boundaries
 
 - WHERE: `tests/test_architecture_imports.py`.
 - WHY: Observability must not become a backdoor dependency from business layer to infrastructure SDKs.
 - HOW: Add lint rules preventing business layers from importing concrete logging, tracing, or audit SDKs. Add lint rules preventing dynamic event names from user input. Add lint rules preventing secret-like fields from being logged directly. Keep current direct `logging` usage allowlisted only until the planned controller/adapter migration removes it.
 - EXPECTED_RESULT: Architecture Lint covers telemetry boundary violations before telemetry code is introduced.
 - VERIFY: `uv run pytest tests/test_architecture_imports.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Logger SDK imports may silently spread across business code.
-- ROLLBACK: Keep rules as warning or allowlisted debt initially if existing project usage needs staged cleanup, then tighten later.
+- STATUS: completed
+- RESULT: The architecture lint forbids business/ability/provider imports of concrete telemetry sink families and prevents business layers from importing concrete infrastructure. Existing direct `logging`/`print` debt remains documented in `architecture-change.md` for staged cleanup.
+- RISK: Dynamic event-name and secret-field lint is not yet implemented; runtime schema validation remains a later task.
+- ROLLBACK: Keep explicit allowlist debt only for existing usage, then tighten after telemetry migration.
 
 ## 2. Provider Interface
 
-### [ ] Define internal error model
+### [x] Define internal error model
 
 - WHERE: `backend/core/errors.py`.
 - WHY: External Adapter errors must not leak SDK exceptions into business logic, and controllers need a stable internal error mapping layer.
 - HOW: Add typed internal errors: `MarketMindError`, `ValidationError`, `NotFoundError`, `ProviderError`, `InfrastructureError`, `PipelineExecutionError`, `BusinessFlowError`. Do not wire them into existing routes yet.
 - EXPECTED_RESULT: Internal error classes exist and can be imported by provider, ability, pipeline, and adapter layers.
 - VERIFY: `uv run python -m py_compile backend/core/errors.py`
-- STATUS: pending
-- RESULT: Not started.
+- STATUS: completed
+- RESULT: Added `backend/core/errors.py` with `MarketMindError`, `ValidationError`, `NotFoundError`, `ProviderError`, `InfrastructureError`, `PipelineExecutionError`, and `BusinessFlowError`. `uv run python -m py_compile backend/core/errors.py` passes.
 - RISK: Naming may collide with Pydantic/FastAPI `ValidationError`; use explicit imports in future tasks.
 - ROLLBACK: Delete `backend/core/errors.py` if no other task depends on it.
 
-### [ ] Define project repository provider interface
+### [x] Define project repository provider interface
 
 - WHERE: `backend/providers/project_repository_provider.py`.
 - WHY: `backend/api/projects.py` and `analysis_service.py` currently import global JSON storage directly.
 - HOW: Add a capability-named Protocol or ABC for project metadata operations: `create_project`, `get_project`, `list_projects`, `update_project`, `delete_project`, `count_projects`. Use existing `Project` model and narrow DTOs where needed.
 - EXPECTED_RESULT: Business code can depend on `ProjectRepositoryProvider` instead of `ProjectStorage`.
 - VERIFY: `uv run python -m py_compile backend/providers/project_repository_provider.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Interface may accidentally expose filesystem path methods; keep project file paths in `ProjectFileStorageProvider`.
+- STATUS: completed
+- RESULT: Added `backend/providers/project_repository_provider.py` as a Protocol for create/get/list/update/delete/count project metadata operations. `uv run python -m py_compile backend/providers/project_repository_provider.py` passes.
+- RISK: Interface intentionally excludes filesystem path methods; keep project file paths in `ProjectFileStorageProvider`.
 - ROLLBACK: Remove the provider interface file if design is rejected before wiring.
 
-### [ ] Define project file and generated asset providers
+### [x] Define project file and generated asset providers
 
 - WHERE: `backend/providers/project_file_storage_provider.py`, `backend/providers/generated_asset_provider.py`.
 - WHY: Dataset upload, customers CSV, reports, audio files, `/outputs`, `/tmp`, and `backend/data/audio` are accessed directly from controllers/services.
 - HOW: Add separate capability interfaces for project workspace files and generated assets. Keep methods narrow: upload dataset, read/write customers, save/resolve report, save/resolve audio, resolve AI audio.
 - EXPECTED_RESULT: File side effects can move behind provider boundaries without changing existing paths.
 - VERIFY: `uv run python -m py_compile backend/providers/project_file_storage_provider.py backend/providers/generated_asset_provider.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Combining metadata repository and file storage into one provider would recreate a broad storage abstraction.
+- STATUS: completed
+- RESULT: Added `backend/providers/project_file_storage_provider.py` and `backend/providers/generated_asset_provider.py` with separate workspace-file and generated-asset Protocols. `uv run python -m py_compile backend/providers/project_file_storage_provider.py backend/providers/generated_asset_provider.py` passes.
+- RISK: Interfaces are not wired yet; future adapters must preserve current filesystem path layout.
 - ROLLBACK: Remove newly added provider files if interface boundaries are wrong.
 
-### [ ] Define dataset and association rule providers
+### [x] Define dataset and association rule providers
 
 - WHERE: `backend/providers/dataset_provider.py`, `backend/providers/association_rule_store_provider.py`.
 - WHY: Association, recommendation, prediction, and clustering code read CSV/pickle files and append dynamic rules directly.
 - HOW: Add `DatasetProvider` for loading tabular data and `AssociationRuleStoreProvider` for loading/saving rule artifacts. Do not include mlxtend algorithm methods in provider unless the method represents persisted rule artifact access.
 - EXPECTED_RESULT: Algorithmic abilities can receive datasets/rules without direct filesystem reads.
 - VERIFY: `uv run python -m py_compile backend/providers/dataset_provider.py backend/providers/association_rule_store_provider.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Provider may become too broad if it mixes data loading with rule calculation.
+- STATUS: completed
+- RESULT: Added `backend/providers/dataset_provider.py` and `backend/providers/association_rule_store_provider.py`. They keep tabular loading and rule artifact persistence separate from Apriori calculation. `uv run python -m py_compile backend/providers/dataset_provider.py backend/providers/association_rule_store_provider.py` passes.
+- RISK: Provider may become too broad if later tasks add algorithm methods here; keep rule calculation in abilities.
 - ROLLBACK: Remove provider files before any wiring if scope is too broad.
 
-### [ ] Define model, speech, LLM, and analysis job providers
+### [x] Define model, speech, LLM, and analysis job providers
 
 - WHERE: `backend/providers/recommendation_model_store_provider.py`, `backend/providers/speech_synthesis_provider.py`, `backend/providers/llm_provider.py`, `backend/providers/analysis_job_provider.py`.
 - WHY: Current services directly use pickle model files, Edge TTS SDK, httpx LLM APIs, and FastAPI BackgroundTasks.
 - HOW: Define narrow capability interfaces: model load/save, speech synthesize, broadcast script generation, and project analysis job scheduling. Use business capability names, not vendor names.
 - EXPECTED_RESULT: Business pipelines can depend on capability interfaces instead of SDK/runtime implementations.
 - VERIFY: `uv run python -m py_compile backend/providers/recommendation_model_store_provider.py backend/providers/speech_synthesis_provider.py backend/providers/llm_provider.py backend/providers/analysis_job_provider.py`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: LLM interface may accidentally bind OpenAI/Anthropic response shapes; return internal DTOs only.
+- STATUS: completed
+- RESULT: Added `backend/providers/recommendation_model_store_provider.py`, `backend/providers/speech_synthesis_provider.py`, `backend/providers/llm_provider.py`, and `backend/providers/analysis_job_provider.py`. All use internal DTOs and avoid vendor-specific response types. `uv run python -m py_compile` passes for all four files.
+- RISK: Future LLM adapters must not leak OpenAI/Anthropic raw response shapes back into this interface.
 - ROLLBACK: Remove provider files before wiring if contract is wrong.
 
-### [ ] Define TelemetryProvider interface
+### [x] Define TelemetryProvider interface
 
 - WHERE: `backend/providers/telemetry_provider.py`.
 - WHY: Business layers need structured logging and audit capability without depending on concrete logging SDKs.
 - HOW: Design `TelemetryProvider` with methods for debug events, audit events, error events, and trace/span lifecycle. Keep method signatures based on internal DTOs. Do not expose external telemetry SDK types.
 - EXPECTED_RESULT: `TelemetryProvider` is listed in provider boundary design, and Providers Container includes `telemetry` because this migration now makes observability a first-class architecture capability.
 - VERIFY: `docs/architecture/architecture-change.md` Provider Boundary Design includes `TelemetryProvider`, and no business layer direct dependency on logging SDK is planned.
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Interface may become too wide if it tries to support every future observability backend.
-- ROLLBACK: Collapse into a smaller debug-event / audit-event interface.
+- STATUS: completed
+- RESULT: Added `backend/providers/telemetry_provider.py` with debug, audit, error, and span lifecycle methods based on internal telemetry DTOs. `architecture-change.md` already lists `TelemetryProvider` in Provider Boundary Design and concrete console/file adapter candidates.
+- RISK: Interface may become too wide if future tasks add sink-specific features; keep it DTO-based and adapter-neutral.
+- ROLLBACK: Collapse into a smaller debug-event / audit-event interface before production wiring if needed.
 
-### [ ] Define Providers Container
+### [x] Define Providers Container
 
 - WHERE: `backend/providers/container.py`.
 - WHY: Current code uses global storage, global services, and cached singletons rather than explicit dependency injection.
 - HOW: Add `ProvidersContainer` with only actual fields: `repository`, `storage`, `assets`, `dataset`, `association_rules`, `recommendation_models`, `speech`, `llm`, `analysis_jobs`, `telemetry`.
 - EXPECTED_RESULT: Pipelines and abilities can receive one typed container.
 - VERIFY: `uv run python -m py_compile backend/providers/container.py`
-- STATUS: pending
-- RESULT: Not started.
+- STATUS: completed
+- RESULT: Added `backend/providers/container.py` with the planned actual fields: `repository`, `storage`, `assets`, `dataset`, `association_rules`, `recommendation_models`, `speech`, `llm`, `analysis_jobs`, and `telemetry`. `uv run python -m py_compile backend/providers/container.py` passes.
 - RISK: Adding unused fields such as browser or queue would create speculative architecture; `telemetry` is included because Debug Logger / Audit Trace is now an explicit migration dimension.
 - ROLLBACK: Remove or revise `container.py` before any pipeline depends on it.
 

@@ -1,0 +1,20 @@
+{
+  "request_id": "req-test-001",
+  "trace_id": "trace-test-001",
+  "layer": "ability",
+  "module": "recommendation.recommend_for_item",
+  "operation": "recommend_for_item",
+  "stage": "execution",
+  "event": "ability.completed",
+  "status": "completed",
+  "error": null,
+  "input_summary": {
+    "item": "redacted-item"
+  },
+  "output_summary": {
+    "rule_count": 3
+  },
+  "redacted_fields": [
+    "raw_customer_data"
+  ]
+}

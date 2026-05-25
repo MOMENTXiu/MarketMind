@@ -578,7 +578,8 @@ Target directory:
 ```text
 backend/providers/
   container.py
-  factory.py
+  dtos.py
+  telemetry_dtos.py
   project_repository_provider.py
   project_file_storage_provider.py
   generated_asset_provider.py
@@ -588,6 +589,7 @@ backend/providers/
   speech_synthesis_provider.py
   llm_provider.py
   analysis_job_provider.py
+  telemetry_provider.py
 ```
 
 Provider names describe business capability. Vendor names are allowed only in External Adapter classes/files.
