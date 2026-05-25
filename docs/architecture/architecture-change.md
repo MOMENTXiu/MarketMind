@@ -141,6 +141,21 @@ frontend/
 
 ## 4. Current Backend Call Chains
 
+> **Status note (Phase 9)**: §4.1 – §4.8 describe the pre-migration call chains preserved as behavior anchors. The post-migration runtime path for every active controller is:
+>
+> `Controller (backend/api/*) -> Pipeline (backend/business/pipelines/*) -> Ability (backend/abilities/*) and/or Provider Interface (backend/providers/*) -> Adapter (backend/infrastructure/adapters/*) -> external SDK / filesystem`
+>
+> Concrete pipeline wiring:
+>
+> - `POST /api/projects/{id}/upload/` -> `DatasetUploadPipeline` -> `ProjectRepositoryProvider` + `ProjectFileStorageProvider` -> schedule `ProjectAnalysisFlow` via `AnalysisJobProvider` (`FastapiBackgroundAnalysisJobAdapter`).
+> - `/api/projects/*` CRUD -> `ProjectPipeline` / `ProjectReadPipelines` -> `ProjectRepositoryProvider`.
+> - `GET /api/projects/{id}/recommend/`, `GET /api/recommend/*`, `POST /api/recommend/calculate/`, `POST /api/recommend/tts/play/` -> `RecommendationPipeline` -> `RecommendationAbility` + `RecommendationModelStoreProvider` + `SpeechSynthesisProvider`.
+> - `POST /api/association/analyze/` -> `AssociationAnalysisPipeline` -> `AssociationRuleAbility` + `DatasetProvider` + `AssociationRuleStoreProvider`.
+> - `POST /api/voice/tts/`, `POST /api/voice/generate/` -> `VoiceSynthesisPipeline` -> `SpeechSynthesisProvider` (`EdgeTtsSpeechSynthesisAdapter`) + `GeneratedAssetProvider`.
+> - `POST /api/ai-voice/broadcast/`, `GET /api/ai-voice/audio/{filename}/` -> `AIVoiceBroadcastPipeline` -> `VoiceBroadcastAbility` -> `LLMProvider` (`OpenAICompatibleLLMAdapter` / `AnthropicLLMAdapter`) + `SpeechSynthesisProvider` + `GeneratedAssetProvider`.
+>
+> The legacy chain `backend.services.analysis_service.run_project_analysis` is still registered as the default handler of `AnalysisJobProvider` until each step is migrated into ability composition.
+
 ### 4.1 Project Upload And Analysis
 
 ```text
@@ -393,19 +408,40 @@ Direct `os.environ` / `os.getenv` in application source: none found. Matches und
 
 ## 8. Cross-layer Import Violations
 
-| Importing File | Imported Object | Violation | Target Direction |
-|---|---|---|---|
-| `backend/api/projects.py` | `backend.core.storage.storage` | API Controller imports storage adapter/global repository directly | Controller -> Pipeline -> Provider Interface |
-| `backend/api/projects.py` | `backend.core.recommend.query_item_relations` | API Controller imports algorithm/core directly | Controller -> Recommendation Pipeline -> Ability |
-| `backend/api/projects.py` | `backend.services.analysis_service.run_project_analysis` | Controller schedules concrete business function directly | Controller -> Flow/Pipeline -> Job Provider |
-| `backend/api/association.py` | `AssociationService()` global | Controller constructs concrete service globally | Controller -> Pipeline via dependency/provider wiring |
-| `backend/api/voice.py` | `VoiceService()`, `TTSService()` globals | Controller constructs service and SDK-facing wrapper | Controller -> Voice Pipeline -> Provider Interface |
-| `backend/api/recommend.py` | `get_recommender`, `generate_tts` | Controller calls cached concrete service and TTS helper | Controller -> Recommendation Pipeline |
-| `backend/api/ai_voice.py` | `AIVoiceService` | Controller calls service that directly reaches LLM/TTS SDKs | Controller -> AI Voice Pipeline -> Abilities -> Providers |
-| `backend/services/analysis_service.py` | `backend.core.storage.storage` | Business service imports concrete storage | Flow -> Provider Interface |
-| `backend/services/ai_voice_service.py` | `httpx`, `edge_tts` | Business service imports HTTP client and TTS SDK | Ability -> Provider Interface -> Adapter |
-| `backend/services/tts_service.py` | `edge_tts` | SDK wrapper located in service layer, no provider boundary | Provider Interface -> Adapter |
-| `backend/services/recommender_service.py` | `TTSService` | Recommendation service calls TTS concrete implementation | Pipeline -> SpeechSynthesisProvider |
+### 8.1 Pre-migration baseline (historical)
+
+| Importing File | Imported Object | Violation | Target Direction | Status |
+|---|---|---|---|---|
+| `backend/api/projects.py` | `backend.core.storage.storage` | API Controller imports storage adapter/global repository directly | Controller -> Pipeline -> Provider Interface | Resolved in Phase 7 |
+| `backend/api/projects.py` | `backend.core.recommend.query_item_relations` | API Controller imports algorithm/core directly | Controller -> Recommendation Pipeline -> Ability | Resolved in Phase 7 |
+| `backend/api/projects.py` | `backend.services.analysis_service.run_project_analysis` | Controller schedules concrete business function directly | Controller -> Flow/Pipeline -> Job Provider | Resolved in Phase 7 |
+| `backend/api/association.py` | `AssociationService()` global | Controller constructs concrete service globally | Controller -> Pipeline via dependency/provider wiring | Resolved in Phase 7 |
+| `backend/api/voice.py` | `VoiceService()`, `TTSService()` globals | Controller constructs service and SDK-facing wrapper | Controller -> Voice Pipeline -> Provider Interface | Resolved in Phase 7 |
+| `backend/api/recommend.py` | `get_recommender`, `generate_tts` | Controller calls cached concrete service and TTS helper | Controller -> Recommendation Pipeline | Resolved in Phase 7 |
+| `backend/api/ai_voice.py` | `AIVoiceService` | Controller calls service that directly reaches LLM/TTS SDKs | Controller -> AI Voice Pipeline -> Abilities -> Providers | Resolved in Phase 7 |
+| `backend/services/analysis_service.py` | `backend.core.storage.storage` | Business service imports concrete storage | Flow -> Provider Interface | Resolved in Phase 8 (flow routes through providers; legacy module retained only as background-job default handler) |
+| `backend/services/ai_voice_service.py` | `httpx`, `edge_tts` | Business service imports HTTP client and TTS SDK | Ability -> Provider Interface -> Adapter | Resolved in Phase 9 (module deleted) |
+| `backend/services/tts_service.py` | `edge_tts` | SDK wrapper located in service layer, no provider boundary | Provider Interface -> Adapter | Resolved in Phase 8 (replaced by `SpeechSynthesisProvider` + `EdgeTtsSpeechSynthesisAdapter`; legacy module retained as inactive controller dep) |
+| `backend/services/recommender_service.py` | `TTSService` | Recommendation service calls TTS concrete implementation | Pipeline -> SpeechSynthesisProvider | Resolved in Phase 8 (recommendation pipeline now consumes `SpeechSynthesisProvider`; legacy module retained for analysis cache invalidation hook) |
+
+### 8.2 Active controllers (post-migration)
+
+Controllers under `backend/api/{projects,recommend,association,voice,ai_voice}.py` import only `fastapi`, `pydantic`, `backend.api.dependencies`, `backend.api.error_mapping`, `backend.business.pipelines.*`, `backend.core.errors`, and `backend.models.schemas`. The static guard `tests/api/test_controller_thinness.py` enforces the forbidden-prefix list `(backend.services, backend.core.storage, backend.core.recommend, backend.infrastructure, edge_tts, httpx, pandas, sklearn, mlxtend, shutil)`.
+
+### 8.3 Residual references (intentionally retained)
+
+| Module | Caller | Reason for retention |
+|---|---|---|
+| `backend/api/prediction.py`, `backend/api/clustering.py` | not registered in `backend/main.py` | Pre-existing inactive routers; out of Phase 9 deletion scope. They still import `backend.services.prediction_service` / `clustering_service`. |
+| `backend/services/{analysis,association,clustering,model_builder,prediction,recommender,tts}_service.py` | `backend/infrastructure/factories/provider_factory.py` (only `analysis_service.run_project_analysis` + `recommender_service.clear_recommender_cache`), inactive controllers, and `tests/business/test_project_analysis_current_behavior.py` | Legacy chain still wired as `FastapiBackgroundAnalysisJobAdapter` default handler. Removal requires moving every step of `run_project_analysis` into ability/pipeline composition + replacing the recommender cache-clear hook, which exceeds the Phase 9 cleanup scope. |
+| `backend/core/storage.py` | `backend/infrastructure/adapters/json_project_repository_adapter.py`, legacy `analysis_service`, two test fixtures | `JsonProjectRepositoryAdapter` wraps `ProjectStorage` to keep on-disk schema identical; deletion requires inlining the JSON read/write semantics into the adapter and migrating tests. |
+
+### 8.4 Removed in Phase 9 (no remaining references)
+
+- `backend/services/voice_service.py`
+- `backend/services/ai_voice_service.py`
+- `backend/core/analysis.py`
+- `backend/core/recommend.py`
 
 `backend/utils/` exists as an empty package. No active imports were found. Do not expand it as a fallback module.
 
@@ -1158,6 +1194,36 @@ Minimum checks:
 | log schema validation | sample debug event validates required fields and redaction rules | `uv run python -m backend.core.runtime_checks validate-log-schema tests/fixtures/logging/debug_event.json` |
 | audit schema validation | sample audit event validates required fields and redaction rules | `uv run python -m backend.core.runtime_checks validate-audit-schema tests/fixtures/logging/audit_event.json` |
 
+### Implementation status
+
+The Runtime Check CLI is implemented at `backend/core/runtime_checks.py`. Commands are dispatched via subparsers; each command is a top-level `cmd_*` function. The module is non-destructive by contract: file-emitting commands use `tempfile.TemporaryDirectory`, and the LLM/Speech checks never invoke real network or synthesis calls.
+
+| Command | Implemented | Side effects | Secrets required | Exit code semantics |
+|---|---|---|---|---|
+| `check-config` | yes | Loads `Settings()`; reads `.env` if present. | none | `0` on success; `1` on settings load failure. |
+| `check-providers` | yes | Builds `ProvidersContainer` via `create_providers(Settings())`. | none | `0` when every container field is non-null; `1` otherwise. |
+| `check-storage --sandbox` | yes | Creates a `tempfile.TemporaryDirectory`, exercises `JsonProjectRepositoryAdapter`, `LocalProjectFileStorageAdapter`, `CsvDatasetAdapter` end-to-end inside the sandbox, then deletes. | none | `0` on success; `1` on any storage assertion failure; `1` when `--sandbox` is omitted. |
+| `check-llm --dry-run` | yes (interface probe only) | Builds providers; checks `providers.llm.generate_text` is callable. **No real LLM request is sent.** | none | `0` on interface present (logs `skipped: requires network`); `1` when `--dry-run` is omitted or interface missing. |
+| `check-speech --mock` | yes (interface probe only) | Builds providers; checks `providers.speech.synthesize` is callable. **No real synthesis is invoked.** | none | `0` on interface present; `1` when `--mock` is omitted or interface missing. |
+| `validate-api-schemas` | yes | Calls `backend.main.app.openapi()` and asserts non-empty `paths`. | none | `0` on success; `1` on schema failure. |
+| `check-telemetry` | yes | Emits 3 events (debug/audit/error) to `ConsoleTelemetryAdapter` with an in-memory writer; asserts required `DebugEvent` fields are present in the serialized payload. | none | `0` when all 3 emits succeed and required fields match; `1` otherwise. |
+| `check-audit-sink` | yes | Writes one `AuditEvent` to `FileTelemetryAdapter` under a `tempfile.TemporaryDirectory`; asserts file exists and required fields are present. | none | `0` on success; `1` otherwise. |
+| `validate-log-schema [--fixture]` | yes | Reads a JSON fixture (default `tests/fixtures/logging/debug_event.json`) and asserts every `DebugEvent` dataclass field is present. | none | `0` on success; `1` when fixture missing fields or unreadable. |
+| `validate-audit-schema [--fixture]` | yes | Same as above against `AuditEvent`. | none | `0` on success; `1` otherwise. |
+| `inspect-trace --trace-id` | placeholder | Currently logs `skipped: not implemented in MVP`. Trace store backend not yet present. | none | `0` (placeholder skip). |
+| `dry-run-project-analysis` | not implemented | Reserved for a future pipeline-fixture replay. | n/a | n/a |
+| `inspect-logs --latest` | not implemented | Replaced by `validate-log-schema` / `validate-audit-schema` for MVP. | n/a | n/a |
+
+### Scope and non-substitution
+
+- Runtime checks are deployment-time self-tests. They MUST NOT replace `uv run pytest tests/` in CI; they complement it by validating that the wired Provider Factory, Settings, and telemetry adapters can boot in the target environment.
+- All commands MUST remain non-destructive against real project data. Any future write must be confined to `tempfile.TemporaryDirectory` or explicitly gated behind a `--sandbox`-equivalent flag.
+- LLM and Speech checks MUST stay interface-only until an out-of-band credential gate is added; do not introduce real-call modes inside this CLI.
+
+### Test coverage
+
+`tests/core/test_runtime_checks.py` invokes each command via `subprocess.run` and asserts both exit code `0` and the expected stdout marker for the happy path; it also asserts gating flags (`--sandbox`, `--dry-run`, `--mock`) are enforced.
+
 ## 17. Test Strategy
 
 Existing tests: none found. Existing test tooling exists in `pyproject.toml`:
@@ -1445,3 +1511,186 @@ Add API smoke tests, flow orchestration tests with fake providers, provider cont
 
 Expected direction:
 API Controller -> Business Pipeline / Business Flow -> Ability Atom -> Provider Interface -> External Adapter
+
+## 22. Pipeline-Level Trace Event Contract
+
+This section is the binding contract for Business Pipeline trace events. Pipelines emit telemetry only through `TelemetryProvider`; they never call loggers, file sinks, or external SDKs directly. Pipelines must not pass raw user input, raw uploaded bytes, secrets, tokens, or unbounded payloads into events.
+
+### Event names
+
+Each Business Pipeline run must emit at minimum:
+
+- `pipeline.started` — when a `ProvidersContainer`-bound pipeline operation begins.
+- `pipeline.step.started` — before each internal step (provider call, ability invocation, or branch decision).
+- `pipeline.step.completed` — after a step finishes successfully.
+- `pipeline.step.failed` — when a step raises before returning a normal result.
+- `pipeline.completed` — when the whole pipeline returns a normal result.
+- `pipeline.failed` — when the pipeline propagates an error to the controller.
+
+`step.started` and `step.completed` / `step.failed` must be paired with the same `step_name`.
+
+### Required event fields
+
+Every event in the contract includes the following fields:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `pipeline_run_id` | string | Unique per pipeline invocation; stable across all events of one run. |
+| `trace_id` | string | Inherited from the inbound request when present; otherwise generated at pipeline entry. |
+| `pipeline_name` | string | Class name of the pipeline, e.g. `ProjectPipeline`. |
+| `operation` | string | Pipeline method name, e.g. `create`, `upload`, `recommend_user`. |
+| `step_name` | string \| null | Required on `step.*` events; null on `started` / `completed` / `failed`. |
+| `stage` | string | One of `entry`, `validate`, `provider_call`, `ability_call`, `persist`, `dispatch`, `exit`. |
+| `duration_ms` | number | Set on `*.completed` and `*.failed`; omitted on `*.started`. |
+| `error_type` | string \| null | Required on `*.failed`; must be a class name exported by `backend.core.errors`. |
+| `provider_used` | string \| null | Provider interface name when the step crossed a provider boundary, e.g. `ProjectRepositoryProvider`. |
+
+### `error_type` enumeration
+
+`error_type` must be one of the class names defined in `backend.core.errors`:
+
+- `ValidationError`
+- `NotFoundError`
+- `ProviderError`
+- `InfrastructureError`
+- `PipelineExecutionError`
+- `BusinessFlowError`
+
+Pipelines must translate any non-listed exception caught from below them into one of the above before emission and before propagation.
+
+### Redaction rules
+
+Identical to Ability-layer redaction in the Debug Logger and Audit Trace Strategy section:
+
+- Dataset rows, uploaded bytes, full file paths under user content, LLM prompts, TTS text, and personal identifiers are forbidden in event payloads.
+- Only counts, lengths, IDs, status strings, and provider interface names may be recorded.
+- Errors must be summarized as `error_type` plus a non-sensitive short message; raw stack traces stay in the runtime logger, not in trace events.
+- TelemetryProvider failures must not change pipeline business behavior.
+
+### Emission boundary
+
+- Pipelines emit via `providers.telemetry` only. Direct imports of logging, `print`, `httpx`, `edge_tts`, `pandas`, `sklearn`, `mlxtend`, `fastapi`, `backend.api`, and `backend.infrastructure` remain forbidden in `backend/business/` and are enforced by Architecture Lint.
+- Controllers, abilities, and providers retain their own event contracts; this section governs Pipeline scope only.
+
+## Flow Lifecycle Audit Contract
+
+`ProjectAnalysisFlow` is currently the only Business Flow with a complex lifecycle (long-running upload / reanalyze with multiple stages, generated artifacts and cache invalidation). Future flows that orchestrate multi-stage state transitions must follow this same contract; one-step routes stay in Pipelines.
+
+### Required events
+
+- `flow.started` — emitted at flow entry after the target resource is resolved and before the first stage runs.
+- `flow.stage.completed` — emitted after each named stage finishes successfully (`load_dataset`, `association_rules`, `forecast_sales`, `cluster_customers`, `report`, `speech`, `model_build`).
+- `flow.stage.failed` — emitted when a stage raises. Best-effort stages (currently `speech`, `model_build`) emit `stage.failed` without aborting the flow; mandatory stages additionally trigger `flow.cancelled` or `flow.completed` with terminal failure state.
+- `flow.compensation.started` — emitted when a stage failure triggers rollback of previously persisted side effects. `ProjectAnalysisFlow` currently has no compensation logic; future flows that rollback writes must emit this event.
+- `flow.completed` — emitted at the terminal successful boundary, after `mark_analysis_completed` persists the final results.
+- `flow.cancelled` — emitted when the flow ends in a terminal failure state, after `mark_analysis_failed` persists `error_message`. Also emitted on cooperative cancellation (e.g. user-initiated abort) once such a path exists.
+
+`stage.started` and `stage.completed` / `stage.failed` must share the same `stage` value within one `flow_run_id`.
+
+### Required event fields
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `flow_run_id` | string | Unique per flow invocation; stable across all events of one run. |
+| `trace_id` | string | Inherited from the inbound request when present; otherwise generated at flow entry. |
+| `flow_name` | string | Class name of the flow, e.g. `ProjectAnalysisFlow`. |
+| `stage` | string \| null | Required on `stage.*` events; null on `flow.started` / `flow.completed` / `flow.cancelled`. |
+| `state_before` | string | Project status snapshot before the transition; uses `ProjectStatus` value (`待处理`, `处理中`, `已完成`, `失败`). |
+| `state_after` | string | Project status snapshot after the transition; same enumeration as `state_before`. |
+| `duration_ms` | number | Required on `*.completed` and `*.failed`; omitted on `*.started`. |
+| `error_type` | string \| null | Required on `*.failed`; must be a class name exported by `backend.core.errors` (`ValidationError`, `NotFoundError`, `ProviderError`, `InfrastructureError`, `PipelineExecutionError`, `BusinessFlowError`) or an upstream stdlib exception (`FileNotFoundError`, `RuntimeError`) translated at the flow boundary. |
+| `provider_used` | string \| null | Provider interface name when the stage crossed a provider boundary, e.g. `ProjectFileStorageProvider`, `GeneratedAssetProvider`, `SpeechSynthesisProvider`, `RecommendationModelStoreProvider`. |
+
+### Redaction rules
+
+Identical to Pipeline-layer redaction in the Debug Logger and Audit Trace Strategy section:
+
+- Dataset rows, uploaded bytes, full file paths under user content, LLM prompts, TTS text, customer-level analytics outputs and personal identifiers are forbidden in event payloads.
+- Only counts, lengths, IDs, status strings, stage names, and provider interface names may be recorded.
+- Errors must be summarized as `error_type` plus a non-sensitive short message; raw stack traces stay in the runtime logger or `error_message` persisted on the project, never in audit events.
+- `TelemetryProvider` failures must not change flow business behavior; flow emission helpers swallow telemetry errors silently.
+
+## Implemented Layout (Post-Migration Snapshot)
+
+Migration completed 2026-05-25 on top of working tree at commit `18578a4` (uncommitted Phase 9 cleanup applied on top).
+
+```text
+backend/
+  api/                         HTTP boundary. FastAPI routers only. Import surface limited to fastapi, pydantic,
+                               backend.api.dependencies, backend.api.error_mapping, backend.business.pipelines.*,
+                               backend.core.errors, backend.models.schemas. Enforced by tests/api/test_controller_thinness.py.
+  business/
+    pipelines/                 Stateless request-scoped orchestration. One pipeline per controller capability.
+    flows/                     Long-running stateful lifecycles. Currently only ProjectAnalysisFlow.
+  abilities/                   Pure domain atoms (association, prediction, clustering, recommendation, report, voice).
+                               No fastapi / SDK / filesystem / global state.
+  providers/                   Provider Interface contracts + DTOs + TelemetryProvider + ProvidersContainer.
+                               Defines the only allowed boundary between business and infrastructure.
+  infrastructure/
+    adapters/                  Concrete provider implementations. The only place that may import edge_tts, httpx,
+                               pandas, sklearn, mlxtend, json/pickle persistence, or FastAPI BackgroundTasks.
+    factories/                 Provider Factory: assembles ProvidersContainer for a given request scope.
+  core/
+    config.py                  Settings(BaseSettings). Sole env reader.
+    errors.py                  MarketMindError hierarchy. Internal error model.
+    runtime_checks.py          CLI gate for config, providers, schemas, telemetry, audit, log schema, LLM/speech dry-run.
+  models/                      Pydantic request/response schemas (frozen contract for frontend matrix).
+  main.py                      FastAPI bootstrap. CORS + router registration only.
+  services/                    Legacy. Retained as default handler of AnalysisJobProvider and dependency of inactive
+                               prediction/clustering routers. New code MUST NOT import from here.
+  utils/                       Empty package. MUST stay empty.
+```
+
+Layer responsibilities (one sentence each):
+
+- **API**: Map HTTP <-> Pipeline call. Translate `MarketMindError` via `map_internal_error`.
+- **Pipelines**: Compose ability + provider calls for one request.
+- **Flows**: Own multi-step state transitions (`处理中 -> 已完成 / 失败`) and lifecycle events.
+- **Abilities**: Pure algorithm / domain logic. No I/O.
+- **Providers**: Capability contracts (interface + DTO). No implementation.
+- **Adapters**: Bind a provider contract to a concrete SDK or persistence backend.
+- **Factories**: Wire adapters into a `ProvidersContainer` per request.
+- **Core**: Settings, error hierarchy, runtime check entry points.
+
+## Observability Coverage Checklist
+
+- [x] Request-Level Trace Context defined — §6 of the Debug Logger and Audit Trace Strategy block plus the trace context propagation section near the document tail.
+- [x] Ability-Level Debug Event Contract defined — Debug Logger section, Ability-layer event schema.
+- [x] Pipeline-Level Trace Event Contract defined — Debug Logger section, Pipeline-layer event schema.
+- [x] Flow Lifecycle Audit Contract defined — Audit Trace section covering `ProjectAnalysisFlow` state transitions.
+- [x] Telemetry Provider boundary defined — §11 Provider Boundary Design (`TelemetryProvider`) plus §15 Architecture Lint and §16 Runtime Check Strategy.
+- [x] Runtime Check Strategy (including `check-telemetry`, `check-audit-sink`, `validate-log-schema`, `validate-audit-schema`) defined — §16. Verified live by `uv run python -m backend.core.runtime_checks check-telemetry` returning `events_emitted=3`.
+- [x] Redaction policy defined — present at Ability layer, Pipeline layer, and Flow layer; final summary appears immediately above this checklist. Forbids dataset rows, uploaded bytes, user-content paths, LLM prompts, TTS text, customer analytics outputs, personal identifiers, and raw stack traces in event payloads.
+
+### Emission boundary
+
+- Flows emit via `providers.telemetry` only. Direct imports of `logging`, `print`, `httpx`, `edge_tts`, `pandas`, `sklearn`, `mlxtend`, `fastapi`, `backend.api`, and `backend.infrastructure` remain forbidden in `backend/business/flows/` and are enforced by Architecture Lint.
+- Pipelines, controllers, abilities and providers retain their own event contracts; this section governs Business Flow scope only.
+- Multi-flow scenarios in the future must keep `flow_run_id` distinct per flow invocation even when `trace_id` is shared via an upstream request.
+
+## Request-Level Trace Context
+
+Scope: every inbound HTTP request handled by `backend/api/*.py` controllers.
+
+### Trace identifier lifecycle
+
+- Each request carries a `trace_id`. If the inbound request supplies an `X-Trace-Id` or `X-Request-Id` header, that value is reused; otherwise a fresh `uuid4().hex` is generated at the controller boundary middleware.
+- Controllers never call `uuid.uuid4` or other identifier generators directly; identifier creation lives in a single FastAPI dependency / middleware shared by all routers.
+- The active `trace_id`, together with optional `actor_id` and `session_id` parsed from authentication, is attached to a per-request context object surfaced via `providers.telemetry`.
+
+### Propagation rules
+
+- `get_providers(background_tasks: BackgroundTasks)` builds the per-request `ProvidersContainer`. The trace context attaches to the `TelemetryProvider` for the lifetime of the request only.
+- Pipelines and flows read trace context from `providers.telemetry`; they MUST NOT import `fastapi`, `starlette`, the logging SDK or any HTTP client to inject identifiers themselves.
+- Background tasks scheduled through `providers.analysis_jobs` inherit the originating `trace_id` by passing it as a job field; the background handler attaches the same identifier when it builds its own telemetry events.
+
+### Error mapping coupling
+
+- `backend/api/error_mapping.py:map_internal_error` is the single conversion point from `MarketMindError` to `HTTPException`. The `trace_id` of the failing request is recorded by the controller-boundary middleware on the response (header `X-Trace-Id`) and emitted by telemetry; the `detail` body remains a stable end-user string.
+- Controllers MUST catch `MarketMindError` exactly once at handler exit and delegate to `map_internal_error`. No per-handler `try/except` on concrete error subclasses, no logging from controllers — telemetry events are emitted by pipelines/flows or by the middleware that owns the request lifecycle.
+
+### Forbidden patterns
+
+- Controller files call `uuid.uuid4` / `secrets.token_hex` for tracing purposes.
+- Business code (`backend/business/`, `backend/abilities/`) imports `logging`, `structlog`, `httpx`, or `fastapi` to read or stamp trace identifiers.
+- Trace identifiers are echoed back into response bodies as part of the public contract (only as headers and as fields of telemetry events).

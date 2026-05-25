@@ -1,9 +1,11 @@
 """
 TTS 语音合成服务 - 使用 Edge-TTS
 """
-import edge_tts
-from pathlib import Path
+
 import logging
+from pathlib import Path
+
+import edge_tts
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -23,7 +25,9 @@ class TTSService:
         """
         self.voice = voice
 
-    async def synthesize(self, text: str, output_path: str, voice: str = None, rate: str = "+0%", volume: str = "+0%"):
+    async def synthesize(
+        self, text: str, output_path: str, voice: str = None, rate: str = "+0%", volume: str = "+0%"
+    ):
         """
         合成语音
 
@@ -60,8 +64,12 @@ class TTSService:
             # 验证文件是否生成
             if output_file.exists():
                 file_size = output_file.stat().st_size
-                logger.info(f"[TTS Service] ✅ 语音合成成功! 文件: {output_path}, 大小: {file_size} bytes")
-                logger.info(f"[TTS Service] 使用语音: {selected_voice}, 语速: {rate}, 音量: {volume}")
+                logger.info(
+                    f"[TTS Service] ✅ 语音合成成功! 文件: {output_path}, 大小: {file_size} bytes"
+                )
+                logger.info(
+                    f"[TTS Service] 使用语音: {selected_voice}, 语速: {rate}, 音量: {volume}"
+                )
             else:
                 logger.error(f"[TTS Service] ❌ 音频文件未生成: {output_path}")
                 raise Exception("音频文件未生成")
@@ -79,7 +87,7 @@ class TTSService:
                 "name": v["Name"],
                 "short_name": v["ShortName"],
                 "gender": v["Gender"],
-                "locale": v["Locale"]
+                "locale": v["Locale"],
             }
             for v in voices
             if v["Locale"].startswith("zh-")  # 只返回中文语音

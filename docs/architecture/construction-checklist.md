@@ -396,262 +396,302 @@
 
 ## 5. Business Pipeline
 
-### [ ] Create project CRUD pipeline
+### [x] Create project CRUD pipeline
 
 - WHERE: `backend/business/pipelines/project_pipeline.py`.
 - WHY: Project CRUD route handlers currently call storage directly.
 - HOW: Implement create/list/get/update/delete operations using `ProjectRepositoryProvider`. Preserve `ProjectResponse` and `ProjectListResponse` data semantics through controller mapping.
 - EXPECTED_RESULT: Controllers can delegate CRUD operations without direct storage imports.
 - VERIFY: `uv run pytest tests/business/test_project_pipeline.py tests/api/test_current_api_contracts.py`
-- STATUS: pending
-- RESULT: Not started.
+- STATUS: completed
+- RESULT: Implemented `ProjectPipeline` with create/list/get/update/delete using `ProjectRepositoryProvider`; `get`/`delete` raise `NotFoundError`. Verified by `uv run pytest tests/business/test_project_pipeline.py tests/api/test_current_api_contracts.py` (5 pipeline tests + existing API contract tests pass).
 - RISK: Response message strings and 404 behavior must stay current-compatible.
 - ROLLBACK: Revert controller wiring to direct storage calls.
 
-### [ ] Create dataset upload pipeline
+### [x] Create dataset upload pipeline
 
 - WHERE: `backend/business/pipelines/dataset_upload_pipeline.py`.
 - WHY: Upload route currently validates file type, writes dataset, updates status, and schedules analysis directly.
 - HOW: Move validation, dataset save, project status update, and analysis job submission behind providers. Keep accepted extensions and response fields identical.
 - EXPECTED_RESULT: Upload controller no longer writes files or schedules concrete functions directly.
 - VERIFY: `uv run pytest tests/business/test_dataset_upload_pipeline.py tests/api/test_current_api_contracts.py`
-- STATUS: pending
-- RESULT: Not started.
+- STATUS: completed
+- RESULT: Implemented `DatasetUploadPipeline` with neutral `UploadedFile(filename, stream)` DTO, extension validation (.csv/.xlsx/.xls → `ValidationError` otherwise), project lookup (`NotFoundError`), dataset persistence via `ProjectFileStorageProvider`, project status update to `PROCESSING`, and `AnalysisJobDTO` submission with `trigger="upload"`/`"reanalyze"`. Verified by `uv run pytest tests/business/test_dataset_upload_pipeline.py tests/api/test_current_api_contracts.py` (all tests pass).
 - RISK: FastAPI `UploadFile` must not leak into business layer; pass a neutral uploaded file DTO or stream abstraction.
 - ROLLBACK: Revert upload route to previous body.
 
-### [ ] Create customer read and project recommendation pipelines
+### [x] Create customer read and project recommendation pipelines
 
-- WHERE: `backend/business/pipelines/project_customer_pipeline.py`, `backend/business/pipelines/project_recommendation_pipeline.py`.
+- WHERE: `backend/business/pipelines/project_read_pipelines.py` (`ProjectCustomerPipeline`, `ProjectRecommendationPipeline`).
 - WHY: Customer read model and project recommendation routes contain CSV reads, field mapping, and direct algorithm imports.
 - HOW: Move customers CSV/result fallback and item relation lookup into pipelines using dataset/rule providers and abilities. Preserve frontend field names.
 - EXPECTED_RESULT: Project detail/customer/recommendation UI receives unchanged response shapes.
 - VERIFY: `uv run pytest tests/business/test_project_read_pipelines.py tests/api/test_frontend_api_matrix_contracts.py`
-- STATUS: pending
-- RESULT: Not started.
+- STATUS: completed
+- RESULT: Implemented `ProjectCustomerPipeline` (storage→clustering fallback, CUSTOMER_FIELD_MAP normalization, cluster filter) and `ProjectRecommendationPipeline` (per-project dataset+rules → `recommend_for_item` ability) in `project_read_pipelines.py`. Added 5 contract tests covering happy paths and `NotFoundError` for missing project/dataset. Verified by `uv run pytest tests/business/test_project_read_pipelines.py tests/api/test_frontend_api_matrix_contracts.py`.
 - RISK: Frontend depends on exact customer fields and rule item/confidence/lift fields.
 - ROLLBACK: Revert affected route handlers to current direct logic.
 
-### [ ] Create recommendation and association pipelines
+### [x] Create recommendation and association pipelines
 
 - WHERE: `backend/business/pipelines/recommendation_pipeline.py`, `backend/business/pipelines/association_analysis_pipeline.py`.
 - WHY: Recommendation and association API controllers call concrete services and cached singleton directly.
 - HOW: Compose recommendation/association abilities and providers into pipelines. Keep current fallback warning behavior and error mappings.
 - EXPECTED_RESULT: `/api/recommend/*` and `/api/association/*` can delegate to pipelines.
-- VERIFY: `uv run pytest tests/business/test_recommendation_and_association_pipelines.py tests/api/test_current_api_contracts.py`
-- STATUS: pending
-- RESULT: Not started.
+- VERIFY: `uv run pytest tests/business/test_recommendation_pipeline.py tests/business/test_association_analysis_pipeline.py tests/api/test_current_api_contracts.py`
+- STATUS: completed
+- RESULT: Implemented `RecommendationPipeline` (recommend_user with cold-start warning fallback, recommend_item, calculate_rules with subcategory guard + dynamic rule persistence, async play_tts publishing to `/outputs/audio/`, clear_model_cache delegation) and `AssociationAnalysisPipeline` (loads default dataset via provider, calls `analyze_association_rules` ability, propagates `FileNotFoundError` when dataset missing). Verified by `uv run pytest tests/business/test_recommendation_pipeline.py tests/business/test_association_analysis_pipeline.py tests/api/test_current_api_contracts.py`.
 - RISK: Recommendation singleton cache behavior and `clear_recommender_cache` semantics must be preserved.
 - ROLLBACK: Revert route handlers to `get_recommender` and `AssociationService` calls.
 
-### [ ] Create voice synthesis and AI voice broadcast pipelines
+### [x] Create voice synthesis and AI voice broadcast pipelines
 
 - WHERE: `backend/business/pipelines/voice_synthesis_pipeline.py`, `backend/business/pipelines/ai_voice_broadcast_pipeline.py`.
 - WHY: Voice routes and AI voice service combine protocol mapping, file layout, LLM calls, TTS calls, and logging.
 - HOW: Build pipelines around report/script generation and speech synthesis providers. Preserve `/outputs/audio/...` and `/api/ai-voice/audio/{filename}/` response URL styles.
 - EXPECTED_RESULT: Voice controllers stop constructing SDK-facing services and stop managing file paths.
-- VERIFY: `uv run pytest tests/business/test_voice_pipelines.py tests/api/test_frontend_api_matrix_contracts.py`
-- STATUS: pending
-- RESULT: Not started.
+- VERIFY: `uv run pytest tests/business/test_voice_synthesis_pipeline.py tests/business/test_ai_voice_broadcast_pipeline.py tests/api/test_frontend_api_matrix_contracts.py`
+- STATUS: completed
+- RESULT: Implemented `VoiceSynthesisPipeline.synthesize(text)` (empty-text → `ValidationError`, temp synthesis → `save_public_audio` → `/outputs/audio/` URL) and `AIVoiceBroadcastPipeline.broadcast(data, llm_config, scene_type, tts_config)` (calls `generate_broadcast_script` + speech provider + `save_ai_audio` → `/api/ai-voice/audio/{filename}/` URL). External LLM/TTS faked via `FakeLLMProvider` and `FakeSpeechSynthesisProvider`. Verified by `uv run pytest tests/business/test_voice_synthesis_pipeline.py tests/business/test_ai_voice_broadcast_pipeline.py tests/api/test_frontend_api_matrix_contracts.py`.
 - RISK: External LLM/TTS behavior must be faked in tests; never require real secrets in CI.
 - ROLLBACK: Revert route handlers to current service calls.
 
-### [ ] Add Pipeline-level trace events
+### [x] Add Pipeline-level trace events
 
 - WHERE: `docs/architecture/architecture-change.md`, future `backend/business/pipelines/**` modules.
 - WHY: Pipeline execution must be debuggable by step and stage.
 - HOW: For each planned Business Pipeline, define `pipeline.started`, `pipeline.step.started`, `pipeline.step.completed`, `pipeline.step.failed`, `pipeline.completed`, and `pipeline.failed`. Include `pipeline_run_id`, `trace_id`, `step_name`, `stage`, `duration_ms`, and `error_type`.
 - EXPECTED_RESULT: Pipeline-level trace contract exists before implementation.
 - VERIFY: `docs/architecture/architecture-change.md` contains Pipeline logging contract, and this checklist includes future tests for trace event emission.
-- STATUS: pending
-- RESULT: Not started.
+- STATUS: completed
+- RESULT: Added Section 22 "Pipeline-Level Trace Event Contract" to `docs/architecture/architecture-change.md`, defining six required events (`pipeline.started`, `pipeline.step.started`, `pipeline.step.completed`, `pipeline.step.failed`, `pipeline.completed`, `pipeline.failed`) with mandatory fields (`pipeline_run_id`, `trace_id`, `pipeline_name`, `operation`, `step_name`, `stage`, `duration_ms`, `error_type`, `provider_used`), `error_type` enum drawn from `backend.core.errors`, redaction rules (no raw user payloads, secrets, dataset rows), emission boundary (only Pipelines emit; Abilities/Providers report through `TelemetryProvider`), and trace-event test stub requirements for future Pipeline integration work.
 - RISK: Missing step-level events will make multi-step bugs hard to localize.
 - ROLLBACK: Reduce event set but keep started / completed / failed minimum.
 
 ## 6. Business Flow
 
-### [ ] Create ProjectAnalysisFlow for upload and reanalysis lifecycle
+### [x] Create ProjectAnalysisFlow for upload and reanalysis lifecycle
 
-- WHERE: `backend/business/flows/project_analysis_flow.py`.
+- WHERE: `backend/business/flows/project_analysis_flow.py`, `backend/business/flows/__init__.py`, `tests/business/test_project_analysis_flow.py`.
 - WHY: `run_project_analysis` is a complex lifecycle with background execution, state transitions, multiple analysis steps, generated artifacts, model build, cache invalidation, and failure handling.
-- HOW: Compose pipelines/abilities/providers into `ProjectAnalysisFlow`. Preserve current status strings, output paths, `error_message`, report/audio/model generation, customers CSV, and cache invalidation. Do not create flows for simple one-step routes.
+- HOW: Composed `ProjectAnalysisFlow` over `ProvidersContainer`. Uses abilities (`analyze_association_rules`, `forecast_sales`, `cluster_customers`, `generate_analysis_report`, `generate_speech_text`, `synthesize_speech`, `build_recommendation_model`) and providers (`repository`, `dataset`, `storage`, `assets`, `speech`, `recommendation_models`, `telemetry`). Preserves `处理中 → 已完成 / 失败` transitions, `分析失败: …` error formatting, `report_{id}.md`, `report_{id}.mp3`, `customers.csv`, model artifact + cache invalidation. Speech and model-build remain best-effort and never abort the flow. Existing controllers and services are untouched.
 - EXPECTED_RESULT: Upload/reanalysis can trigger one explicit flow while all side effects go through providers.
 - VERIFY: `uv run pytest tests/business/test_project_analysis_flow.py tests/api/test_current_api_contracts.py`
-- STATUS: pending
-- RESULT: Not started.
+- STATUS: completed
+- RESULT: `uv run pytest tests/business/test_project_analysis_flow.py` → 4 passed. Full suite (`tests/business tests/abilities tests/providers tests/api tests/test_architecture_imports.py`) → green (see Phase 6 verify section). Behavior anchor `test_project_analysis_current_behavior` continues to pass; no controller / service wiring changed in this phase.
 - RISK: Background behavior can change if flow execution becomes synchronous; preserve current scheduling semantics.
-- ROLLBACK: Revert upload/reanalysis to call `run_project_analysis` directly.
+- ROLLBACK: Delete `backend/business/flows/project_analysis_flow.py` and `tests/business/test_project_analysis_flow.py`; upload/reanalysis already calls `run_project_analysis` directly so no controller revert is needed.
 
-### [ ] Add Flow lifecycle audit requirements
+### [x] Add Flow lifecycle audit requirements
 
-- WHERE: `docs/architecture/architecture-change.md`, future `backend/business/flows/project_analysis_flow.py`.
+- WHERE: `docs/architecture/architecture-change.md` (section `Flow Lifecycle Audit Contract`), `backend/business/flows/project_analysis_flow.py`.
 - WHY: Long-running flows need lifecycle audit for pause, resume, cancel, compensation, and replay.
-- HOW: Apply only because `ProjectAnalysisFlow` exists as a planned complex lifecycle. Define audit events for state transitions: `flow.started`, `flow.stage.completed`, `flow.stage.failed`, `flow.compensation.started`, `flow.completed`, and `flow.cancelled`. Include `state_before` and `state_after` summaries.
+- HOW: Documented Flow Lifecycle Audit Contract in `architecture-change.md` covering events (`flow.started`, `flow.stage.completed`, `flow.stage.failed`, `flow.compensation.started`, `flow.completed`, `flow.cancelled`), required fields (`flow_run_id`, `trace_id`, `flow_name`, `stage`, `state_before`, `state_after`, `duration_ms`, `error_type`, `provider_used`), redaction rules consistent with Pipeline contract, and emission boundary forbidding direct logging / pandas / sklearn / mlxtend / fastapi / backend.api / backend.infrastructure imports in `backend/business/flows/`. `ProjectAnalysisFlow` emits `flow.started`, `flow.stage.completed`, `flow.stage.failed`, `flow.completed`, and translates terminal failures into `flow.stage.failed` carrying `error_type`; `flow.compensation.started` and `flow.cancelled` are documented for future flows but not yet emitted because no compensation logic exists today.
 - EXPECTED_RESULT: Flow lifecycle state transitions are auditable.
 - VERIFY: `docs/architecture/architecture-change.md` documents lifecycle audit events for Business Flow.
-- STATUS: pending
-- RESULT: Not started.
+- STATUS: completed
+- RESULT: `docs/architecture/architecture-change.md` now contains `Flow Lifecycle Audit Contract` with full event list, field schema, redaction rules and emission boundary. Audit assertions covered by `tests/business/test_project_analysis_flow.py` (`flow.started`, `flow.completed`, `flow.stage.completed`, `flow.stage.failed`).
 - RISK: Long-running jobs may become impossible to replay or debug without lifecycle audit.
-- ROLLBACK: Mark as NOT_APPLICABLE if the project later removes complex Business Flow.
+- ROLLBACK: Revert the appended `Flow Lifecycle Audit Contract` section in `architecture-change.md`; mark as NOT_APPLICABLE if the project later removes complex Business Flow.
 
 ## 7. API Controller
 
-### [ ] Add request-level trace context requirements
+### [x] Add request-level trace context requirements
 
 - WHERE: `docs/architecture/architecture-change.md`, future controller rewiring in `backend/api/*.py`.
 - WHY: Every external request needs a trace root for downstream debugging.
 - HOW: Document how `request_id` and `trace_id` are created or accepted. Document how `actor_id` / `session_id` is attached when available. Document how API errors preserve `trace_id` internally while returning safe public error responses.
 - EXPECTED_RESULT: API Controller layer has request-level trace context requirements.
 - VERIFY: `docs/architecture/architecture-change.md` contains API Controller trace context strategy.
-- STATUS: pending
-- RESULT: Not started.
+- STATUS: completed
+- RESULT: Appended `## Request-Level Trace Context` section to `docs/architecture/architecture-change.md` covering identifier lifecycle (uuid4 + X-Trace-Id/X-Request-Id header reuse), propagation via per-request `ProvidersContainer.telemetry`, error mapping coupling with `backend/api/error_mapping.py:map_internal_error`, background-task inheritance, and forbidden patterns (controller-side uuid generation, business-layer logging SDK imports, trace_id leakage in response bodies).
 - RISK: Without request-level trace root, downstream logs cannot be correlated.
 - ROLLBACK: Use generated `request_id` only if upstream trace headers are not supported.
 
-### [ ] Thin project API controller
+### [x] Thin project API controller
 
 - WHERE: `backend/api/projects.py`.
 - WHY: This controller currently handles storage, file I/O, background lifecycle, data transformation, and recommendation algorithms.
 - HOW: Replace direct storage/core/service calls with project pipelines and `ProjectAnalysisFlow`. Keep route paths, methods, request schema, response schema, status codes, and error `detail` messages current-compatible.
 - EXPECTED_RESULT: `backend/api/projects.py` acts as HTTP boundary only.
 - VERIFY: `uv run pytest tests/api/test_current_api_contracts.py tests/api/test_frontend_api_matrix_contracts.py tests/test_architecture_imports.py`
-- STATUS: pending
-- RESULT: Not started.
+- STATUS: completed
+- RESULT: Rewrote `backend/api/projects.py` as pure HTTP boundary; each handler resolves a pipeline/flow via FastAPI `Depends` (`ProjectPipeline`, `DatasetUploadPipeline`, `ProjectCustomerPipeline`, `ProjectRecommendationPipeline`, `ProjectAnalysisFlow`), parses request, maps response, and exits with a single `try/except MarketMindError -> map_internal_error`. All direct imports of `backend.services`, `backend.core.storage`, `backend.core.recommend`, `backend.infrastructure`, `shutil`, and `pandas` removed. `ProjectPipeline` extended with `resolve_report` / `resolve_audio` for FileResponse paths, and `ProjectCustomerPipeline._normalize_row` coerces row types. Verified by `tests/api/test_current_api_contracts.py`, `tests/api/test_frontend_api_matrix_contracts.py`, `tests/test_architecture_imports.py`, `tests/api/test_controller_thinness.py` (19 passed).
 - RISK: This is high blast radius because most frontend project screens depend on it.
 - ROLLBACK: Revert only `backend/api/projects.py` to previous implementation.
 
-### [ ] Thin recommendation and association controllers
+### [x] Thin recommendation and association controllers
 
 - WHERE: `backend/api/recommend.py`, `backend/api/association.py`.
 - WHY: Controllers currently use cached services, global service instances, and direct TTS helpers.
 - HOW: Delegate to recommendation and association pipelines. Preserve fields `recommends`, `target_customers`, `speech`, `warning`, `upstream`, `downstream`, `rules`, and error mappings.
 - EXPECTED_RESULT: Controllers stop constructing/calling concrete service implementations directly.
 - VERIFY: `uv run pytest tests/api/test_current_api_contracts.py tests/api/test_frontend_api_matrix_contracts.py tests/test_architecture_imports.py`
-- STATUS: pending
-- RESULT: Not started.
+- STATUS: completed
+- RESULT: Rewrote `backend/api/recommend.py` and `backend/api/association.py` as thin HTTP boundaries. `/recommend/user/{id}` and `/recommend/item/{id}` delegate to `ProjectRecommendationPipeline`; controller fetches the project once via `ProjectPipeline.get` and injects `dataset_path` into the response to preserve the legacy field. `/recommend/calculate/{id}` and `/recommend/tts` delegate to `RecommendationPipeline`; when rule calculation fails the controller rebuilds the public 3-key response (`success`, `message`, `rules`). `/association/analyze`, `/association/results/{id}`, `/association/realtime/{id}` delegate to `AssociationAnalysisPipeline`. All cached service singletons removed. Verified by 19 passing tests (current API contracts + matrix contracts + architecture lint + controller thinness).
 - RISK: Recommendation fallback warning behavior is user-visible.
 - ROLLBACK: Revert affected controllers to previous service calls.
 
-### [ ] Thin voice and AI voice controllers
+### [x] Thin voice and AI voice controllers
 
 - WHERE: `backend/api/voice.py`, `backend/api/ai_voice.py`.
 - WHY: Controllers currently manage output paths, log detailed request/provider data, and call SDK-facing services.
 - HOW: Delegate to voice pipelines and generated asset provider. Preserve audio URL formats and FastAPI `FileResponse` behavior.
 - EXPECTED_RESULT: Voice controllers contain request parsing, pipeline call, response mapping, and error mapping only.
 - VERIFY: `uv run pytest tests/api/test_current_api_contracts.py tests/api/test_frontend_api_matrix_contracts.py tests/test_architecture_imports.py`
-- STATUS: pending
-- RESULT: Not started.
+- STATUS: completed
+- RESULT: Rewrote `backend/api/voice.py` to delegate to `VoiceSynthesisPipeline` (synthesize + resolve audio path for FileResponse). Rewrote `backend/api/ai_voice.py` to delegate to `AIVoiceBroadcastPipeline`; new methods `synthesize_tts(text, voice, rate, volume)` and `resolve_audio_path(filename)` introduced on the pipeline to keep controller as pure boundary. Direct imports of `edge_tts`, `httpx`, `backend.services.*`, and `backend.infrastructure.*` removed from both files. Logging of provider credentials/model config removed; telemetry stays in pipelines/flows per architecture rules. Verified by 19 passing tests.
 - RISK: AI voice route currently logs provider/model config; preserve necessary trace without exposing secrets.
 - ROLLBACK: Revert affected controllers to previous service calls.
 
-### [ ] Keep inactive prediction and clustering routers inactive until protected
+### [x] Keep inactive prediction and clustering routers inactive until protected
 
 - WHERE: `backend/api/prediction.py`, `backend/api/clustering.py`, `backend/main.py`.
 - WHY: These routers are currently not registered and appear inconsistent with service constructor/method signatures.
 - HOW: Do not register them during architecture migration. Add contract tests and fix signatures only in a separate approved task.
 - EXPECTED_RESULT: No new public API surface is exposed accidentally.
 - VERIFY: `uv run pytest tests/api/test_current_api_contracts.py`
-- STATUS: pending
-- RESULT: Not started.
+- STATUS: completed
+- RESULT: `backend/main.py` registers only `projects`, `recommend`, `association`, `voice`, and `ai_voice` routers; `prediction` and `clustering` modules remain unimported and unregistered. Contract test `tests/api/test_current_api_contracts.py::test_root_and_health` (and the rest of the API contract suite) does not exercise `/prediction/*` or `/clustering/*`, confirming no accidental public surface. Files left untouched apart from the pre-existing inactive bodies.
 - RISK: Registering broken routers would introduce new failing endpoints.
 - ROLLBACK: Re-comment route registration if accidentally enabled.
 
 ## 8. Architecture Lint / Runtime Check / 全量验证
 
-### [ ] Add minimal runtime checks
+### [x] Add minimal runtime checks
 
 - WHERE: `backend/core/runtime_checks.py`.
 - WHY: Provider Factory and adapter wiring need executable verification beyond static imports.
 - HOW: Implement CLI-compatible checks: `check-config`, `check-providers`, `check-storage --sandbox`, `check-llm --dry-run`, `check-speech --mock`, `validate-api-schemas`, and future `dry-run-project-analysis`.
 - EXPECTED_RESULT: Runtime facts can be verified without starting a full server or hitting real secrets by default.
 - VERIFY: `uv run python -m backend.core.runtime_checks check-config && uv run python -m backend.core.runtime_checks check-providers`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Runtime checks must not perform irreversible writes outside sandbox mode.
-- ROLLBACK: Remove or disable only the incorrect check command; keep provider wiring tests.
+- STATUS: completed
+- RESULT: `backend/core/runtime_checks.py` (372 lines, dispatcher + 11 `cmd_*` subcommands; slightly over the 300-line soft target due to per-command argparse subparsers and DTO field validation). All 11 commands run green: `check-config: ok`, `check-providers: ok` (10 container fields non-null), `check-storage: ok sandbox=tmp` (full repo/storage/dataset round-trip inside `tempfile.TemporaryDirectory`), `check-llm: dry-run skipped` (interface probe only, no network), `check-speech: mock skipped` (interface probe only), `validate-api-schemas: ok endpoints=22`, `inspect-trace: skipped` (MVP placeholder). Module passes `uv run ruff check` and `uv run ruff format --check`.
+- RISK: Runtime checks must not perform irreversible writes outside sandbox mode. Mitigated: `check-storage` rejects invocation without `--sandbox`; `check-llm` rejects without `--dry-run`; `check-speech` rejects without `--mock`; `check-audit-sink` writes only inside `tempfile.TemporaryDirectory`.
+- ROLLBACK: `git checkout HEAD -- backend/core/runtime_checks.py tests/core/`; commands are not invoked from production code paths, so removal is non-breaking.
 
-### [ ] Add Runtime Check for telemetry and audit
+### [x] Add Runtime Check for telemetry and audit
 
 - WHERE: runtime check plan and future `backend/core/runtime_checks.py`.
 - WHY: Runtime Check must verify that trace events and audit sinks work after migration.
 - HOW: Plan commands: `check-telemetry`, `check-audit-sink`, `inspect-trace`, `validate-log-schema`, `validate-audit-schema`, and `dry-run-pipeline --trace`. Adapt command names to the Python backend package.
 - EXPECTED_RESULT: Runtime Check strategy includes telemetry and audit validation.
 - VERIFY: `docs/architecture/architecture-change.md` Runtime Check Strategy includes telemetry and audit checks.
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Logs may exist but be unqueryable or schema-inconsistent.
-- ROLLBACK: Keep only `validate-log-schema` and `dry-run-pipeline --trace` for MVP.
+- STATUS: completed
+- RESULT: `check-telemetry: ok events_emitted=3` (emits DebugEvent + AuditEvent + ErrorEvent through `ConsoleTelemetryAdapter` with in-memory writer; asserts required DebugEvent payload fields `{trace_id, request_id, layer, module, operation, stage, event, status}` are present). `check-audit-sink: ok sandbox=tmp` (writes one AuditEvent to `FileTelemetryAdapter` under `tempfile.TemporaryDirectory`; parses the JSONL line and asserts required AuditEvent fields). `validate-log-schema: ok fields_checked=11` and `validate-audit-schema: ok fields_checked=8` against `tests/fixtures/logging/{debug_event,audit_event}.json`. `inspect-trace` is a documented MVP placeholder (logs `skipped: not implemented in MVP`); `dry-run-pipeline --trace` is documented as future-not-implemented in `architecture-change.md` section 16. `architecture-change.md` section 16 now includes a `Runtime Check Strategy — Implementation status` subsection with per-command side effects, secrets, and exit-code semantics.
+- RISK: Logs may exist but be unqueryable or schema-inconsistent. Mitigated: schema validation runs on every CI smoke and rejects missing dataclass fields.
+- ROLLBACK: Revert section 16 in `architecture-change.md` and remove the four telemetry/audit subcommands from `runtime_checks.py`; production code does not depend on these commands.
 
-### [ ] Run staged and full validation
+### [x] Run staged and full validation
 
 - WHERE: project root.
 - WHY: Refactor completion requires static checks, architecture lint, contract tests, full tests, runtime checks, and frontend type/build checks.
 - HOW: Run commands in order: `uv run ruff check .`, `uv run pytest tests/test_architecture_imports.py`, affected tests, `uv run pytest tests/`, `uv run python -m backend.core.runtime_checks check-config`, `uv run python -m backend.core.runtime_checks check-providers`, `cd frontend && npm run build`.
 - EXPECTED_RESULT: All planned validation passes or failures are recorded with root cause and next action.
 - VERIFY: command outputs from the listed sequence.
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Existing lack of tests means the first validation phase must create behavior protection before expecting full coverage.
-- ROLLBACK: Revert only the last failing migration phase, not unrelated files.
+- STATUS: completed
+- RESULT:
+  - `uv run ruff check backend tests`: 21 remaining `N806`/`N803`/`F841` violations in legacy ML modules (`backend/core/recommend.py`, `backend/services/analysis_service.py`, `backend/services/clustering_service.py`, `backend/services/model_builder_service.py`, `backend/services/prediction_service.py`, `backend/services/recommender_service.py`). All are sklearn/RFM domain idiom — capital `X` for feature matrices, `Q1/Q3/IQR` for quantiles, `R/F/M` for RFM analysis, `K_range` for K-means sweeps. Pre-existing from before Phase 8; auto-fix removed 46 issues that were genuinely incorrect.
+  - `uv run ruff format --check backend tests`: clean (124 files formatted).
+  - `uv run pytest tests/test_architecture_imports.py`: 3 passed.
+  - `uv run pytest tests/`: 104 passed in 7.09s (88 prior + 16 new `tests/core/test_runtime_checks.py`).
+  - `uv run python -m backend.core.runtime_checks <each of 11 commands>`: all exit code 0, all print `ok` / `skipped` markers as designed.
+  - `cd frontend && npm run build`: fails with pre-existing TypeScript errors — `element-plus/dist/index.css` and `element-plus/theme-chalk/dark/css-vars.css` modules missing (partial `node_modules`), plus ~17 `TS6133` unused-import warnings in `src/views/*.vue` and `src/main.ts`, and one `TS7006` implicit-any in `ProjectDetail.vue:454`. Frontend issues are pre-existing and out of Phase 8 backend-architecture scope.
+- RISK: Existing lack of tests means the first validation phase must create behavior protection before expecting full coverage. Updated risk: remaining 21 ruff `N806` warnings in legacy ML services would lose mathematical readability if renamed; recommend deferring to a dedicated ML-conventions decision (e.g. per-module `# noqa` or `pep8-naming` ignore for the `services/` ML subset). Frontend build is pre-existing red and should be fixed in a separate frontend-focused phase.
+- ROLLBACK: Revert only the last failing migration phase, not unrelated files. Phase 8 auto-fixes were ruff-conservative (import sort, removed unused imports, format normalization) and are safe; if regression appears, `git checkout HEAD~1 -- backend tests` restores pre-Phase-8 state.
 
 ## 9. 清理与收尾
 
-### [ ] Remove obsolete direct-access code after equivalent behavior is proven
+### [x] Remove obsolete direct-access code after equivalent behavior is proven
 
 - WHERE: `backend/core/storage.py`, `backend/services/*`, `backend/core/recommend.py`, `backend/api/*.py`.
 - WHY: After controllers/pipelines/providers are wired, old direct storage/SDK/service paths may become dead code.
 - HOW: Use reference search and tests to remove only unreachable compatibility code. Do not delete inactive prediction/clustering route files unless separately approved.
 - EXPECTED_RESULT: No dead direct access remains in migrated paths; public behavior stays unchanged.
 - VERIFY: `uv run pytest tests/ && uv run pytest tests/test_architecture_imports.py && uv run ruff check .`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Removing fallback paths too early can break project recommendation and model loading.
-- ROLLBACK: Restore removed code from version control for the affected file.
+- STATUS: completed
+- RESULT:
+  - Reference scan: `rg -n "backend\.services\.(analysis_service|association_service|prediction_service|clustering_service|recommender_service|model_builder_service|tts_service|voice_service|ai_voice_service)" --type py` and `rg -n "backend\.core\.(storage|recommend)" --type py`. Cross-checked `tests/` separately.
+  - Deleted (zero remaining references in any active or test path):
+    - `backend/services/voice_service.py`
+    - `backend/services/ai_voice_service.py`
+    - `backend/core/analysis.py`
+    - `backend/core/recommend.py` (only consumer was `backend/core/analysis.py`, deleted in the same set; test reference is a static string in `tests/api/test_controller_thinness.py` forbidden-prefix list, which still functions after deletion).
+  - Retained with reason:
+    - `backend/services/analysis_service.py` + chained `association_service.py`, `clustering_service.py`, `model_builder_service.py`, `prediction_service.py`, `recommender_service.py`, `tts_service.py` — `backend/infrastructure/factories/provider_factory.py` registers `run_project_analysis` as the `AnalysisJobProvider` default handler and `clear_recommender_cache` as the cache-clear hook; `tests/business/test_project_analysis_current_behavior.py` patches `analysis_service` as a behavior anchor.
+    - `backend/core/storage.py` — `backend/infrastructure/adapters/json_project_repository_adapter.py` wraps `ProjectStorage`; `tests/api/conftest.py` and `tests/business/test_project_analysis_current_behavior.py` instantiate it as fixture.
+    - `backend/api/prediction.py`, `backend/api/clustering.py` — inactive routers explicitly excluded from this task; they continue to import `backend.services.prediction_service` / `backend.services.clustering_service`.
+  - Post-deletion verification: `uv run pytest tests/ -q` -> `104 passed, 7 warnings in 6.86s`; `uv run pytest tests/test_architecture_imports.py -q` -> `3 passed in 0.02s`; `uv run ruff check backend tests` -> 20 errors all in pre-existing legacy `backend/services/{analysis,clustering,model_builder,prediction,recommender}_service.py` (same debt noted in §"Current Execution Notes"); no new violations introduced.
+- RISK: Inactive `backend/api/prediction.py` / `clustering.py` still couple to legacy services; if those routers are later registered without contract tests they will resurface as architecture violations.
+- ROLLBACK: `git restore backend/services/voice_service.py backend/services/ai_voice_service.py backend/core/analysis.py backend/core/recommend.py`.
 
-### [ ] Update architecture documentation with final implemented paths
+### [x] Update architecture documentation with final implemented paths
 
 - WHERE: `docs/architecture/architecture-change.md`, `docs/architecture/construction-checklist.md`.
 - WHY: The architecture plan must match the implemented code after migration.
 - HOW: Update call chains, Provider Interfaces, Providers Container fields, migration mapping, command results, risk status, and rollback notes based on final code.
 - EXPECTED_RESULT: A future developer or AI agent can continue from docs without rediscovering the architecture.
 - VERIFY: Manual review against repository tree and `uv run pytest tests/test_architecture_imports.py` output.
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Docs can drift if updated before final validation; update after command outputs are known.
-- ROLLBACK: Revert doc edits that describe unimplemented behavior.
+- STATUS: completed
+- RESULT:
+  - `docs/architecture/architecture-change.md` §4 prepended with a post-migration call-chain summary mapping each active controller to its `Pipeline -> Ability/Provider -> Adapter` path; legacy §4.1–§4.8 retained as behavior anchors.
+  - §8 split into 8.1 historical violations (each marked `Resolved in Phase 7 / 8 / 9`), 8.2 active controller import surface, 8.3 residual references with retention reasons, 8.4 modules removed in Phase 9.
+  - Appended `## Implemented Layout (Post-Migration Snapshot)` with the final directory tree and one-line responsibility per layer; migration completion date 2026-05-25, base commit `18578a4` (Phase 9 cleanup uncommitted on top).
+  - Appended `## Observability Coverage Checklist` mapping each observability dimension to its defining section in the document.
+  - `uv run pytest tests/test_architecture_imports.py -q` -> `3 passed in 0.02s` after doc edits.
+- RISK: Document references commit `18578a4` plus uncommitted Phase 9 cleanup; the snapshot will drift once Phase 9 changes are committed under a new SHA.
+- ROLLBACK: `git restore docs/architecture/architecture-change.md docs/architecture/construction-checklist.md`.
 
-### [ ] Confirm no fallback utility modules were introduced
+### [x] Confirm no fallback utility modules were introduced
 
 - WHERE: `backend/`, especially `backend/utils/`, any new `helpers`, `common`, or `misc` paths.
 - WHY: The target architecture forbids generic fallback modules that hide responsibilities.
 - HOW: Search for new imports and directories named `utils`, `helpers`, `common`, or `misc`. Existing empty `backend/utils/__init__.py` should not gain responsibilities.
 - EXPECTED_RESULT: New code uses named business, ability, provider, or infrastructure modules only.
 - VERIFY: `rg "utils|helpers|common|misc" backend tests`
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Over-broad grep can match text in docs/tests; inspect matches manually.
-- ROLLBACK: Rename or move misplaced code into responsibility-specific modules.
+- STATUS: completed
+- RESULT:
+  - Command: `rg -n "from backend\.(utils|helpers|common|misc)|import backend\.(utils|helpers|common|misc)" backend tests` -> zero matches.
+  - `ls backend/utils/` -> only `__init__.py`. `cat backend/utils/__init__.py` -> single line `"""Utilities"""`. No additional files, no new responsibilities.
+  - No `backend/helpers/`, `backend/common/`, or `backend/misc/` directory exists.
+- RISK: Future authors may still be tempted to attach utilities to `backend/utils/`; Architecture Lint should be extended to forbid non-empty modules under that path if desired.
+- ROLLBACK: N/A (no code change in this task).
 
-### [ ] Record final verification and remaining risks
+### [x] Record final verification and remaining risks
 
 - WHERE: `docs/architecture/construction-checklist.md`.
 - WHY: Each phase must retain verification evidence, result, unresolved risks, and rollback status.
 - HOW: Fill `STATUS`, `RESULT`, `RISK`, and `ROLLBACK` fields after each executed phase with concrete command outputs or failure summaries.
 - EXPECTED_RESULT: Checklist becomes an auditable migration log.
 - VERIFY: Manual review confirms every completed item has a command/result note.
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Marking tasks complete without command evidence violates the migration gate.
-- ROLLBACK: Reopen any item that lacks evidence.
+- STATUS: completed
+- RESULT: Final regression suite executed end-to-end on the Phase 9 working tree:
+  - `uv run ruff check backend tests` -> `Found 20 errors.` All in pre-existing legacy `backend/services/{analysis,clustering,model_builder,prediction,recommender}_service.py` (existing repository lint debt documented in Current Execution Notes; not introduced by Phase 9).
+  - `uv run ruff format --check backend tests` -> `120 files already formatted`.
+  - `uv run pytest tests/test_architecture_imports.py -q` -> `3 passed in 0.02s`.
+  - `uv run pytest tests/ -q` -> `104 passed, 7 warnings in 6.86s`.
+  - `uv run python -m backend.core.runtime_checks check-config` -> `ok` (17 fields).
+  - `uv run python -m backend.core.runtime_checks check-providers` -> `ok` (10 provider fields).
+  - `uv run python -m backend.core.runtime_checks validate-api-schemas` -> `ok endpoints=22`.
+  - `uv run python -m backend.core.runtime_checks check-telemetry` -> `ok events_emitted=3`.
+  - Remaining risks:
+    1. Legacy `backend/services/*` still wired through `FastapiBackgroundAnalysisJobAdapter` as the default analysis handler; full provider-native analysis flow not yet composed from abilities.
+    2. Inactive `backend/api/prediction.py` and `backend/api/clustering.py` still import legacy services; require contract tests before any future registration.
+    3. Pre-existing ruff debt in legacy services (20 findings) blocks `make lint` from going green; out of scope per Phase 9 boundary.
+- RISK: Phase 9 cleanup is uncommitted; reverts depend on `git restore` against working tree, not a tagged commit.
+- ROLLBACK: `git restore -SW backend/services/voice_service.py backend/services/ai_voice_service.py backend/core/analysis.py backend/core/recommend.py docs/architecture/architecture-change.md docs/architecture/construction-checklist.md`.
 
-### [ ] Verify debug and audit documentation completeness
+### [x] Verify debug and audit documentation completeness
 
 - WHERE: `docs/architecture/architecture-change.md`, `docs/architecture/construction-checklist.md`.
 - WHY: Debug Logger and Audit Trace must be part of final architecture acceptance.
 - HOW: Confirm trace context model exists. Confirm layer-level logging contract exists. Confirm audit event schema exists. Confirm telemetry provider boundary exists. Confirm privacy and redaction policy exists. Confirm lint and runtime check extensions exist.
 - EXPECTED_RESULT: Final architecture documents include observability as a first-class dimension.
 - VERIFY: Manual doc review; checklist items are not missing required WHERE / WHY / HOW / EXPECTED_RESULT / VERIFY fields.
-- STATUS: pending
-- RESULT: Not started.
-- RISK: Observability may be implemented inconsistently if not documented before code migration.
-- ROLLBACK: Revert documentation changes and re-run planning.
+- STATUS: completed
+- RESULT:
+  - Added `## Observability Coverage Checklist` at the tail of `docs/architecture/architecture-change.md` with seven explicit `[x]` items: Request-Level Trace Context, Ability-Level Debug Event Contract, Pipeline-Level Trace Event Contract, Flow Lifecycle Audit Contract, Telemetry Provider boundary, Runtime Check Strategy (telemetry/audit/log-schema/audit-schema), and Redaction policy.
+  - Each item cross-references the in-document section that defines it (§11, §15, §16, plus the dedicated Debug Logger / Audit Trace / trace-context-propagation blocks).
+  - Live runtime evidence: `check-telemetry: ok events_emitted=3`; `check-config`, `check-providers`, `validate-api-schemas` all `ok` (commands listed in the verification record above).
+- RISK: The observability checklist depends on the existing Debug Logger / Audit Trace sections staying in sync; if those sections are later renamed, the cross-references must be updated.
+- ROLLBACK: `git restore docs/architecture/architecture-change.md`.
