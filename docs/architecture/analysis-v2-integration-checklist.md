@@ -18,6 +18,8 @@
 - 当前已完成 Retail V2 raw -> clean Ability 迁移，未新增 runtime dependency，未提交 API replacement。
 - 2026-05-25: 开始实现 Analysis V2 Backend Processing Logic；首个内聚切片为 Retail V2 raw -> clean Ability 和测试锚点。
 - 2026-05-25: touched-scope quality gate passed for Retail V2 cleaning slice；full `make lint` blocked by pre-existing debt in `analysis/code_files/*.py` and intentionally not mixed into this commit.
+- 2026-05-25: 继续实现 Retail V2 feature engineering slice；目标是价格带、顾客画像、商品画像、复购周期、CRITIC/TOPSIS 纯 Ability。
+- 2026-05-25: touched-scope quality gate passed for Retail V2 feature engineering slice；full `make lint` still blocked by pre-existing debt in `analysis/code_files/*.py`.
 
 ## 0. Ready-to-Start Gate
 
@@ -83,15 +85,15 @@
 - RISK:
 - ROLLBACK:
 
-### [ ] Add algorithm fixture tests for core Analysis V2 outputs
+### [x] Add algorithm fixture tests for core Analysis V2 outputs
 
 - WHERE: `tests/abilities/retail/`.
 - WHY: 新版逻辑复杂，必须先用小数据保护特征、规则、推荐、因果、营销洞察的可观察输出。
 - HOW: 分别为 feature engineering、association、recommendation、promotion DML、marketer insights 添加 deterministic tests。
 - EXPECTED_RESULT: 每个核心 Ability 迁移前有最小行为锚点。
 - VERIFY: `uv run pytest tests/abilities/retail`
-- STATUS: pending
-- RESULT:
+- STATUS: completed
+- RESULT: 已为 Retail V2 feature engineering 核心输出增加 deterministic tests，覆盖 CRITIC/TOPSIS、顾客画像、商品画像、复购周期。
 - RISK:
 - ROLLBACK:
 
@@ -209,15 +211,15 @@
 - RISK:
 - ROLLBACK:
 
-### [ ] Extract feature engineering abilities
+### [x] Extract feature engineering abilities
 
 - WHERE: `backend/abilities/retail/build_customer_profile.py`, `build_product_profile.py`, `build_repurchase_cycle.py`, `rank_by_critic_topsis.py`.
 - WHY: 顾客画像、商品画像、复购周期和 CRITIC/TOPSIS 是新版分析核心基础。
 - HOW: 迁移纯算法，返回 DataFrame/DTO，不保存 CSV。
 - EXPECTED_RESULT: Pipeline 可组合画像和复购结果。
 - VERIFY: `uv run pytest tests/abilities/retail/test_feature_engineering.py`
-- STATUS: pending
-- RESULT:
+- STATUS: completed
+- RESULT: 已新增价格带、顾客画像、商品画像、复购周期和 CRITIC/TOPSIS 纯 Ability；输出 DataFrame/权重，不保存 CSV 或图表。
 - RISK:
 - ROLLBACK:
 
