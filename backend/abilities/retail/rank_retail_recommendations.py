@@ -46,17 +46,11 @@ def _score_candidates(
         for j in topg:
             it = ge["iidx_inv"][j]
             ensure(it)
-            cand[it]["graph"] = float(
-                (scores[j] - s_min) / (s_max - s_min + 1e-9)
-            )
+            cand[it]["graph"] = float((scores[j] - s_min) / (s_max - s_min + 1e-9))
 
     # ── cat (category preference) ────────────────────────────────────────
     try:
-        upref = (
-            signals.user_l3_preferences.loc[user_id]
-            .sort_values(ascending=False)
-            .head(8)
-        )
+        upref = signals.user_l3_preferences.loc[user_id].sort_values(ascending=False).head(8)
         for l3c, p in upref.items():
             items_c = signals.user_l3_code_items.get(l3c, set())
             sub = (
@@ -83,11 +77,7 @@ def _score_candidates(
     for ante, cons_list in signals.l3_scoring_rules.items():
         if ante <= u_l3set:
             for cons_l3, sc in cons_list:
-                items_c = set(
-                    signals.item_meta.index[
-                        signals.item_meta["cat_l3_name"] == cons_l3
-                    ]
-                )
+                items_c = set(signals.item_meta.index[signals.item_meta["cat_l3_name"] == cons_l3])
                 sub = (
                     signals.popularity[signals.popularity.index.isin(items_c)]
                     .sort_values(ascending=False)
@@ -133,23 +123,15 @@ def _score_candidates(
 
     for it in cand:
         pr_rate = (
-            float(signals.item_meta.loc[it, "promo_rate"])
-            if it in signals.item_meta.index
-            else 0.0
+            float(signals.item_meta.loc[it, "promo_rate"]) if it in signals.item_meta.index else 0.0
         )
         cand[it]["promo"] = psens * pr_rate
 
-        prk = float(
-            signals.price_rank.get(it, 0.5)
-            if it in signals.price_rank.index
-            else 0.5
-        )
+        prk = float(signals.price_rank.get(it, 0.5) if it in signals.price_rank.index else 0.5)
         cand[it]["price"] = 1.0 - abs(ppref - prk)
 
         cand[it]["pop"] = float(
-            signals.popularity.get(it, 0.0)
-            if it in signals.popularity.index
-            else 0.0
+            signals.popularity.get(it, 0.0) if it in signals.popularity.index else 0.0
         )
 
     return cand
@@ -229,9 +211,7 @@ def rank_retail_recommendations(
                 primary = max(SIGNAL_COLS, key=lambda s: cand[it][s])
 
             cat_l3 = (
-                signals.item_meta.loc[it, "cat_l3_name"]
-                if it in signals.item_meta.index
-                else ""
+                signals.item_meta.loc[it, "cat_l3_name"] if it in signals.item_meta.index else ""
             )
             score_val = float(clo_map.get(it, cand[it]["pop"]))
 

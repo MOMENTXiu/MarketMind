@@ -1,4 +1,5 @@
 """Mine Retail V2 association rules using FP-Growth at item, L3, and L2 levels."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -94,7 +95,9 @@ def mine_retail_association_rules(
 
     # E1: item-level
     tx_item = _build_baskets(pos, "item_id")
-    rules_item, _ = _mine_rules(tx_item, item_min_support, item_min_confidence, item_min_lift, max_len=2)
+    rules_item, _ = _mine_rules(
+        tx_item, item_min_support, item_min_confidence, item_min_lift, max_len=2
+    )
     item_cn = _rules_to_cn(rules_item, "商品级")
     if not item_cn.empty:
         id2name = pos.drop_duplicates("item_id").set_index("item_id")["cat_l3_name"].to_dict()

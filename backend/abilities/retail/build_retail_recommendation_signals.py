@@ -59,10 +59,7 @@ def _mine_scoring_rules(
     from mlxtend.frequent_patterns import association_rules, fpgrowth
     from mlxtend.preprocessing import TransactionEncoder
 
-    baskets = (
-        pos.groupby(["user_id", "sale_date"])[key]
-        .apply(lambda s: sorted(set(s)))
-    )
+    baskets = pos.groupby(["user_id", "sale_date"])[key].apply(lambda s: sorted(set(s)))
     transactions = [t for t in baskets.tolist() if len(t) >= 2]
     if not transactions:
         return {}
@@ -73,9 +70,7 @@ def _mine_scoring_rules(
     if freq.empty:
         return {}
     rules = association_rules(freq, metric="confidence", min_threshold=min_confidence)
-    rules = rules[
-        (rules["lift"] >= min_lift) & (rules["consequents"].apply(len) == 1)
-    ]
+    rules = rules[(rules["lift"] >= min_lift) & (rules["consequents"].apply(len) == 1)]
     d: dict = {}
     for _, row in rules.iterrows():
         ante = frozenset(row["antecedents"])
@@ -136,21 +131,13 @@ def build_retail_recommendation_signals(
 
     # ── item_meta ───────────────────────────────────────────────────────────
     meta_cols = ["item_id", "cat_l1_name", "cat_l2_name", "cat_l3_name", "cat_l3_code"]
-    item_meta = (
-        pos[meta_cols]
-        .drop_duplicates("item_id")
-        .set_index("item_id")
-    )
+    item_meta = pos[meta_cols].drop_duplicates("item_id").set_index("item_id")
     promo_rate = pos.groupby("item_id")["is_promo"].mean()
     item_meta = item_meta.copy()
     item_meta["promo_rate"] = promo_rate
 
     # ── price_rank ──────────────────────────────────────────────────────────
-    ip = (
-        pos.groupby(["cat_l3_code", "item_id"])["unit_price"]
-        .mean()
-        .reset_index()
-    )
+    ip = pos.groupby(["cat_l3_code", "item_id"])["unit_price"].mean().reset_index()
     ip["price_rank"] = ip.groupby("cat_l3_code")["unit_price"].rank(pct=True)
     price_rank = ip.set_index("item_id")["price_rank"]
 
@@ -165,24 +152,16 @@ def build_retail_recommendation_signals(
     user_promo_sensitivity = (promo_amt / u_tot).fillna(0)
 
     # ── user_price_preference ───────────────────────────────────────────────
-    pos_pr = pos.merge(
-        price_rank.rename("pr"), left_on="item_id", right_index=True, how="left"
-    )
+    pos_pr = pos.merge(price_rank.rename("pr"), left_on="item_id", right_index=True, how="left")
     pos_pr["pr"] = pos_pr["pr"].fillna(0.5)
     weighted_num = (pos_pr["amount"] * pos_pr["pr"]).groupby(pos_pr["user_id"]).sum()
     weighted_den = pos_pr.groupby("user_id")["amount"].sum()
     user_price_preference = (weighted_num / weighted_den).fillna(0.5)
 
     # ── user/item set lookups ───────────────────────────────────────────────
-    user_items: dict = (
-        pos.groupby("user_id")["item_id"].apply(set).to_dict()
-    )
-    user_l3_name_set: dict = (
-        pos.groupby("user_id")["cat_l3_name"].apply(set).to_dict()
-    )
-    user_l3_code_items: dict = (
-        pos.groupby("cat_l3_code")["item_id"].apply(set).to_dict()
-    )
+    user_items: dict = pos.groupby("user_id")["item_id"].apply(set).to_dict()
+    user_l3_name_set: dict = pos.groupby("user_id")["cat_l3_name"].apply(set).to_dict()
+    user_l3_code_items: dict = pos.groupby("cat_l3_code")["item_id"].apply(set).to_dict()
 
     # ── repurchase_need ─────────────────────────────────────────────────────
     d_max = pos["sale_date"].max()
@@ -190,15 +169,11 @@ def build_retail_recommendation_signals(
     for (uid, l3c), grp in pos.groupby(["user_id", "cat_l3_code"])["sale_date"]:
         d = np.sort(grp.dt.normalize().unique())
         if len(d) >= 2:
-            cycle = (
-                np.diff(d).astype("timedelta64[D]").astype(float).mean()
-            )
+            cycle = np.diff(d).astype("timedelta64[D]").astype(float).mean()
         else:
             cycle = 0.0
         last_day = pd.Timestamp(d[-1])
-        repurchase_need[(uid, l3c)] = float(
-            (d_max - last_day).days / (cycle + 1e-9)
-        )
+        repurchase_need[(uid, l3c)] = float((d_max - last_day).days / (cycle + 1e-9))
 
     # ── SVD graph embeddings ────────────────────────────────────────────────
     graph_embeddings: dict | None = None

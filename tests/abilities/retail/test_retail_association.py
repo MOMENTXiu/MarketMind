@@ -113,7 +113,15 @@ def test_mine_high_utility_itemsets_computes_utility_and_filters_by_median() -> 
     if result.empty:
         return  # sparse data may produce no candidates — acceptable
 
-    assert set(result.columns) == {"组合", "项数", "出现篮数", "支持度", "总效用", "篮均效用", "效用占比"}
+    assert set(result.columns) == {
+        "组合",
+        "项数",
+        "出现篮数",
+        "支持度",
+        "总效用",
+        "篮均效用",
+        "效用占比",
+    }
     assert result["总效用"].is_monotonic_decreasing
     assert result["效用占比"].between(0, 1).all()
 

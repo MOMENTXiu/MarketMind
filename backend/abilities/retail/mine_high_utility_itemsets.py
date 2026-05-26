@@ -1,4 +1,5 @@
 """Mine high-utility itemsets (HUIM) from Retail V2 basket data."""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -29,9 +30,7 @@ def mine_high_utility_itemsets(
         raise ValidationError(f"pos_df missing required columns: {missing}")
 
     # Build baskets (only keep multi-item transactions)
-    basket_series = pos_df.groupby(["user_id", "sale_date"])[level].apply(
-        lambda s: sorted(set(s))
-    )
+    basket_series = pos_df.groupby(["user_id", "sale_date"])[level].apply(lambda s: sorted(set(s)))
     baskets = [b for b in basket_series.tolist() if len(b) >= 2]
     n_tx = len(baskets)
 
@@ -49,9 +48,7 @@ def mine_high_utility_itemsets(
         return pd.DataFrame(columns=_OUTPUT_COLUMNS)
 
     # Build utility map: (user_id, sale_date, level_value) -> amount sum
-    util_map = (
-        pos_df.groupby(["user_id", "sale_date", level])["amount"].sum().to_dict()
-    )
+    util_map = pos_df.groupby(["user_id", "sale_date", level])["amount"].sum().to_dict()
 
     # Reconstruct per-transaction utility dicts (only multi-item transactions)
     basket_keys_series = pos_df.groupby(["user_id", "sale_date"])[level].apply(set)
@@ -60,9 +57,7 @@ def mine_high_utility_itemsets(
     tx_util = []
     for k in tx_keys:
         u, d = k
-        tx_util.append(
-            {c: util_map.get((u, d, c), 0.0) for c in basket_keys_series[k]}
-        )
+        tx_util.append({c: util_map.get((u, d, c), 0.0) for c in basket_keys_series[k]})
 
     total_util = sum(sum(um.values()) for um in tx_util)
 
@@ -91,17 +86,11 @@ def mine_high_utility_itemsets(
     if not rows:
         return pd.DataFrame(columns=_OUTPUT_COLUMNS)
 
-    hui = pd.DataFrame(
-        rows, columns=["组合", "项数", "出现篮数", "支持度", "总效用", "篮均效用"]
-    )
+    hui = pd.DataFrame(rows, columns=["组合", "项数", "出现篮数", "支持度", "总效用", "篮均效用"])
 
     # Filter by median utility, sort desc, take top
     threshold = hui["总效用"].quantile(0.5)
-    hui = (
-        hui[hui["总效用"] >= threshold]
-        .sort_values("总效用", ascending=False)
-        .head(top)
-    )
+    hui = hui[hui["总效用"] >= threshold].sort_values("总效用", ascending=False).head(top)
     hui["效用占比"] = (hui["总效用"] / total_util).round(4)
 
     return hui[_OUTPUT_COLUMNS].reset_index(drop=True)
