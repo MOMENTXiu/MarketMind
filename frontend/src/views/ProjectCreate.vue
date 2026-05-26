@@ -40,8 +40,8 @@ const nextStep = () => {
 const prevStep = () => currentStep.value--
 
 const beforeUpload: UploadProps['beforeUpload'] = (file) => {
-  if (!/\.(csv|xlsx|xls)$/.test(file.name)) {
-    ElMessage.error('仅支持 CSV 或 Excel 文件')
+  if (!/\.csv$/i.test(file.name)) {
+    ElMessage.error('Retail V2 仅支持 CSV 文件')
     return false
   }
   if (file.size / 1024 / 1024 > 100) {
@@ -57,14 +57,18 @@ const createProject = async () => {
   if (fileList.value.length === 0) return ElMessage.warning('请上传数据集')
   uploading.value = true
   try {
-    const { data: res } = await http.post('/api/projects/', projectForm.value)
+    const { data: res } = await http.post('/api/analysis/projects', {
+      name: projectForm.value.name,
+      description: projectForm.value.description
+    })
     if (!res.success) throw new Error('创建项目失败')
 
     const formData = new FormData()
     formData.append('file', fileList.value[0].raw)
-    const { data: uploadRes } = await http.post(`/api/projects/${res.data.id}/upload/`, formData)
+    const { data: uploadRes } = await http.post(`/api/analysis/projects/${res.data.id}/dataset`, formData)
 
     if (uploadRes.success) {
+      await http.post(`/api/analysis/projects/${res.data.id}/run`)
       ElMessage.success('项目已创建，开始分析')
       setTimeout(() => router.push(`/projects/${res.data.id}`), 1000)
     }
@@ -140,7 +144,7 @@ const createProject = async () => {
               :limit="1"
               :before-upload="beforeUpload"
               :on-change="handleFileChange"
-              accept=".csv,.xlsx,.xls"
+              accept=".csv"
               drag
               action="#"
               class="full-width-upload"
@@ -148,7 +152,7 @@ const createProject = async () => {
               <div class="upload-placeholder">
                 <el-icon class="upload-icon"><UploadFilled /></el-icon>
                 <div class="upload-text">点击或拖拽上传数据集</div>
-                <div class="upload-hint">支持 .csv, .xlsx (Max 100MB)</div>
+                <div class="upload-hint">支持 .csv (Max 100MB)</div>
               </div>
             </el-upload>
           </div>

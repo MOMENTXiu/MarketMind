@@ -25,48 +25,30 @@ const projectInfo = ref<any>(null)
 const fetchCustomerDetail = async () => {
   loading.value = true
   try {
-    // 1. Fetch Project Info
-    const { data: projectData } = await http.get(`/api/projects/${projectId.value}/`)
+    const { data: projectData } = await http.get(`/api/analysis/projects/${projectId.value}`)
     if (projectData.success) {
       projectInfo.value = projectData.data
     }
 
-    // 2. Fetch Customer Detail from Project Customer List
-    let customerData = null
-    try {
-      const { data: customersResp } = await http.get(`/api/projects/${projectId.value}/customers/`)
-      if (customersResp.success && Array.isArray(customersResp.data)) {
-        customerData = customersResp.data.find((c: any) => String(c.id) === String(customerId.value))
-      }
-    } catch (e) {
-      console.warn('Failed to fetch customer from project:', e)
-    }
-
-    // 3. Fetch Recommendations & Cluster Info
-    const { data: recData } = await http.get('/api/recommend/user/', {
-      params: { user_id: customerId.value }
+    const { data: recData } = await http.get(`/api/analysis/projects/${projectId.value}/recommendations`, {
+      params: { customer_id: customerId.value, top_k: 10 }
     })
 
-    const clusterInfo = recData.target_customers?.[0] || null
+    const recs = recData.data?.recommendations || []
+    const clusterInfo = projectInfo.value?.marketer_insights?.segment_value?.[0] || null
 
-    // Build complete customer object
     customer.value = {
       id: customerId.value,
-      name: customerData?.name || customerId.value, // Use actual name from backend
-      cluster_name: clusterInfo?.cluster_name || customerData?.cluster_name || '普通活跃客户',
-      cluster_id: clusterInfo?.cluster_id ?? customerData?.cluster_id ?? 0,
-      monetary: customerData?.monetary || 5247,
-      frequency: customerData?.frequency || 12,
-      last_purchase: customerData?.recency || 3
+      name: customerId.value,
+      cluster_name: clusterInfo?.cluster_name || 'Retail V2 客户',
+      cluster_id: clusterInfo?.cluster_id ?? 0,
+      monetary: clusterInfo?.avg_monetary || 0,
+      frequency: clusterInfo?.avg_frequency || 0,
+      last_purchase: clusterInfo?.avg_recency || 0
     }
 
-    recommendations.value = recData.recommends || []
-
-    // 4. Fetch Purchased Items (Mock)
-    purchasedItems.value = [
-      { name: '办公椅', category: '家具', date: '2024-11-20', price: 1200 },
-      { name: '收纳盒', category: '收纳', date: '2024-12-05', price: 89 }
-    ]
+    recommendations.value = recs
+    purchasedItems.value = []
   } catch (e) {
     console.error('Fetch customer detail error:', e)
     ElMessage.error('无法获取客户详情')

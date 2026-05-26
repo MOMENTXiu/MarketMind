@@ -7,6 +7,7 @@ import { Search, ArrowLeft, Refresh, VideoPlay } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
+const projectId = () => String(route.params.id)
 
 interface RelationNode {
   item: string
@@ -71,8 +72,23 @@ const search = async (targetItem?: string) => {
   displayedText.value = ''
 
   try {
-    const { data: res } = await http.get('/api/recommend/item/', { params: { item: query } })
-    data.value = res
+    const { data: res } = await http.get(`/api/analysis/projects/${projectId()}/recommendations`, {
+      params: { top_k: 100 }
+    })
+    const recommendations = res.data?.recommendations || []
+    const matches = recommendations.filter((recommendation: any) => recommendation.item === query)
+    const source = matches.length ? matches : recommendations
+    data.value = {
+      success: true,
+      item: query,
+      upstream: [],
+      downstream: source.slice(0, 8).map((recommendation: any) => ({
+        item: recommendation.item,
+        confidence: Number(recommendation.score) || 0,
+        lift: 1
+      })),
+      target_customers: Array.from(new Set(source.map((recommendation: any) => recommendation.customer_id))).map((customerId) => ({ customer_id: customerId }))
+    }
 
     // Trigger LLM insight
     generateLLMInsight()
@@ -206,11 +222,12 @@ onMounted(async () => {
   const customerId = route.query.customerId
   if (customerId) {
     try {
-      const { data: customerRec } = await http.get('/api/recommend/user/', {
-        params: { user_id: customerId }
+      const { data: customerRec } = await http.get(`/api/analysis/projects/${projectId()}/recommendations`, {
+        params: { customer_id: customerId, top_k: 1 }
       })
-      if (customerRec.recommends && customerRec.recommends.length > 0) {
-        const topItem = customerRec.recommends[0].item
+      const recommendations = customerRec.data?.recommendations || []
+      if (recommendations.length > 0) {
+        const topItem = recommendations[0].item
         await search(topItem)
       }
     } catch (e) {

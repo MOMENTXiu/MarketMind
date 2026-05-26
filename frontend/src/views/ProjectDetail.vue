@@ -8,7 +8,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
-import { VideoPlay, ArrowLeft, User, ShoppingCart, TrendCharts, Search } from '@element-plus/icons-vue'
+import { VideoPlay, ArrowLeft, User, ShoppingCart, TrendCharts, Search, MagicStick } from '@element-plus/icons-vue'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent])
 
@@ -19,7 +19,7 @@ const router = useRouter()
 interface ForecastRow { week: number; date?: string; sales: number; profit: number; profit_rate?: number }
 interface ForecastSummary { total_sales: number; total_profit: number; avg_profit_rate: number }
 interface ClusterProfile { cluster_id: number; cluster_name: string; customer_count: number; avg_recency: number; avg_frequency: number; avg_monetary: number; avg_order_value: number; marketing_strategy: string }
-interface Project { id: string; name: string; description?: string; dataset_filename?: string; status: string; created_at: string; updated_at: string; parameters: any; results?: { association_rules?: any[]; prediction_data?: { sales_r2?: number; profit_r2?: number; train_samples?: number; forecast_weeks?: number; forecast_data?: ForecastRow[]; forecast_summary?: ForecastSummary }; clustering_data?: { total_customers?: number; n_clusters?: number; silhouette_score?: number; cluster_profiles?: ClusterProfile[]; contribution?: any[]; cluster_customers?: any }; audio_path?: string; report_path?: string }; error_message?: string }
+interface Project { id: string; name: string; description?: string; dataset_filename?: string; dataset_ref?: { name?: string } | null; status: string; created_at: string; updated_at: string; parameters?: any; summary?: Record<string, any>; quality_summary?: Record<string, any>; artifact_refs?: any[]; recommendations?: any[]; marketer_insights?: Record<string, any[]>; stage_statuses?: any[]; results?: { association_rules?: any[]; prediction_data?: { sales_r2?: number; profit_r2?: number; train_samples?: number; forecast_weeks?: number; forecast_data?: ForecastRow[]; forecast_summary?: ForecastSummary }; clustering_data?: { total_customers?: number; n_clusters?: number; silhouette_score?: number; cluster_profiles?: ClusterProfile[]; contribution?: any[]; cluster_customers?: any }; audio_path?: string; report_path?: string }; error?: string; error_message?: string }
 
 // --- State ---
 const project = ref<Project | null>(null)
@@ -50,7 +50,21 @@ const showSubtitle = ref(false)
 // --- Computed ---
 const associationRules = computed(() => project.value?.results?.association_rules || [])
 const clusteringData = computed(() => project.value?.results?.clustering_data || null)
-const clusterProfiles = computed(() => clusteringData.value?.cluster_profiles || [])
+const clusterProfiles = computed(() => {
+  const legacyProfiles = clusteringData.value?.cluster_profiles || []
+  if (legacyProfiles.length) return legacyProfiles
+  const segments = project.value?.marketer_insights?.segment_value || []
+  return segments.map((segment: any, index: number) => ({
+    cluster_id: Number(segment.cluster_id ?? index),
+    cluster_name: String(segment.cluster_name ?? segment.segment ?? `Group ${index + 1}`),
+    customer_count: Number(segment.customer_count ?? segment.count ?? 0),
+    avg_recency: Number(segment.avg_recency ?? 0),
+    avg_frequency: Number(segment.avg_frequency ?? 0),
+    avg_monetary: Number(segment.avg_monetary ?? segment.monetary ?? 0),
+    avg_order_value: Number(segment.avg_order_value ?? segment.avg_monetary ?? 0),
+    marketing_strategy: String(segment.marketing_strategy ?? segment.strategy ?? '暂无分群策略')
+  }))
+})
 const selectedCluster = computed(() => clusterProfiles.value.find(p => p.cluster_id === selectedClusterId.value))
 
 const antecedentOptions = computed(() => {
@@ -81,7 +95,7 @@ const forecastOption = computed(() => {
 const loadProject = async () => {
   loading.value = true
   try {
-    const { data } = await http.get(`/api/projects/${route.params.id}/`)
+    const { data } = await http.get(`/api/analysis/projects/${route.params.id}`)
     if (data.success) project.value = data.data
   } catch (error) {
     ElMessage.error('加载项目失败')
@@ -96,7 +110,7 @@ const reanalyze = async () => {
       '重新分析确认',
       { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
     )
-    const { data } = await http.post(`/api/projects/${route.params.id}/reanalyze/`)
+    const { data } = await http.post(`/api/analysis/projects/${route.params.id}/run`)
     if (data.success) {
       ElMessage.success('重新分析任务已启动')
       setTimeout(loadProject, 1000)
@@ -108,10 +122,22 @@ const fetchClusterCustomers = async (clusterId: number) => {
   selectedClusterId.value = clusterId
   customersLoading.value = true
   try {
-    const { data } = await http.get(`/api/projects/${project.value?.id}/customers/`, {
-      params: { cluster_id: clusterId }
-    })
-    if (data.success) clusterCustomers.value = data.data
+    const recommendations = project.value?.recommendations || []
+    const seen = new Set<string>()
+    clusterCustomers.value = recommendations
+      .filter((recommendation: any) => {
+        if (!recommendation.customer_id || seen.has(recommendation.customer_id)) return false
+        seen.add(recommendation.customer_id)
+        return true
+      })
+      .map((recommendation: any) => ({
+        id: recommendation.customer_id,
+        name: recommendation.customer_id,
+        recency: 0,
+        frequency: 0,
+        monetary: 0,
+        cluster_id: clusterId
+      }))
   } catch (e) {
     ElMessage.error('获取客户列表失败')
   } finally {
@@ -123,10 +149,19 @@ const updateRecommendation = async () => {
   if (!selectedAntecedent.value) return
   recLoading.value = true
   try {
-    const { data } = await http.get('/api/recommend/item/', { params: { item: selectedAntecedent.value } })
-    // API返回的是 {upstream, downstream, target_customers}
-    // 前置商品 -> 后置商品 = downstream（下游）
-    recommendedItems.value = data.downstream || []
+    const { data } = await http.get(`/api/analysis/projects/${route.params.id}/recommendations`, {
+      params: { top_k: 100 }
+    })
+    const recommendations = data.data?.recommendations || []
+    recommendedItems.value = recommendations
+      .filter((recommendation: any) => recommendation.item !== selectedAntecedent.value)
+      .map((recommendation: any) => ({
+        item: recommendation.item,
+        confidence: Number(recommendation.score) || 0,
+        lift: 1,
+        reason: recommendation.reason
+      }))
+      .slice(0, 8)
   } catch (e) {
     ElMessage.error('获取关联数据失败')
   } finally {
@@ -138,11 +173,8 @@ const calculateRealtimeRules = async () => {
   if (!selectedAntecedent.value) return
   calcLoading.value = true
   try {
-    const { data } = await http.post('/api/recommend/calculate/', { item: selectedAntecedent.value })
-    if (data.success) {
-      recommendedItems.value = data.rules
-      ElMessage.success(`计算完成，发现 ${data.rules.length} 条新规则`)
-    }
+    recommendedItems.value = []
+    ElMessage.info('Retail V2 暂无实时关联重算结果')
   } catch (e) {
     ElMessage.error('实时计算失败')
   } finally {
@@ -261,7 +293,7 @@ onMounted(() => { loadProject() })
           <div class="project-metadata-flow">
             <div class="meta-segment">
               <span class="m-label">源文件：</span>
-              <span class="m-value">{{ project?.dataset_filename }}</span>
+              <span class="m-value">{{ project?.dataset_filename || project?.dataset_ref?.name || '无数据集' }}</span>
             </div>
 
             <div class="mini-divider"></div>
