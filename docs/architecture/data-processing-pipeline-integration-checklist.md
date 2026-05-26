@@ -16,6 +16,14 @@
 > contract. Do not add compatibility wrappers unless the user explicitly asks
 > for one.
 
+## Overall Status
+
+As of 2026-05-26, Phases A through G are completed. The data-processing chain
+is fully implemented in backend runtime alongside Retail V2. Two items remain
+pending:
+
+- Retire RetailAnalysisFlow after replacement (requires product decision).
+- Prune copied generated artifacts from `analysis/data-processing-pipeline/`.
 ## Current Baseline
 
 - Source archive copied from `origin/add-analysis-2@59440f7` to
@@ -70,7 +78,7 @@
 
 ## 1. 测试锚点
 
-### [ ] Add chain-native API contract tests
+### [x] Add chain-native API contract tests
 
 - WHERE: `tests/api/test_data_processing_analysis_contracts.py`.
 - WHY: New public API behavior must be defined before replacing old
@@ -81,12 +89,12 @@
 - EXPECTED_RESULT: Tests describe the new chain-native API contract without
   preserving old Retail V2 response fields unless deliberately retained.
 - VERIFY: `uv run pytest tests/api/test_data_processing_analysis_contracts.py`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
-### [ ] Add regularization behavior fixtures and golden tests
+### [x] Add regularization behavior fixtures and golden tests
 
 - WHERE: `tests/fixtures/data_processing/`,
   `tests/abilities/regularization/`.
@@ -98,12 +106,12 @@
 - EXPECTED_RESULT: Golden tests cover normalized columns, mapping confidence,
   quality score, capability flags, and sidecar JSON shape.
 - VERIFY: `uv run pytest tests/abilities/regularization -q`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
-### [ ] Add universal analysis behavior fixtures and golden tests
+### [x] Add universal analysis behavior fixtures and golden tests
 
 - WHERE: `tests/fixtures/data_processing/`,
   `tests/abilities/universal_analysis/`.
@@ -115,14 +123,14 @@
 - EXPECTED_RESULT: Golden tests cover module summaries and expected skipped
   states without filesystem writes.
 - VERIFY: `uv run pytest tests/abilities/universal_analysis -q`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
 ## 2. Provider Interface
 
-### [ ] Define regularized dataset DTOs
+### [x] Define regularized dataset DTOs
 
 - WHERE: `backend/providers/dtos.py`.
 - WHY: The business layer needs structured refs for raw uploads, normalized
@@ -133,12 +141,12 @@
 - EXPECTED_RESULT: Provider methods can return typed project/job-scoped refs and
   metadata without exposing local paths.
 - VERIFY: `uv run python -m py_compile backend/providers/dtos.py`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
-### [ ] Define RegularizedDatasetProvider
+### [x] Define RegularizedDatasetProvider
 
 - WHERE: `backend/providers/regularized_dataset_provider.py`,
   `backend/providers/container.py`.
@@ -151,14 +159,14 @@
   direct filesystem or pandas IO.
 - VERIFY:
   `uv run python -m py_compile backend/providers/regularized_dataset_provider.py backend/providers/container.py`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
 ## 3. External Adapter
 
-### [ ] Implement LocalRegularizedDatasetAdapter
+### [x] Implement LocalRegularizedDatasetAdapter
 
 - WHERE:
   `backend/infrastructure/adapters/local_regularized_dataset_adapter.py`,
@@ -172,12 +180,12 @@
   `data/projects/{project_id}/analysis/regularization/...` and returns opaque
   refs.
 - VERIFY: `uv run pytest tests/providers/test_regularized_dataset_adapter.py`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
-### [ ] Wire provider factory
+### [x] Wire provider factory
 
 - WHERE: `backend/infrastructure/factories/provider_factory.py`,
   `tests/providers/test_provider_factory.py`.
@@ -187,14 +195,14 @@
 - EXPECTED_RESULT: `ProvidersContainer` can be assembled with the new provider
   in real and test contexts.
 - VERIFY: `uv run pytest tests/providers/test_provider_factory.py`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
 ## 4. Ability Atom
 
-### [ ] Extract regularization abilities
+### [x] Extract regularization abilities
 
 - WHERE: `backend/abilities/regularization/`,
   `tests/abilities/regularization/`.
@@ -207,12 +215,12 @@
 - EXPECTED_RESULT: Ability functions accept explicit dataframe/dict inputs and
   return structured data without reading/writing files.
 - VERIFY: `uv run pytest tests/abilities/regularization -q`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
-### [ ] Extract universal analysis abilities
+### [x] Extract universal analysis abilities
 
 - WHERE: `backend/abilities/universal_analysis/`,
   `tests/abilities/universal_analysis/`.
@@ -224,14 +232,14 @@
 - EXPECTED_RESULT: Universal abilities run from normalized dataframe +
   capability input and return result objects for pipelines to persist.
 - VERIFY: `uv run pytest tests/abilities/universal_analysis -q`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
 ## 5. Business Pipeline
 
-### [ ] Add DatasetRegularizationPipeline
+### [x] Add DatasetRegularizationPipeline
 
 - WHERE: `backend/business/pipelines/dataset_regularization_pipeline.py`,
   `tests/business/test_data_processing_pipelines.py`.
@@ -244,12 +252,12 @@
   schema artifacts.
 - VERIFY:
   `uv run pytest tests/business/test_data_processing_pipelines.py::test_dataset_regularization_pipeline`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
-### [ ] Add universal analysis pipelines
+### [x] Add universal analysis pipelines
 
 - WHERE: `backend/business/pipelines/universal_*_pipeline.py`,
   `tests/business/test_data_processing_pipelines.py`.
@@ -261,14 +269,14 @@
 - EXPECTED_RESULT: Each pipeline can run or skip from normalized dataframe +
   capability input and returns structured refs/results.
 - VERIFY: `uv run pytest tests/business/test_data_processing_pipelines.py`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
 ## 6. Business Flow
 
-### [ ] Add DataProcessingAnalysisFlow
+### [x] Add DataProcessingAnalysisFlow
 
 - WHERE: `backend/business/flows/data_processing_analysis_flow.py`,
   `backend/business/flows/data_processing_analysis_state.py`,
@@ -280,7 +288,7 @@
   reasons, and errors.
 - EXPECTED_RESULT: One flow owns the new chain from upload to final result.
 - VERIFY: `uv run pytest tests/business/test_data_processing_analysis_flow.py`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
@@ -304,7 +312,7 @@
 
 ## 7. API Controller
 
-### [ ] Replace analysis API with chain-native contract
+### [x] Replace analysis API with chain-native contract
 
 - WHERE: `backend/api/analysis.py`,
   `tests/api/test_data_processing_analysis_contracts.py`.
@@ -315,14 +323,14 @@
 - EXPECTED_RESULT: API exposes raw upload -> regularization -> universal
   analysis -> output refs as the primary workflow.
 - VERIFY: `uv run pytest tests/api/test_data_processing_analysis_contracts.py`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
 ## 8. Architecture Lint / Runtime Check / 全量验证
 
-### [ ] Extend Architecture Lint for data-processing source archive
+### [x] Extend Architecture Lint for data-processing source archive
 
 - WHERE: `tests/test_architecture_imports.py`.
 - WHY: Backend runtime must not import copied scripts from
@@ -332,12 +340,12 @@
   or filesystem writers.
 - EXPECTED_RESULT: Source archive remains reference-only.
 - VERIFY: `uv run pytest tests/test_architecture_imports.py`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
-### [ ] Add runtime checks for data-processing chain
+### [x] Add runtime checks for data-processing chain
 
 - WHERE: `backend/core/runtime_checks.py`,
   `tests/core/test_runtime_checks.py`.
@@ -349,12 +357,12 @@
 - EXPECTED_RESULT: Local/CI can verify the chain without writing real project
   data or relying on the source archive outputs.
 - VERIFY: `uv run pytest tests/core/test_runtime_checks.py`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
 
-### [ ] Run full quality gate
+### [x] Run full quality gate
 
 - WHERE: repository root.
 - WHY: Migration changes API, providers, adapters, abilities, pipelines, flow,
@@ -363,7 +371,7 @@
 - EXPECTED_RESULT: Lint, format, tests, build, and hooks are green or documented
   with explicit blocker.
 - VERIFY: `make lint && make format && make lint && make check && make hooks`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:
@@ -387,7 +395,7 @@
 - RISK:
 - ROLLBACK:
 
-### [ ] Update project docs and agent baseline
+### [x] Update project docs and agent baseline
 
 - WHERE: `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/QUICKSTART.md`,
   `docs/USAGE_GUIDE.md`.
@@ -399,7 +407,7 @@
   backend path.
 - VERIFY:
   `rg -n "RetailAnalysisFlow|Retail V2|data-processing|regularization|analysis2" AGENTS.md docs`
-- STATUS: pending
+- STATUS: completed
 - RESULT:
 - RISK:
 - ROLLBACK:

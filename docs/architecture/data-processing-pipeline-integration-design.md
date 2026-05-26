@@ -1,6 +1,8 @@
 # Data Processing Pipeline Integration Design
 
-> Status: design only. No backend runtime code is migrated by this document.
+> Status: **implemented**. Backend runtime code has been extracted and migrated
+> according to this design. The document remains accurate as an architecture
+> reference.
 > Source snapshot: `origin/add-analysis-2` at `59440f7`.
 > Source archive location on `main`: `analysis/data-processing-pipeline/`.
 
@@ -258,46 +260,50 @@ Before migrating behavior, tests must define and protect the new contract:
 
 ### Phase A: introduce documentation and archived source
 
-Already done by this task:
-
-- copied `analysis`, `analysis2`, and `regularization` into
-  `analysis/data-processing-pipeline/`;
-- document the intended target chain and migration plan.
+**Completed.** Copied `analysis`, `analysis2`, and `regularization` into
+`analysis/data-processing-pipeline/`; documented the target chain and migration
+plan.
 
 ### Phase B: define new behavior
 
-Add tests for the new chain-native API, regularization provider/adapters, and
-universal analysis orchestration before moving runtime code. Do not write tests
-that lock in old Retail V2 response shapes unless a field is deliberately kept
-as part of the new contract.
+**Completed.** Added chain-native API contract tests
+(`tests/api/test_data_processing_analysis_contracts.py`), regularization golden
+tests (`tests/abilities/regularization/`), and universal analysis golden tests
+(`tests/abilities/universal_analysis/`).
 
 ### Phase C: extract provider boundary
 
-Introduce regularized dataset DTOs and provider protocols. Add fake providers
-for flow/pipeline tests.
+**Completed.** Added `RegularizedDatasetReferenceDTO`,
+`RegularizationSidecarReferenceDTO`, and related DTOs to
+`backend/providers/dtos.py`. Defined `RegularizedDatasetProvider` protocol in
+`backend/providers/regularized_dataset_provider.py`. Wired it into
+`ProvidersContainer`.
 
 ### Phase D: adapter extraction
 
-Port file reader, output persistence, and path validation into adapters. Keep
-engine logic behind the provider boundary.
+**Completed.** Implemented `LocalRegularizedDatasetAdapter` in
+`backend/infrastructure/adapters/local_regularized_dataset_adapter.py`. Added
+`FakeRegularizedDatasetProvider` for tests. Wired adapter in
+`backend/infrastructure/factories/provider_factory.py`.
 
 ### Phase E: ability extraction
 
-Port pure regularization and universal analysis steps into backend ability
-modules. Ability outputs should be dataframes, dictionaries, or figure bytes,
-not filesystem side effects.
+**Completed.** Extracted 7 regularization abilities
+(`backend/abilities/regularization/`) and 6+ universal analysis abilities
+(`backend/abilities/universal_analysis/`) from the archive. Abilities return
+pure data structures (no file writes, no FastAPI imports).
 
 ### Phase F: pipeline and flow composition
 
-Create regularization and universal analysis pipelines, then compose them in a
-Flow. The Retail V2 flow may remain temporarily during construction, but the
-target end state is the new flow as the only analysis lifecycle.
+**Completed.** Added `DatasetRegularizationPipeline`, 6 universal analysis
+pipelines, and `DataProcessingAnalysisFlow` with full state machine,
+capability-driven skipping, and `needs_review` handling.
 
 ### Phase G: API replacement
 
-Replace the public analysis API with the chain-native job/output contract once
-tests are in place. Retire Retail-specific internals as soon as the new flow
-can cover the intended product path.
+**Completed.** Added chain-native routes under `/api/analysis/jobs` (create,
+upload, regularize, run, status, outputs) alongside existing Retail V2 routes.
+Retirement of Retail V2 internals is a future product decision, not yet executed.
 
 ## Rollback Strategy
 

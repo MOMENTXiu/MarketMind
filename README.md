@@ -9,7 +9,7 @@ MarketMind 是一个面向零售/超市场景的 AI 营销系统，采用 **Vue 
 - 行为推荐：基于分析结果的个性化推荐能力
 - AI 语音播报：分析报告生成与语音合成
 - 客户分群、营销洞察、促销因果分析
-- 数据处理链路规划：`regularization -> analysis2` 通用分析链路已归档并完成设计，尚未进入后端 runtime
+- 数据处理链路：`regularization -> analysis2` 通用分析链路已完整实现并接入后端 runtime，与 Retail V2 并存
 
 ## 技术栈
 
@@ -71,12 +71,13 @@ tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv
 当前 Retail V2 raw CSV 字段契约定义在 `backend/providers/dtos.py` 的
 `RETAIL_RAW_SALES_COLUMNS`。
 
-下一阶段通用数据处理链路已归档在
-`analysis/data-processing-pipeline/`，目标是：
+通用数据处理链路已实现：
 
 ```text
 原始数据上传 -> regularization 正则化 -> analysis2 通用分析 -> 结果产物
 ```
+
+相关代码位于 `backend/abilities/regularization/`、`backend/abilities/universal_analysis/`、`backend/business/pipelines/` 和 `backend/business/flows/`。归档源材料仍保留在 `analysis/data-processing-pipeline/` 作为参考。
 
 ## 目录结构
 

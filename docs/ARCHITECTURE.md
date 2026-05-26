@@ -2,13 +2,16 @@
 
 MarketMind is a Vue 3 + FastAPI retail marketing system. The backend now uses a layered architecture so future work can change storage, LLM, TTS, and analysis implementations without pushing SDK or filesystem details into API handlers.
 
-As of 2026-05-26, the implemented backend runtime is the Retail Analysis V2
-chain under `/api/analysis`. The next planned architecture target is the
-data-processing pipeline documented in
-`docs/architecture/data-processing-pipeline-integration-design.md`: raw upload
--> `regularization` -> `analysis2` universal analysis -> final outputs. As of
-2026-05-26, that target is design-only and may replace the current Retail V2 API/state
-contract when implementation starts.
+As of 2026-05-26, the backend runtime has two analysis chains under `/api/analysis`:
+
+1. **Retail Analysis V2** — the existing project-scoped retail pipeline.
+2. **Data-processing chain** — the new `regularization` -> `analysis2` universal
+   analysis lifecycle, fully implemented and running alongside Retail V2.
+
+Both chains share the same layered architecture and provider/adapter boundary.
+The data-processing design docs remain in
+`docs/architecture/data-processing-pipeline-integration-design.md` and
+`docs/architecture/data-processing-pipeline-integration-checklist.md` for reference.
 
 ## Runtime Shape
 
@@ -22,7 +25,12 @@ Browser / Vue 3
   -> local files, JSON storage, Edge TTS, LLM HTTP APIs
 ```
 
-`RetailAnalysisFlow` is the current implemented Analysis V2 Business Flow because upload/reanalysis is a background lifecycle with status transitions, multiple retail analysis stages, generated artifacts, model persistence, and failure handling. Voice and AI broadcast paths remain separate Business Pipelines.
+`RetailAnalysisFlow` is the existing Retail V2 Business Flow.
+`DataProcessingAnalysisFlow` is the new chain-native flow for the data-processing
+pipeline (raw upload -> regularization -> universal analysis -> outputs).
+Both are background lifecycles with status transitions, stage tracking, generated
+artifacts, and failure handling. Voice and AI broadcast paths remain separate
+Business Pipelines.
 
 ## Backend Layers
 
@@ -31,8 +39,8 @@ Browser / Vue 3
 | API Controller | `backend/api/` | Parse HTTP input, call one pipeline/flow, map internal errors to current FastAPI responses. |
 | Business Orchestration | `backend/business/pipelines/`, `backend/business/flows/` | Coordinate use cases and preserve status/side-effect ordering. No SDK, storage client, or FastAPI response construction. |
 | Ability Atom | `backend/abilities/` | Pure atomic analysis actions, including Retail V2 cleaning, feature engineering, segmentation, association/HUIM, recommendation, marketer insight, and voice/report helpers. |
-| Provider Boundary | `backend/providers/` | Protocols, DTOs, and frozen `ProvidersContainer` for repository, files, generated assets, datasets, retail datasets, analysis artifacts, analysis models, recommendation models, LLM, TTS, jobs, and telemetry. |
-| Infrastructure | `backend/infrastructure/` | Concrete adapters for JSON storage, local files/assets, CSV/rules/model artifacts, Retail CSV datasets, local Analysis V2 artifacts/models, Edge TTS, OpenAI/Anthropic-compatible LLMs, background jobs, telemetry. |
+| Provider Boundary | `backend/providers/` | Protocols, DTOs, and frozen `ProvidersContainer` for repository, files, generated assets, datasets, retail datasets, regularized datasets, analysis artifacts, analysis models, recommendation models, LLM, TTS, jobs, and telemetry. |
+| Infrastructure | `backend/infrastructure/` | Concrete adapters for JSON storage, local files/assets, CSV/rules/model artifacts, Retail CSV datasets, regularized datasets, local Analysis V2 artifacts/models, Edge TTS, OpenAI/Anthropic-compatible LLMs, background jobs, telemetry. |
 | Core | `backend/core/` | Settings, internal errors, legacy storage compatibility, and runtime check CLI. |
 
 ## Key Directories
@@ -48,6 +56,8 @@ backend/
   business/
     flows/retail_analysis_flow.py
     flows/retail_analysis_state.py
+    flows/data_processing_analysis_flow.py
+    flows/data_processing_analysis_state.py
     pipelines/
       retail_dataset_preparation_pipeline.py
       retail_feature_engineering_pipeline.py
@@ -56,9 +66,18 @@ backend/
       retail_recommendation_pipeline.py
       retail_marketer_insight_pipeline.py
       retail_report_pipeline.py
+      dataset_regularization_pipeline.py
+      universal_overview_pipeline.py
+      universal_profile_segmentation_pipeline.py
+      universal_association_pipeline.py
+      universal_recommendation_pipeline.py
+      universal_promotion_pipeline.py
+      universal_summary_pipeline.py
       voice_synthesis_pipeline.py
       ai_voice_broadcast_pipeline.py
   abilities/
+    regularization/
+    universal_analysis/
     retail/
     report/
     voice/
@@ -103,6 +122,10 @@ Base URL in local development is `http://localhost:8000/api`. API docs are serve
 | Retail Analysis V2 dataset/lifecycle | `POST /api/analysis/projects/{id}/dataset`, `POST /api/analysis/projects/{id}/run`; project status is returned by `GET /api/analysis/projects/{id}` |
 | Retail Analysis V2 outputs | `GET /api/analysis/projects/{id}/artifacts/{artifact_id}`, `GET /api/analysis/projects/{id}/datasets/{dataset_id}`, `GET /api/analysis/projects/{id}/models/{model_type}/{version}` |
 | Retail Analysis V2 read models | `GET /api/analysis/projects/{id}/recommendations`, `GET /api/analysis/projects/{id}/marketer-insights` |
+| Data-processing jobs | `POST /api/analysis/jobs`, `GET /api/analysis/jobs/{job_id}` |
+| Data-processing upload/regularize/run | `POST /api/analysis/jobs/{job_id}/raw-dataset`, `POST /api/analysis/jobs/{job_id}/regularize`, `POST /api/analysis/jobs/{job_id}/run` |
+| Data-processing read | `GET /api/analysis/jobs/{job_id}/datasets/{dataset_id}`, `GET /api/analysis/jobs/{job_id}/sidecars/{sidecar_id}` |
+| Data-processing outputs | `GET /api/analysis/jobs/{job_id}/outputs` |
 | Voice | `POST /api/voice/tts/`, `POST /api/voice/generate/`, `GET /api/voice/status/` |
 | AI voice | `POST /api/ai-voice/broadcast/`, `POST /api/tts/`, `GET /api/ai-voice/audio/{filename}/` |
 
@@ -129,6 +152,28 @@ RetailAnalysisFlow
   -> retail ability atoms
   -> generated Analysis V2 refs through AnalysisArtifactProvider and AnalysisModelStoreProvider
   -> project status pending, processing, completed, or failed
+```
+
+Data-processing chain lifecycle:
+
+```text
+POST /api/analysis/jobs/{job_id}/raw-dataset
+  -> DataProcessingAnalysisFlow.upload_raw_dataset
+  -> RegularizedDatasetProvider (raw upload)
+
+POST /api/analysis/jobs/{job_id}/regularize
+  -> DataProcessingAnalysisFlow.regularize
+  -> DatasetRegularizationPipeline
+  -> regularization ability atoms
+  -> RegularizedDatasetProvider (normalized dataset + sidecars)
+  -> job status queued, needs_review, or completed
+
+POST /api/analysis/jobs/{job_id}/run
+  -> DataProcessingAnalysisFlow.run_analysis
+  -> universal analysis pipelines (overview, profile, association, recommendation, promotion, summary)
+  -> universal_analysis ability atoms
+  -> AnalysisArtifactProvider + AnalysisModelStoreProvider
+  -> job status processing, completed, or failed
 ```
 
 Voice and AI broadcast:
@@ -191,7 +236,9 @@ uv run python -m backend.core.runtime_checks validate-api-schemas
 uv run python -m backend.core.runtime_checks check-telemetry
 uv run python -m backend.core.runtime_checks check-analysis-artifacts --sandbox
 uv run python -m backend.core.runtime_checks check-retail-analysis --sample
+uv run python -m backend.core.runtime_checks check-data-processing --sample --sandbox
+uv run python -m backend.core.runtime_checks check-regularization --sandbox
 uv run python -m backend.core.runtime_checks check-analysis-optional-runtime
 ```
 
-Architecture import rules are enforced by `tests/test_architecture_imports.py`. Current backend pytest coverage is 123 tests.
+Architecture import rules are enforced by `tests/test_architecture_imports.py`. Current backend pytest coverage is 174 tests.

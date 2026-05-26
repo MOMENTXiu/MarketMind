@@ -72,9 +72,9 @@ make test
 make build
 ```
 
-Current baseline after the Analysis V2 migration:
+Current baseline after the Analysis V2 and data-processing pipeline migrations:
 
-- Backend tests: 123 pytest tests
+- Backend tests: 188 pytest tests
 - Backend lint/format: Ruff
 - Frontend build/type validation: `npm run build` (`vue-tsc && vite build`)
 
@@ -91,6 +91,8 @@ uv run python -m backend.core.runtime_checks validate-api-schemas
 uv run python -m backend.core.runtime_checks check-telemetry
 uv run python -m backend.core.runtime_checks check-analysis-artifacts --sandbox
 uv run python -m backend.core.runtime_checks check-retail-analysis --sample
+uv run python -m backend.core.runtime_checks check-data-processing --sample --sandbox
+uv run python -m backend.core.runtime_checks check-regularization --sandbox
 uv run python -m backend.core.runtime_checks check-analysis-optional-runtime
 ```
 
@@ -108,10 +110,10 @@ Supported upload file type:
 
 Retail Analysis V2 expects the Chinese raw retail sales columns defined by `RETAIL_RAW_SALES_COLUMNS` in `backend/providers/dtos.py`.
 
-The planned generalized data-processing chain is archived under
-`analysis/data-processing-pipeline/` and documented in
-`docs/architecture/data-processing-pipeline-integration-design.md`. It is not
-yet wired into backend runtime.
+The generalized data-processing chain is implemented in backend runtime
+(`backend/abilities/regularization/`, `backend/abilities/universal_analysis/`,
+`backend/business/flows/data_processing_analysis_flow.py`). The original source
+archive remains under `analysis/data-processing-pipeline/` as reference.
 
 ## Optional Streamlit Entry
 

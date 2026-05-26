@@ -26,14 +26,18 @@ Current configured checks:
 - Backend tests: `uv run pytest`
 - Frontend build/type validation: `cd frontend && npm run build`
 
-Current backend test baseline is 123 pytest tests covering API contracts, controller thinness, Retail V2 flows/pipelines, ability atoms, provider adapters, runtime checks, and architecture import rules.
+Current backend test baseline is 188 pytest tests covering API contracts
+(Retail V2 + data-processing chain-native), controller thinness, Retail V2
+flows/pipelines, data-processing regularization/universal analysis abilities,
+provider adapters, runtime checks, and architecture import rules.
 
-The current implemented analysis runtime is Retail V2. The planned generalized
-data-processing chain (`regularization -> analysis2`) is archived under
-`analysis/data-processing-pipeline/` and tracked by
-`docs/architecture/data-processing-pipeline-integration-design.md` plus
-`docs/architecture/data-processing-pipeline-integration-checklist.md`; do not
-treat the archive as backend runtime code.
+The backend runtime now has two analysis chains:
+1. Retail V2 — the existing project-scoped retail pipeline.
+2. Data-processing chain (`regularization -> analysis2`) — implemented in
+   `backend/abilities/regularization/`, `backend/abilities/universal_analysis/`,
+   `backend/business/pipelines/`, and `backend/business/flows/`. The original
+   source archive remains under `analysis/data-processing-pipeline/` as
+   reference; backend runtime code must not import from it directly.
 
 `make check` is the canonical local gate because it combines backend lint, backend format check, backend tests, and frontend build/type validation.
 
