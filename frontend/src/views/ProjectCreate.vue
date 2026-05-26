@@ -2,27 +2,25 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import http from '@/utils/http'
-import type { UploadInstance, UploadProps } from 'element-plus'
+import type { UploadInstance, UploadProps, UploadUserFile } from 'element-plus'
 import { UploadFilled, ArrowLeft } from '@element-plus/icons-vue'
+import {
+  createRetailProject,
+  getApiErrorMessage,
+  runRetailAnalysis,
+  uploadRetailDataset
+} from '../api'
 
 const router = useRouter()
 const currentStep = ref(0)
 
 const projectForm = ref({
   name: '',
-  description: '',
-  parameters: {
-    min_support: 0.02,
-    min_confidence: 0.3,
-    min_lift: 1.0,
-    forecast_weeks: 13,
-    n_clusters: 4
-  }
+  description: ''
 })
 
 const uploadRef = ref<UploadInstance>()
-const fileList = ref<any[]>([])
+const fileList = ref<UploadUserFile[]>([])
 const uploading = ref(false)
 
 const steps = [
@@ -57,23 +55,22 @@ const createProject = async () => {
   if (fileList.value.length === 0) return ElMessage.warning('请上传数据集')
   uploading.value = true
   try {
-    const { data: res } = await http.post('/api/analysis/projects', {
+    const project = await createRetailProject({
       name: projectForm.value.name,
       description: projectForm.value.description
     })
-    if (!res.success) throw new Error('创建项目失败')
 
-    const formData = new FormData()
-    formData.append('file', fileList.value[0].raw)
-    const { data: uploadRes } = await http.post(`/api/analysis/projects/${res.data.id}/dataset`, formData)
-
-    if (uploadRes.success) {
-      await http.post(`/api/analysis/projects/${res.data.id}/run`)
-      ElMessage.success('项目已创建，开始分析')
-      setTimeout(() => router.push(`/projects/${res.data.id}`), 1000)
+    const rawFile = fileList.value[0]?.raw
+    if (!(rawFile instanceof File)) {
+      throw new Error('无法读取上传文件')
     }
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '创建失败')
+
+    await uploadRetailDataset(project.id, rawFile)
+    await runRetailAnalysis(project.id)
+    ElMessage.success('项目已创建，开始分析')
+    await router.push({ path: `/projects/${project.id}`, query: { poll: '1' } })
+  } catch (error) {
+    ElMessage.error(`创建失败: ${getApiErrorMessage(error)}`)
   } finally {
     uploading.value = false
   }
@@ -156,28 +153,6 @@ const createProject = async () => {
               </div>
             </el-upload>
           </div>
-
-          <div class="params-section">
-            <h3 class="params-title">高级参数设定</h3>
-            <div class="params-grid">
-              <div class="param-item">
-                <span class="param-label">最小支持度</span>
-                <el-slider v-model="projectForm.parameters.min_support" :min="0.01" :max="0.1" :step="0.01" />
-              </div>
-              <div class="param-item">
-                <span class="param-label">最小置信度</span>
-                <el-slider v-model="projectForm.parameters.min_confidence" :min="0.1" :max="0.9" :step="0.1" />
-              </div>
-              <div class="param-item">
-                <span class="param-label">预测周数 ({{ projectForm.parameters.forecast_weeks }}周)</span>
-                <el-slider v-model="projectForm.parameters.forecast_weeks" :min="4" :max="52" />
-              </div>
-              <div class="param-item">
-                <span class="param-label">聚类分组数 ({{ projectForm.parameters.n_clusters }}组)</span>
-                <el-slider v-model="projectForm.parameters.n_clusters" :min="2" :max="8" />
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- Step 3 -->
@@ -190,15 +165,6 @@ const createProject = async () => {
             <div class="review-item">
               <span class="label">数据集</span>
               <span class="value">{{ fileList[0]?.name }}</span>
-            </div>
-            <div class="review-divider"></div>
-            <div class="review-item">
-              <span class="label">最小支持度</span>
-              <span class="value">{{ (projectForm.parameters.min_support * 100).toFixed(0) }}%</span>
-            </div>
-            <div class="review-item">
-              <span class="label">预测时长</span>
-              <span class="value">{{ projectForm.parameters.forecast_weeks }} 周</span>
             </div>
           </div>
         </div>
@@ -371,33 +337,6 @@ const createProject = async () => {
   font-size: 0.85rem;
   color: var(--text-tertiary);
   margin-top: 8px;
-}
-
-.params-section {
-  background: var(--color-bg-base);
-  padding: 24px;
-  border-radius: var(--radius-md);
-}
-
-.params-title {
-  font-size: 0.95rem;
-  color: var(--text-secondary);
-  margin-bottom: 16px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.params-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-}
-
-.param-label {
-  display: block;
-  font-size: 0.85rem;
-  margin-bottom: 8px;
-  color: var(--text-secondary);
 }
 
 .review-box {

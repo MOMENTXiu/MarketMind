@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import axios from 'axios'
 import { Cpu } from '@element-plus/icons-vue'
+import { generateCustomerSuggestion, getApiErrorMessage } from '../api'
 
 // LLM Configuration
 interface LLMConfig {
@@ -55,25 +55,20 @@ const testLLMConnection = async () => {
 
   llmTesting.value = true
   try {
-    const headers: Record<string, string> = {}
-    if (llmConfig.value.provider === 'openai') {
-      headers['Authorization'] = `Bearer ${llmConfig.value.apiKey}`
-    } else if (llmConfig.value.provider === 'claude') {
-      headers['x-api-key'] = llmConfig.value.apiKey
-      headers['anthropic-version'] = '2023-06-01'
-    }
-
-    const response = await axios.get(`${llmConfig.value.baseUrl}/models`, {
-      headers,
-      timeout: 10000
+    const response = await generateCustomerSuggestion({
+      data: {
+        scene_type: 'settings_test',
+        customer_name: '配置测试',
+        recommendations: []
+      },
+      llm_config: llmConfig.value
     })
 
-    if (response.status === 200) {
-      ElMessage.success('连接成功！LLM API 配置正常')
+    if (response.success) {
+      ElMessage.success('后端建议接口测试成功')
     }
-  } catch (error: any) {
-    const msg = error.response?.data?.error?.message || error.message || '连接失败'
-    ElMessage.error(`连接测试失败: ${msg}`)
+  } catch (error) {
+    ElMessage.error(`连接测试失败: ${getApiErrorMessage(error)}`)
   } finally {
     llmTesting.value = false
   }

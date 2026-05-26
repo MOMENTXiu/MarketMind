@@ -30,6 +30,16 @@ const router = createRouter({
       component: () => import('@/views/MyProjects.vue')
     },
     {
+      path: '/data-processing',
+      name: 'data-processing',
+      component: () => import('@/views/DataProcessing.vue')
+    },
+    {
+      path: '/data-processing/jobs/:jobId',
+      name: 'data-processing-job',
+      component: () => import('@/views/DataProcessing.vue')
+    },
+    {
       path: '/projects/:id/recommend',
       name: 'product-recommend',
       component: () => import('@/views/ProductRecommend.vue')

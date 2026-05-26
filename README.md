@@ -97,6 +97,8 @@ MarketMind/
 ## 相关文档
 
 - 架构说明：`docs/ARCHITECTURE.md`
+- 后端接口接入文档：`docs/backend-api.md`
+- 前端接入方案：`docs/frontend-api-integration-plan.md`
 - 使用指南：`docs/USAGE_GUIDE.md`
 - 快速开始：`docs/QUICKSTART.md`
 - 数据处理链路方案：`docs/architecture/data-processing-pipeline-integration-design.md`

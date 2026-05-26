@@ -8,6 +8,7 @@ from typing import Any
 
 from backend.abilities.regularization.check_analysis_capability import check_analysis_capability
 from backend.abilities.regularization.check_data_quality import check_data_quality
+from backend.abilities.regularization.field_aliases import STANDARD_SCHEMA
 from backend.abilities.regularization.infer_schema_mapping import infer_schema_mapping
 from backend.abilities.regularization.normalize_business_fields import normalize_business_fields
 from backend.abilities.regularization.normalize_field_types import normalize_field_types
@@ -100,7 +101,7 @@ class DatasetRegularizationPipeline:
             project_id, job_id, "preview_rows", biz_df.head(8).astype(str).to_dict("records")
         )
 
-        needs_review = any(d.get("status") == "need_review" for d in mapping_detail)
+        needs_review = _has_blocking_schema_review(mapping_detail)
 
         return DatasetRegularizationResult(
             normalized_dataset_ref=norm_ref,
@@ -116,3 +117,16 @@ class DatasetRegularizationPipeline:
             mapping_detail=mapping_detail,
             needs_review=needs_review,
         )
+
+
+def _has_blocking_schema_review(mapping_detail: list[dict[str, Any]]) -> bool:
+    for detail in mapping_detail:
+        if detail.get("status") != "need_review":
+            continue
+        standard_field = detail.get("standard_field")
+        if not isinstance(standard_field, str):
+            continue
+        field_definition = STANDARD_SCHEMA.get(standard_field)
+        if field_definition is not None and field_definition[1] == "core":
+            return True
+    return False

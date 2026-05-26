@@ -2,8 +2,13 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import http from '@/utils/http'
 import { ArrowLeft, User, ShoppingCart, MagicStick } from '@element-plus/icons-vue'
+import {
+  generateCustomerSuggestion,
+  getApiErrorMessage,
+  getRetailProject,
+  listRetailRecommendations
+} from '../api'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,19 +24,31 @@ const aiAnalyzing = ref(false)
 const aiSuggestion = ref('')
 const projectInfo = ref<any>(null)
 
+const readStoredLLMConfig = (): Record<string, string | null | undefined> => {
+  const savedLLM = localStorage.getItem('llm_config')
+  if (!savedLLM) return {}
+  try {
+    const parsed = JSON.parse(savedLLM) as unknown
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, string | null | undefined>
+    }
+  } catch {
+    return {}
+  }
+  return {}
+}
+
 const fetchCustomerDetail = async () => {
   loading.value = true
   try {
-    const { data: projectData } = await http.get(`/api/analysis/projects/${projectId.value}`)
-    if (projectData.success) {
-      projectInfo.value = projectData.data
-    }
+    projectInfo.value = await getRetailProject(projectId.value)
 
-    const { data: recData } = await http.get(`/api/analysis/projects/${projectId.value}/recommendations`, {
-      params: { customer_id: customerId.value, top_k: 10 }
+    const recData = await listRetailRecommendations(projectId.value, {
+      customer_id: customerId.value,
+      top_k: 10
     })
 
-    const recs = recData.data?.recommendations || []
+    const recs = recData.recommendations || []
     const clusterInfo = projectInfo.value?.marketer_insights?.segment_value?.[0] || null
 
     customer.value = {
@@ -48,7 +65,7 @@ const fetchCustomerDetail = async () => {
     purchasedItems.value = []
   } catch (e) {
     console.error('Fetch customer detail error:', e)
-    ElMessage.error('无法获取客户详情')
+    ElMessage.error(`无法获取客户详情: ${getApiErrorMessage(e)}`)
   } finally {
     loading.value = false
   }
@@ -58,16 +75,7 @@ const generateAISuggestion = async () => {
   if (aiAnalyzing.value) return
   aiAnalyzing.value = true
   try {
-    const savedLLM = localStorage.getItem('llm_config')
-    if (!savedLLM) {
-      ElMessage.warning('请先在设置页面配置 AI 模型')
-      router.push('/settings')
-      return
-    }
-
-    const llmConfig = JSON.parse(savedLLM)
-
-    const { data: suggestionData } = await http.post('/api/analysis/customer-suggestions', {
+    const suggestionData = await generateCustomerSuggestion({
       data: {
         customer_name: customer.value.name,
         customer_id: customer.value.id,
@@ -82,16 +90,15 @@ const generateAISuggestion = async () => {
           reason: r.reason
         }))
       },
-      llm_config: llmConfig
+      llm_config: readStoredLLMConfig()
     })
 
     if (suggestionData.success) {
       aiSuggestion.value = suggestionData.text
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('AI analysis error:', error)
-    const msg = error.response?.data?.detail || error.message
-    ElMessage.error(`AI 分析失败: ${msg}`)
+    ElMessage.error(`AI 分析失败: ${getApiErrorMessage(error)}`)
   } finally {
     aiAnalyzing.value = false
   }

@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import http from '@/utils/http'
-import axios from 'axios'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, ArrowLeft, Refresh } from '@element-plus/icons-vue'
+import { Goods, Loading, Search, ArrowLeft, Refresh } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
+import {
+  generateCustomerSuggestion,
+  getApiErrorMessage,
+  listRetailRecommendations,
+  type CustomerSuggestionRequest
+} from '../api'
 
 const route = useRoute()
 const projectId = () => String(route.params.id)
@@ -30,6 +34,8 @@ const insightText = ref('')
 const displayedText = ref('')
 const insightLoading = ref(false)
 const typewriterActive = ref(false)
+let typewriterTimer: number | undefined
+const coreIconComponent = computed(() => loading.value ? Loading : Goods)
 
 // UI Refs for SVG drawing
 const centerNodeRef = ref<HTMLElement | null>(null)
@@ -37,7 +43,16 @@ const sourceRefs = ref<HTMLElement[]>([])
 const targetRefs = ref<HTMLElement[]>([])
 const svgPathData = ref<{d: string, width: number}[]>([])
 
+const stopTypewriter = () => {
+  if (typewriterTimer !== undefined) {
+    window.clearTimeout(typewriterTimer)
+    typewriterTimer = undefined
+  }
+  typewriterActive.value = false
+}
+
 const startTypewriter = (text: string) => {
+  stopTypewriter()
   typewriterActive.value = true
   displayedText.value = ''
   let i = 0
@@ -47,12 +62,34 @@ const startTypewriter = (text: string) => {
     if (i < text.length) {
       displayedText.value += text.charAt(i)
       i++
-      setTimeout(type, speed)
+      typewriterTimer = window.setTimeout(type, speed)
     } else {
       typewriterActive.value = false
+      typewriterTimer = undefined
     }
   }
   type()
+}
+
+const readStoredLLMConfig = (): Record<string, string | null | undefined> | undefined => {
+  const savedLLM = localStorage.getItem('llm_config')
+  if (!savedLLM) return undefined
+  try {
+    const parsed = JSON.parse(savedLLM) as unknown
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, string | null | undefined>
+    }
+  } catch {
+    return undefined
+  }
+  return undefined
+}
+
+const localInsightFallback = () => {
+  if (!data.value) return '暂无足够商品关联数据生成洞察。'
+  const topItem = data.value.downstream[0]?.item
+  if (!topItem) return `${data.value.item} 暂无显著推荐去向，可优先补充样本后再观察关联变化。`
+  return `${data.value.item} 与 ${topItem} 的推荐信号最强，可作为陈列、组合促销或客户触达的优先候选。`
 }
 
 const search = async (targetItem?: string) => {
@@ -69,10 +106,8 @@ const search = async (targetItem?: string) => {
   displayedText.value = ''
 
   try {
-    const { data: res } = await http.get(`/api/analysis/projects/${projectId()}/recommendations`, {
-      params: { top_k: 100 }
-    })
-    const recommendations = res.data?.recommendations || []
+    const res = await listRetailRecommendations(projectId(), { top_k: 100 })
+    const recommendations = res.recommendations || []
     const matches = recommendations.filter((recommendation: any) => recommendation.item === query)
     const source = matches.length ? matches : recommendations
     data.value = {
@@ -84,7 +119,7 @@ const search = async (targetItem?: string) => {
         confidence: Number(recommendation.score) || 0,
         lift: 1
       })),
-      target_customers: Array.from(new Set(source.map((recommendation: any) => recommendation.customer_id))).map((customerId) => ({ customer_id: customerId }))
+      target_customers: Array.from(new Set(source.map((recommendation: any) => recommendation.customer_id))).map((customerId) => ({ customer_id: String(customerId) }))
     }
 
     // Trigger LLM insight
@@ -96,8 +131,7 @@ const search = async (targetItem?: string) => {
     }, 300)
   } catch (e: any) {
     console.error('Search error:', e)
-    const msg = e.response?.data?.detail || e.message || '未知错误'
-    ElMessage.error(`获取数据失败: ${msg}`)
+    ElMessage.error(`获取数据失败: ${getApiErrorMessage(e)}`)
   } finally {
     loading.value = false
   }
@@ -110,22 +144,22 @@ const generateLLMInsight = async () => {
   displayedText.value = ''
 
   try {
-    const savedLLM = localStorage.getItem('llm_config')
-    if (!savedLLM) return
-    const llmConfig = JSON.parse(savedLLM)
-
-    const prompt = `你是一位商业顾问。请分析以下商品的双向关联数据，生成一段专业、客观、富有建议的简评（80字以内）。直接输出结论，严禁废话。
-数据: ${JSON.stringify({ item: data.value.item, upstream: data.value.upstream, downstream: data.value.downstream })}`
-
-    const res = await axios.post(`${llmConfig.baseUrl}/chat/completions`, {
-      model: llmConfig.modelName,
-      messages: [{ role: 'user', content: prompt }]
-    }, { headers: { 'Authorization': `Bearer ${llmConfig.apiKey}` } })
-
-    insightText.value = res.data.choices[0].message.content.trim()
+    const payload: CustomerSuggestionRequest = {
+      data: {
+        scene_type: 'product',
+        item: data.value.item,
+        upstream: data.value.upstream,
+        downstream: data.value.downstream,
+        target_customers: data.value.target_customers
+      },
+      llm_config: readStoredLLMConfig() || {}
+    }
+    const suggestion = await generateCustomerSuggestion(payload)
+    insightText.value = suggestion.text || localInsightFallback()
     startTypewriter(insightText.value)
-  } catch (e) {
-    console.error('LLM error', e)
+  } catch {
+    insightText.value = localInsightFallback()
+    startTypewriter(insightText.value)
   } finally {
     insightLoading.value = false
   }
@@ -193,10 +227,11 @@ onMounted(async () => {
   const customerId = route.query.customerId
   if (customerId) {
     try {
-      const { data: customerRec } = await http.get(`/api/analysis/projects/${projectId()}/recommendations`, {
-        params: { customer_id: customerId, top_k: 1 }
+      const customerRec = await listRetailRecommendations(projectId(), {
+        customer_id: String(customerId),
+        top_k: 1
       })
-      const recommendations = customerRec.data?.recommendations || []
+      const recommendations = customerRec.recommendations || []
       if (recommendations.length > 0) {
         const topItem = recommendations[0].item
         await search(topItem)
@@ -213,6 +248,11 @@ const setTargetRef = (el: any) => { if (el) targetRefs.value.push(el) }
 watch(data, () => {
   sourceRefs.value = []
   targetRefs.value = []
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateLines)
+  stopTypewriter()
 })
 </script>
 
@@ -281,7 +321,7 @@ watch(data, () => {
               <div class="center-glow-wrap">
                 <div class="core-node" ref="centerNodeRef">
                   <el-icon class="core-icon" :class="{ 'is-loading': loading }">
-                    <component :is="loading ? 'Loading' : 'Goods'" />
+                    <component :is="coreIconComponent" />
                   </el-icon>
                   <span class="core-name">{{ loading ? '分析中...' : data?.item }}</span>
                 </div>

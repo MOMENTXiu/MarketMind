@@ -1,19 +1,30 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import http from '@/utils/http'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
-import { ArrowLeft, User, ShoppingCart, TrendCharts, Search, MagicStick } from '@element-plus/icons-vue'
+import { ArrowLeft, User, ShoppingCart, TrendCharts, Search, MagicStick, Folder } from '@element-plus/icons-vue'
+import {
+  getApiErrorMessage,
+  getRetailProject,
+  getRetailProjectStatusConfig,
+  isActiveRetailProjectStatus,
+  listRetailArtifacts,
+  listRetailRecommendations,
+  normalizeRetailProjectStatus,
+  runRetailAnalysis,
+  type ApiRef
+} from '../api'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent])
 
 const route = useRoute()
 const router = useRouter()
+const projectId = computed(() => String(route.params.id))
 
 // --- Interfaces ---
 interface ForecastRow { week: number; date?: string; sales: number; profit: number; profit_rate?: number }
@@ -24,6 +35,8 @@ interface Project { id: string; name: string; description?: string; dataset_file
 // --- State ---
 const project = ref<Project | null>(null)
 const loading = ref(false)
+const artifacts = ref<ApiRef[]>([])
+let pollingTimer: number | undefined
 
 // Drill-down State
 const selectedClusterId = ref<number | null>(null)
@@ -84,14 +97,73 @@ const forecastOption = computed(() => {
   }
 })
 
+const projectStatusConfig = computed(() => getRetailProjectStatusConfig(project.value?.status))
+const projectStatusClass = computed(() => normalizeRetailProjectStatus(project.value?.status))
+const isProjectRunning = computed(() => isActiveRetailProjectStatus(project.value?.status))
+const visibleArtifactRefs = computed(() => artifacts.value.length ? artifacts.value : (project.value?.artifact_refs || []))
+const summaryEntries = computed(() => Object.entries(project.value?.summary || {}).slice(0, 8))
+const qualityEntries = computed(() => Object.entries(project.value?.quality_summary || {}).slice(0, 8))
+const stageStatuses = computed(() => project.value?.stage_statuses || [])
+
+const formatValue = (value: unknown) => {
+  if (value === undefined || value === null || value === '') return '-'
+  if (typeof value === 'number') return Number.isFinite(value) ? value.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) : '-'
+  if (typeof value === 'string') return value
+  if (typeof value === 'boolean') return value ? '是' : '否'
+  return JSON.stringify(value)
+}
+
+const normalizeArtifacts = (payload: { artifacts?: ApiRef[] } | ApiRef[]) => {
+  return Array.isArray(payload) ? payload : (payload.artifacts || [])
+}
+
+const loadArtifacts = async () => {
+  try {
+    const payload = await listRetailArtifacts(projectId.value)
+    artifacts.value = normalizeArtifacts(payload)
+  } catch {
+    artifacts.value = project.value?.artifact_refs || []
+  }
+}
+
+const refreshProject = async () => {
+  const data = await getRetailProject(projectId.value)
+  project.value = data as Project
+  if (!isActiveRetailProjectStatus(data.status)) {
+    await loadArtifacts()
+  }
+}
+
+const stopProjectPolling = () => {
+  if (pollingTimer !== undefined) {
+    window.clearInterval(pollingTimer)
+    pollingTimer = undefined
+  }
+}
+
+const pollProject = async () => {
+  try {
+    await refreshProject()
+    if (!isProjectRunning.value) stopProjectPolling()
+  } catch (error) {
+    stopProjectPolling()
+    ElMessage.error(`刷新项目状态失败: ${getApiErrorMessage(error)}`)
+  }
+}
+
+const startProjectPolling = () => {
+  stopProjectPolling()
+  pollingTimer = window.setInterval(pollProject, 2500)
+}
+
 // --- Methods ---
 const loadProject = async () => {
   loading.value = true
   try {
-    const { data } = await http.get(`/api/analysis/projects/${route.params.id}`)
-    if (data.success) project.value = data.data
+    await refreshProject()
+    if (isProjectRunning.value) startProjectPolling()
   } catch (error) {
-    ElMessage.error('加载项目失败')
+    ElMessage.error(`加载项目失败: ${getApiErrorMessage(error)}`)
     router.push('/projects')
   } finally { loading.value = false }
 }
@@ -103,12 +175,14 @@ const reanalyze = async () => {
       '重新分析确认',
       { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
     )
-    const { data } = await http.post(`/api/analysis/projects/${route.params.id}/run`)
-    if (data.success) {
-      ElMessage.success('重新分析任务已启动')
-      setTimeout(loadProject, 1000)
+    project.value = await runRetailAnalysis(projectId.value) as Project
+    ElMessage.success('重新分析任务已启动')
+    startProjectPolling()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(`启动失败: ${getApiErrorMessage(error)}`)
     }
-  } catch (e) {}
+  }
 }
 
 const fetchClusterCustomers = async (clusterId: number) => {
@@ -142,10 +216,8 @@ const updateRecommendation = async () => {
   if (!selectedAntecedent.value) return
   recLoading.value = true
   try {
-    const { data } = await http.get(`/api/analysis/projects/${route.params.id}/recommendations`, {
-      params: { top_k: 100 }
-    })
-    const recommendations = data.data?.recommendations || []
+    const data = await listRetailRecommendations(projectId.value, { top_k: 100 })
+    const recommendations = data.recommendations || []
     recommendedItems.value = recommendations
       .filter((recommendation: any) => recommendation.item !== selectedAntecedent.value)
       .map((recommendation: any) => ({
@@ -185,6 +257,7 @@ const extractName = (fullName: string) => {
 const fmtCurrency = (val?: number) => (val === undefined || val === null || Number.isNaN(val)) ? '-' : `${val.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`
 
 onMounted(() => { loadProject() })
+onUnmounted(() => { stopProjectPolling() })
 </script>
 
 <template>
@@ -212,19 +285,62 @@ onMounted(() => { loadProject() })
             <div class="meta-segment">
               <span class="m-label">处理状态：</span>
               <div class="status-wrap-micro">
-                <span class="status-dot-nano" :class="project?.status"></span>
-                <span class="m-value">{{ project?.status }}</span>
+                <span class="status-dot-nano" :class="projectStatusClass"></span>
+                <span class="m-value">{{ projectStatusConfig.label }}</span>
               </div>
             </div>
           </div>
         </div>
         <div class="header-actions">
-          <el-button @click="reanalyze" :loading="project?.status === '处理中'" plain round>重新分析</el-button>
+          <el-button @click="reanalyze" :loading="isProjectRunning" plain round>重新分析</el-button>
           <el-button type="primary" round @click="$router.push(`/projects/${project?.id}/recommend`)">智能查询</el-button>
         </div>
       </header>
 
       <main v-if="project" class="detail-content-flow">
+        <section class="section-block overview-section">
+          <div class="section-header-modern compact">
+            <div class="title-with-icon">
+              <el-icon class="icon-main"><TrendCharts /></el-icon>
+              <div>
+                <h3>项目概览</h3>
+                <p>{{ project.error || '后端分析状态与公开结果摘要' }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="overview-grid">
+            <div class="overview-panel">
+              <h4>摘要</h4>
+              <div v-if="summaryEntries.length" class="kv-list">
+                <div v-for="([key, value]) in summaryEntries" :key="key" class="kv-row">
+                  <span>{{ key }}</span>
+                  <strong>{{ formatValue(value) }}</strong>
+                </div>
+              </div>
+              <el-empty v-else description="暂无摘要" :image-size="56" />
+            </div>
+
+            <div class="overview-panel">
+              <h4>数据质量</h4>
+              <div v-if="qualityEntries.length" class="kv-list">
+                <div v-for="([key, value]) in qualityEntries" :key="key" class="kv-row">
+                  <span>{{ key }}</span>
+                  <strong>{{ formatValue(value) }}</strong>
+                </div>
+              </div>
+              <el-empty v-else description="暂无质量数据" :image-size="56" />
+            </div>
+          </div>
+
+          <div class="stage-strip" v-if="stageStatuses.length">
+            <div v-for="stage in stageStatuses" :key="stage.stage" class="stage-chip" :class="stage.status">
+              <span>{{ stage.stage }}</span>
+              <strong>{{ stage.status }}</strong>
+            </div>
+          </div>
+        </section>
+
         <!-- 1. KPI & Forecast Bento -->
         <section class="section-block grid-dashboard">
           <div class="stats-col">
@@ -246,6 +362,26 @@ onMounted(() => { loadProject() })
               <h3><el-icon><TrendCharts /></el-icon> 销售趋势预估</h3>
             </div>
             <v-chart :option="forecastOption" autoresize class="dashboard-chart" />
+          </div>
+        </section>
+
+        <section v-if="visibleArtifactRefs.length" class="section-block artifacts-section">
+          <div class="section-header-modern compact">
+            <div class="title-with-icon">
+              <el-icon class="icon-main"><Folder /></el-icon>
+              <div>
+                <h3>分析产物</h3>
+                <p>通过后端公开 ref 和 URL 访问</p>
+              </div>
+            </div>
+          </div>
+          <div class="artifact-grid">
+            <div v-for="ref in visibleArtifactRefs" :key="ref.id" class="artifact-card">
+              <span class="artifact-type">{{ ref.type || 'artifact' }}</span>
+              <strong>{{ ref.name || ref.id }}</strong>
+              <small>{{ ref.id }}</small>
+              <a v-if="ref.url" :href="ref.url" target="_blank" rel="noreferrer">打开</a>
+            </div>
           </div>
         </section>
 
@@ -524,9 +660,10 @@ html.dark .m-value { color: #A1A1A6; }
   background: #94a3b8;
 }
 
-.status-dot-nano.已完成 { background: #10b981; }
-.status-dot-nano.处理中 { background: #f59e0b; }
-.status-dot-micro.失败 { background: #ef4444; }
+.status-dot-nano.queued { background: #94a3b8; }
+.status-dot-nano.processing { background: #f59e0b; }
+.status-dot-nano.completed { background: #10b981; }
+.status-dot-nano.failed { background: #ef4444; }
 
 .mini-divider {
   width: 1px;
@@ -542,6 +679,28 @@ html.dark .mini-divider {
 
 .section-block { background: var(--color-surface); border-radius: 32px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); margin-bottom: 32px; border: 1px solid var(--border-subtle); }
 html.dark .section-block { background: var(--color-surface); border-color: var(--border-subtle); }
+
+.section-header-modern.compact { margin-bottom: 20px; }
+.overview-section { display: flex; flex-direction: column; gap: 24px; }
+.overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.overview-panel { background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 20px; padding: 20px; min-height: 180px; }
+.overview-panel h4 { margin: 0 0 14px 0; font-size: 0.9rem; color: var(--text-primary); }
+.kv-list { display: flex; flex-direction: column; gap: 10px; }
+.kv-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 0.82rem; color: var(--text-tertiary); }
+.kv-row strong { color: var(--text-primary); text-align: right; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stage-strip { display: flex; flex-wrap: wrap; gap: 10px; }
+.stage-chip { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: var(--color-bg-base); border: 1px solid var(--border-subtle); font-size: 0.75rem; color: var(--text-tertiary); }
+.stage-chip strong { color: var(--text-primary); }
+.stage-chip.completed strong { color: #10b981; }
+.stage-chip.processing strong { color: #f59e0b; }
+.stage-chip.failed strong { color: #ef4444; }
+.stage-chip.skipped strong { color: #94a3b8; }
+.artifact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.artifact-card { display: flex; flex-direction: column; gap: 6px; background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 18px; padding: 16px; min-height: 130px; }
+.artifact-card strong { color: var(--text-primary); font-size: 0.95rem; }
+.artifact-card small { color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.artifact-card a { margin-top: auto; color: var(--color-accent); font-weight: 700; font-size: 0.82rem; }
+.artifact-type { width: fit-content; color: var(--color-accent); background: var(--color-accent-soft); border-radius: 999px; padding: 2px 8px; font-size: 0.7rem; font-weight: 800; }
 
 /* Dashboard Grid */
 .grid-dashboard { display: grid; grid-template-columns: 300px 1fr; gap: 32px; }

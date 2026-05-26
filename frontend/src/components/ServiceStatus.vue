@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { getHealth } from '../api'
 
 // --- 1. 类型定义 ---
 type StatusLevel = 'healthy' | 'degraded' | 'down'
@@ -19,9 +20,13 @@ const calcOverallStatus = (services: ServiceNode[]): StatusLevel => {
   if (!core || core.status === 'down') {
     return 'down'
   }
+  if (core.status === 'degraded') {
+    return 'degraded'
+  }
 
   // Filter out core to check sub-services
   const subServices = services.filter(s => s.id !== 'core')
+  if (subServices.length === 0) return core.status
 
   // Rule 2: Core is healthy/degraded
   const allHealthy = subServices.every(s => s.status === 'healthy')
@@ -37,29 +42,25 @@ const calcOverallStatus = (services: ServiceNode[]): StatusLevel => {
 // --- 3. 模拟数据与逻辑 ---
 const loading = ref(false)
 const services = ref<ServiceNode[]>([])
+let statusTimer: number | undefined
 
-// 模拟 API 调用
 const fetchStatus = async () => {
   loading.value = true
+  const startedAt = performance.now()
   try {
-    // 实际项目中替换为 axios.get('/api/status')
-    // 这里使用模拟数据演示逻辑
-    await new Promise(r => setTimeout(r, 800))
-
-    // Mock Data
-    const mockData: ServiceNode[] = [
-      { id: 'core', name: 'Core API', status: 'healthy', latency: 45 },
-      { id: 'analysis', name: '数据分析引擎', status: 'healthy', latency: 120 },
-      { id: 'llm', name: 'LLM 服务', status: 'degraded', latency: 1500 } // 模拟延迟高
-    ]
-
-    services.value = mockData
-  } catch (e) {
-    // Fallback if API fails
+    const health = await getHealth()
+    const latency = Math.round(performance.now() - startedAt)
     services.value = [
-      { id: 'core', name: 'Core API', status: 'down' },
-      { id: 'analysis', name: '数据分析引擎', status: 'down' },
-      { id: 'llm', name: 'LLM 服务', status: 'down' }
+      {
+        id: 'core',
+        name: health.service || 'Core API',
+        status: health.status === 'healthy' ? 'healthy' : 'degraded',
+        latency
+      }
+    ]
+  } catch {
+    services.value = [
+      { id: 'core', name: 'Core API', status: 'down' }
     ]
   } finally {
     loading.value = false
@@ -85,8 +86,14 @@ const getStatusLabel = (s: StatusLevel) => {
 
 onMounted(() => {
   fetchStatus()
-  // 轮询 (可选)
-  setInterval(fetchStatus, 30000)
+  statusTimer = window.setInterval(fetchStatus, 30000)
+})
+
+onUnmounted(() => {
+  if (statusTimer !== undefined) {
+    window.clearInterval(statusTimer)
+    statusTimer = undefined
+  }
 })
 </script>
 

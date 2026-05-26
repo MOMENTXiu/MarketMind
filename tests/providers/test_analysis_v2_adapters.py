@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -108,6 +109,27 @@ def test_local_analysis_artifact_adapter_returns_opaque_url_without_local_path(
     _assert_opaque_ref(ref.url, ref.storage_key)
     assert (tmp_path / "data/projects/project-1/analysis/artifacts/markdown/report.md").exists()
     assert adapter.resolve_artifact("project-1", ref.id) == ref
+
+
+def test_local_analysis_artifact_adapter_serializes_pandas_json_payload(
+    tmp_path: Path,
+) -> None:
+    adapter = LocalAnalysisArtifactAdapter(str(tmp_path / "data"))
+
+    ref = adapter.save_json(
+        "project-1",
+        "overview",
+        {
+            "daily_sales": {pd.Timestamp("2024-01-01"): 100.0},
+            "updated_at": pd.Timestamp("2024-01-02T03:04:05"),
+        },
+    )
+
+    path = tmp_path / "data/projects/project-1/analysis/artifacts/json/overview.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert ref.id == "json:overview.json"
+    assert payload["daily_sales"] == {"2024-01-01T00:00:00": 100.0}
+    assert payload["updated_at"] == "2024-01-02T03:04:05"
 
 
 def test_local_analysis_model_store_ref_roundtrip(tmp_path: Path) -> None:

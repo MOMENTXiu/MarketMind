@@ -6,7 +6,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from backend.business.pipelines.dataset_regularization_pipeline import DatasetRegularizationPipeline
+from backend.business.pipelines.dataset_regularization_pipeline import (
+    DatasetRegularizationPipeline,
+    _has_blocking_schema_review,
+)
 from backend.business.pipelines.universal_overview_pipeline import UniversalOverviewPipeline
 from backend.providers.container import ProvidersContainer
 from tests.fakes.providers import (
@@ -69,6 +72,20 @@ class TestDatasetRegularizationPipeline:
 
         assert result.needs_review is False or result.needs_review is True
         assert result.capability.get("can_run_sales_stats") is True
+
+    def test_optional_need_review_mappings_do_not_block_analysis(self) -> None:
+        mapping_detail = [
+            {"standard_field": "region", "status": "need_review"},
+            {"standard_field": "discount", "status": "need_review"},
+            {"standard_field": "item_type", "status": "need_review"},
+        ]
+
+        assert _has_blocking_schema_review(mapping_detail) is False
+
+    def test_core_need_review_mapping_blocks_analysis(self) -> None:
+        mapping_detail = [{"standard_field": "user_id", "status": "need_review"}]
+
+        assert _has_blocking_schema_review(mapping_detail) is True
 
 
 class TestUniversalOverviewPipeline:

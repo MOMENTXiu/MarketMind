@@ -2,23 +2,18 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import http from '@/utils/http'
 import { Search, Delete, Folder, Plus, FolderOpened, ArrowRight } from '@element-plus/icons-vue'
+import {
+  deleteRetailProject,
+  getApiErrorMessage,
+  getRetailProjectStatusConfig,
+  listRetailProjects,
+  type RetailProject
+} from '../api'
 
 const router = useRouter()
 
-interface Project {
-  id: string
-  name: string
-  description?: string
-  dataset_filename?: string
-  dataset_ref?: { name?: string } | null
-  status: string
-  created_at: string
-  updated_at: string
-}
-
-const projects = ref<Project[]>([])
+const projects = ref<RetailProject[]>([])
 const loading = ref(false)
 const searchQuery = ref('')
 
@@ -26,12 +21,10 @@ const searchQuery = ref('')
 const loadProjects = async () => {
   loading.value = true
   try {
-    const response = await http.get('/api/analysis/projects')
-    if (response.data.success) {
-      projects.value = response.data.data.projects
-    }
+    const result = await listRetailProjects()
+    projects.value = result.projects
   } catch (error) {
-    ElMessage.error('无法获取项目数据')
+    ElMessage.error(`无法获取项目数据: ${getApiErrorMessage(error)}`)
   } finally {
     loading.value = false
   }
@@ -59,17 +52,18 @@ const deleteProject = async (e: Event, id: string, name: string) => {
       }
     )
 
-    const response = await http.delete(`/api/analysis/projects/${id}`)
-    if (response.data.success) {
-      ElMessage.success('项目已删除')
-      loadProjects()
+    await deleteRetailProject(id)
+    ElMessage.success('项目已删除')
+    await loadProjects()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(`删除失败: ${getApiErrorMessage(error)}`)
     }
-  } catch (error: any) {
-    // cancelled
   }
 }
 
-const formatDate = (dateStr: string) => {
+const formatDate = (dateStr?: string | null) => {
+  if (!dateStr) return '-'
   const date = new Date(dateStr)
   return date.toLocaleDateString('zh-CN', {
     month: 'short',
@@ -81,17 +75,7 @@ const formatDate = (dateStr: string) => {
 
 // Status Styling
 const getStatusConfig = (status: string) => {
-  const map: Record<string, { color: string, label: string }> = {
-    queued: { color: '#9CA3AF', label: '待处理' },
-    processing: { color: '#F59E0B', label: '进行中' },
-    completed: { color: '#10B981', label: '已完成' },
-    failed: { color: '#EF4444', label: '失败' },
-    '待处理': { color: '#9CA3AF', label: '待处理' },
-    '处理中': { color: '#F59E0B', label: '进行中' },
-    '已完成': { color: '#10B981', label: '已完成' },
-    '失败': { color: '#EF4444', label: '失败' }
-  }
-  return map[status] || { color: '#9CA3AF', label: status }
+  return getRetailProjectStatusConfig(status)
 }
 
 onMounted(() => {

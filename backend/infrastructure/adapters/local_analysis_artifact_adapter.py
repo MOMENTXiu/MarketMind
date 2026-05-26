@@ -1,6 +1,7 @@
 """Local project-scoped Analysis V2 artifact adapter."""
 
 import json
+import math
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -72,7 +73,7 @@ class LocalAnalysisArtifactAdapter:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(
-                json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+                json.dumps(_to_jsonable(payload), ensure_ascii=False, indent=2, sort_keys=True),
                 encoding="utf-8",
             )
         except (OSError, TypeError, ValueError) as error:
@@ -146,3 +147,26 @@ class LocalAnalysisArtifactAdapter:
         if default_suffix is not None and path.suffix == "":
             return f"{name}{default_suffix}"
         return name
+
+
+def _to_jsonable(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(_to_jsonable(key)): _to_jsonable(inner) for key, inner in value.items()}
+    if isinstance(value, list | tuple):
+        return [_to_jsonable(inner) for inner in value]
+    if isinstance(value, str | int | bool) or value is None:
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, pd.DataFrame):
+        return _to_jsonable(value.to_dict(orient="records"))
+    item = getattr(value, "item", None)
+    if callable(item):
+        try:
+            return _to_jsonable(item())
+        except (TypeError, ValueError):
+            pass
+    isoformat = getattr(value, "isoformat", None)
+    if callable(isoformat):
+        return isoformat()
+    return str(value)
