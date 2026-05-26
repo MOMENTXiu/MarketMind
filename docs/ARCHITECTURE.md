@@ -7,14 +7,14 @@ MarketMind is a Vue 3 + FastAPI retail marketing system. The backend now uses a 
 ```text
 Browser / Vue 3
   -> FastAPI Controller
-  -> Business Pipeline or ProjectAnalysisFlow
+  -> Business Pipeline or RetailAnalysisFlow
   -> Ability Atom
   -> Provider Interface / ProvidersContainer
   -> Infrastructure Adapter
   -> local files, JSON storage, Edge TTS, LLM HTTP APIs
 ```
 
-`ProjectAnalysisFlow` is the only Business Flow because upload/reanalysis is a background lifecycle with status transitions, multiple analysis stages, generated artifacts, model refresh, and failure handling. CRUD, recommendation, association, voice, and read-model paths use Business Pipelines.
+`RetailAnalysisFlow` is the main Analysis V2 Business Flow because upload/reanalysis is a background lifecycle with status transitions, multiple retail analysis stages, generated artifacts, model persistence, and failure handling. Voice and AI broadcast paths remain separate Business Pipelines.
 
 ## Backend Layers
 
@@ -22,9 +22,9 @@ Browser / Vue 3
 | --- | --- | --- |
 | API Controller | `backend/api/` | Parse HTTP input, call one pipeline/flow, map internal errors to current FastAPI responses. |
 | Business Orchestration | `backend/business/pipelines/`, `backend/business/flows/` | Coordinate use cases and preserve status/side-effect ordering. No SDK, storage client, or FastAPI response construction. |
-| Ability Atom | `backend/abilities/` | Pure or provider-backed atomic actions: association rules, forecast, clustering, recommendations, report text, voice text/TTS. |
-| Provider Boundary | `backend/providers/` | Protocols, DTOs, and frozen `ProvidersContainer` for repository, file, model, dataset, LLM, TTS, jobs, and telemetry. |
-| Infrastructure | `backend/infrastructure/` | Concrete adapters for JSON storage, local files/assets, CSV/rules/model artifacts, Edge TTS, OpenAI/Anthropic-compatible LLMs, background jobs, telemetry. |
+| Ability Atom | `backend/abilities/` | Pure atomic analysis actions, including Retail V2 cleaning, feature engineering, segmentation, association/HUIM, recommendation, marketer insight, and voice/report helpers. |
+| Provider Boundary | `backend/providers/` | Protocols, DTOs, and frozen `ProvidersContainer` for repository, files, generated assets, datasets, retail datasets, analysis artifacts, analysis models, recommendation models, LLM, TTS, jobs, and telemetry. |
+| Infrastructure | `backend/infrastructure/` | Concrete adapters for JSON storage, local files/assets, CSV/rules/model artifacts, Retail CSV datasets, local Analysis V2 artifacts/models, Edge TTS, OpenAI/Anthropic-compatible LLMs, background jobs, telemetry. |
 | Core | `backend/core/` | Settings, internal errors, legacy storage compatibility, and runtime check CLI. |
 
 ## Key Directories
@@ -34,28 +34,24 @@ backend/
   api/
     dependencies.py        # Provider/pipeline dependency factories
     error_mapping.py       # MarketMindError -> HTTPException mapping
-    projects.py            # Thin HTTP boundary for project resources
-    association.py
-    recommend.py
+    analysis.py            # Retail Analysis V2 HTTP boundary
     voice.py
     ai_voice.py
-    prediction.py          # Inactive router; not registered in main.py
-    clustering.py          # Inactive router; not registered in main.py
   business/
-    flows/project_analysis_flow.py
+    flows/retail_analysis_flow.py
+    flows/retail_analysis_state.py
     pipelines/
-      project_pipeline.py
-      dataset_upload_pipeline.py
-      project_read_pipelines.py
-      recommendation_pipeline.py
-      association_analysis_pipeline.py
+      retail_dataset_preparation_pipeline.py
+      retail_feature_engineering_pipeline.py
+      retail_segmentation_pipeline.py
+      retail_association_pipeline.py
+      retail_recommendation_pipeline.py
+      retail_marketer_insight_pipeline.py
+      retail_report_pipeline.py
       voice_synthesis_pipeline.py
       ai_voice_broadcast_pipeline.py
   abilities/
-    association/
-    prediction/
-    clustering/
-    recommendation/
+    retail/
     report/
     voice/
   providers/
@@ -71,7 +67,6 @@ backend/
     errors.py
     runtime_checks.py
     storage.py
-  services/                # Legacy services retained for compatible handlers/adapters
 ```
 
 Frontend:
@@ -96,45 +91,36 @@ Base URL in local development is `http://localhost:8000/api`. API docs are serve
 | Area | Active Routes |
 | --- | --- |
 | Health | `GET /`, `GET /api/health/` |
-| Projects | `POST /api/projects/`, `GET /api/projects/`, `GET/PUT/DELETE /api/projects/{id}/` |
-| Upload / lifecycle | `POST /api/projects/{id}/upload/`, `POST /api/projects/{id}/reanalyze/` |
-| Project outputs | `GET /api/projects/{id}/download/report/`, `GET /api/projects/{id}/audio/`, `GET /api/projects/{id}/customers/` |
-| Project recommendation | `GET /api/projects/{id}/recommend/` |
-| Association | `POST /api/association/analyze/`, `GET /api/association/status/` |
-| Recommendation | `GET /api/recommend/user/`, `GET /api/recommend/item/`, `POST /api/recommend/calculate/`, `POST /api/recommend/tts/play/` |
+| Retail Analysis V2 projects | `POST /api/analysis/projects`, `GET /api/analysis/projects`, `GET/DELETE /api/analysis/projects/{id}` |
+| Retail Analysis V2 dataset/lifecycle | `POST /api/analysis/projects/{id}/dataset`, `POST /api/analysis/projects/{id}/run`, `GET /api/analysis/projects/{id}/status` |
+| Retail Analysis V2 outputs | `GET /api/analysis/projects/{id}/artifacts/{artifact_id}`, `GET /api/analysis/projects/{id}/datasets/{dataset_id}`, `GET /api/analysis/projects/{id}/models/{model_type}/{version}` |
+| Retail Analysis V2 read models | `GET /api/analysis/projects/{id}/recommendations`, `GET /api/analysis/projects/{id}/marketer-insights` |
 | Voice | `POST /api/voice/tts/`, `POST /api/voice/generate/`, `GET /api/voice/status/` |
 | AI voice | `POST /api/ai-voice/broadcast/`, `POST /api/tts/`, `GET /api/ai-voice/audio/{filename}/` |
 
-`backend/api/prediction.py` and `backend/api/clustering.py` remain inactive and are not registered in `backend/main.py`.
+Legacy `/api/projects`, `/api/recommend`, and `/api/association` routes are retired and intentionally return 404.
 
 ## Main Flows
 
-Project upload:
+Retail Analysis V2 lifecycle:
 
 ```text
-POST /api/projects/{id}/upload/
-  -> DatasetUploadPipeline
-  -> ProjectRepositoryProvider + ProjectFileStorageProvider
+POST /api/analysis/projects/{id}/dataset
+  -> RetailAnalysisFlow.upload_dataset
+  -> RetailDatasetPreparationPipeline
+  -> RetailDatasetProvider + AnalysisArtifactProvider
   -> AnalysisJobProvider
-  -> ProjectAnalysisFlow background handler
+  -> RetailAnalysisFlow scheduled handler
 ```
 
-Project analysis:
+Retail Analysis V2 analysis:
 
 ```text
-ProjectAnalysisFlow
-  -> association / forecast / clustering / report / voice / recommendation-model steps
-  -> generated files and model artifacts through providers/adapters
-  -> project status 已完成 or 失败
-```
-
-Recommendation:
-
-```text
-Controller
-  -> RecommendationPipeline or ProjectRecommendationPipeline
-  -> recommendation / association abilities
-  -> model, rule, dataset, asset, speech providers
+RetailAnalysisFlow
+  -> feature engineering / segmentation / association / recommendation / marketer insight / report pipelines
+  -> retail ability atoms
+  -> generated Analysis V2 refs through AnalysisArtifactProvider and AnalysisModelStoreProvider
+  -> project status pending, processing, completed, or failed
 ```
 
 Voice and AI broadcast:
@@ -153,10 +139,13 @@ Controller
 - Project workspace: `data/projects/{project_id}/`
 - Uploaded dataset: `data/projects/{project_id}/dataset.csv`
 - Project reports/audio/customers: `data/projects/{project_id}/outputs/` and `data/projects/{project_id}/customers.csv`
+- Retail Analysis V2 datasets/artifacts/models: `data/projects/{project_id}/analysis/...`
 - Global static assets: `outputs/`
 - AI voice audio lookup: `/tmp/{filename}` then `backend/data/audio/{filename}`
 - Recommendation model artifact: `backend/data/model_data.pkl`
 - Dynamic rules: `backend/data/dynamic_rules.csv`
+
+`analysis/` is an algorithm blueprint/reference directory. Backend runtime code must not import `analysis/code_files` directly and must not write runtime outputs to `analysis/output`.
 
 ## Quality And Runtime Checks
 
@@ -179,6 +168,9 @@ uv run python -m backend.core.runtime_checks check-config
 uv run python -m backend.core.runtime_checks check-providers
 uv run python -m backend.core.runtime_checks validate-api-schemas
 uv run python -m backend.core.runtime_checks check-telemetry
+uv run python -m backend.core.runtime_checks check-analysis-artifacts --sandbox
+uv run python -m backend.core.runtime_checks check-retail-analysis --sample
+uv run python -m backend.core.runtime_checks check-analysis-optional-runtime
 ```
 
-Architecture import rules are enforced by `tests/test_architecture_imports.py`. Current backend pytest coverage is 104 tests.
+Architecture import rules are enforced by `tests/test_architecture_imports.py`. Current backend pytest coverage is 123 tests.

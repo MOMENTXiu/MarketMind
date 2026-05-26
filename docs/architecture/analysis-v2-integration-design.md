@@ -331,7 +331,7 @@ Implementation rollback should be stage-based:
 
 | Risk | Required Action |
 |---|---|
-| `analysis/README.md` still says `analysis_2/`. | Update during cleanup after design acceptance. |
+| `analysis/README.md` directory name drift. | Resolved on 2026-05-26: README now names `analysis/` and states the directory is an algorithm blueprint, not a backend runtime entry. |
 | `config.py` hard-codes Windows path and creates dirs at import. | Do not import it from backend; extract constants/logic into Settings and adapters. |
 | Source scripts mix algorithms, plotting, file IO, and orchestration. | Split into Ability, Pipeline, Adapter, Report Renderer. |
 | Heavy dependencies are not declared. | Add dependency strategy before advanced abilities enter backend runtime. |

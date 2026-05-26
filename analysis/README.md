@@ -1,10 +1,12 @@
-# analysis_2 · 超市营销推荐系统（建模与因果分析）
+# analysis · 超市营销推荐系统（建模与因果分析）
 
 基于超市销售明细（42,816 行 / 2,611 顾客 / 2025-01~04）的双端智能营销推荐系统：对消费者做可解释个性化推荐，对营销者做因果驱动的精准决策。
 
+本目录是 Analysis V2 算法蓝本与实验参考，不是后端 runtime 入口。后端可调用实现应落在 `backend/abilities/`、`backend/business/`、`backend/providers/`、`backend/infrastructure/` 等架构层中。
+
 ## 目录结构
 ```
-analysis_2/
+analysis/
 ├── code_files/          # 15 个 Python 脚本 + project_plan.md
 │   ├── config.py                  通用配置 / OriginLab 风格 / CRITIC-TOPSIS 工具
 │   ├── causal_dml.py              双重机器学习(DML)因果工具（含自检）

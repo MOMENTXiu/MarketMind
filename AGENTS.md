@@ -57,10 +57,13 @@ Before commit:
 - Treat echo-only Makefile targets as placeholders, not proof that verification passed.
 - Use package managers detected by repo setup unless project files change.
 - Current `make check` includes backend Ruff lint, backend Ruff format check, backend pytest, and frontend `npm run build`.
-- Current backend test baseline is 104 pytest tests across API contracts, controller thinness, business pipelines, `ProjectAnalysisFlow`, ability atoms, provider adapters, runtime checks, and architecture import rules.
-- The backend architecture baseline is `API Controller -> Business Pipeline/ProjectAnalysisFlow -> Ability Atom -> Provider Interface -> Infrastructure Adapter`.
+- Current backend test baseline is 123 pytest tests across API contracts, controller thinness, Retail V2 flows/pipelines, ability atoms, provider adapters, runtime checks, and architecture import rules.
+- The backend architecture baseline is `API Controller -> Business Pipeline/RetailAnalysisFlow -> Ability Atom -> Provider Interface -> Infrastructure Adapter`.
 - Key architecture paths: `backend/business/pipelines/`, `backend/business/flows/`, `backend/abilities/`, `backend/providers/`, `backend/infrastructure/`, and `backend/core/runtime_checks.py`.
-- `backend/api/prediction.py` and `backend/api/clustering.py` are inactive routers; do not register or expose them without a separate protected task.
-- `backend/services/*` contains legacy compatibility services that are still referenced by provider factory / flow paths; do not delete or rewrite them unless reference search and tests prove the path is unreachable.
+- Analysis V2 / Retail V2 work is tracked in `docs/architecture/analysis-v2-integration-design.md` and `docs/architecture/analysis-v2-integration-checklist.md`; `analysis/` is an algorithm blueprint/reference directory, not a backend runtime entry.
+- Current Analysis V2 API contract anchor is `tests/api/test_retail_analysis_contracts.py`; it guards `/api/analysis` schema/status/artifact/list/delete behavior plus retired old-route absence.
+- `/api/projects`, `/api/recommend`, and `/api/association` are retired; frontend project/recommendation views must use `/api/analysis` endpoints and graceful Retail V2 empty states.
+- `analysis/code_files` is excluded from Ruff lint/format because `analysis/` is a reference blueprint directory, not backend runtime code.
+- Legacy `backend/api/{projects,recommend,association,prediction,clustering}.py`, old project/recommend/association business flow/pipelines, and `backend/services/*` were deleted after import search; do not reintroduce compatibility wrappers.
 - Do not bypass `.editorconfig`, `.gitignore`, pre-commit, or CI rules.
 - Expand this file only when a stable convention is confirmed by project files or user decision.

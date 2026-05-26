@@ -26,7 +26,7 @@ Current configured checks:
 - Backend tests: `uv run pytest`
 - Frontend build/type validation: `cd frontend && npm run build`
 
-Current backend test baseline is 104 pytest tests covering API contracts, controller thinness, business pipelines, `ProjectAnalysisFlow`, ability atoms, provider adapters, runtime checks, and architecture import rules.
+Current backend test baseline is 123 pytest tests covering API contracts, controller thinness, Retail V2 flows/pipelines, ability atoms, provider adapters, runtime checks, and architecture import rules.
 
 `make check` is the canonical local gate because it combines backend lint, backend format check, backend tests, and frontend build/type validation.
 

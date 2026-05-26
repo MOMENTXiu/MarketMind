@@ -1,5 +1,7 @@
 # Backend Architecture Construction Checklist
 
+> Status note (2026-05-26): This checklist is a historical record for the earlier backend architecture migration. The current Analysis V2 baseline is tracked in `docs/architecture/analysis-v2-integration-checklist.md`, and the live architecture overview is `docs/ARCHITECTURE.md`. Current quality gate: `make check` passes with Ruff check, Ruff format check, 123 pytest tests, and frontend build; `backend/services/*` and the old project/recommend/association API chain are retired.
+
 本清单用于后续 `/backend` 架构迁移。当前阶段只创建文档，不迁移业务代码。
 
 执行规则：

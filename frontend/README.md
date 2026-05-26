@@ -119,14 +119,14 @@ VITE_API_TIMEOUT=30000
 ## API 调用示例
 
 ```typescript
-import { associationApi } from '@/api/association'
+import axios from 'axios'
 
-// 执行关联规则分析
-const result = await associationApi.analyze({
-  min_support: 0.02,
-  min_confidence: 0.3,
-  min_lift: 1.0,
-  top_n: 10
+const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL })
+
+// 创建 Retail Analysis V2 项目
+const project = await api.post('/analysis/projects', {
+  name: 'Retail analysis',
+  description: 'Store transaction analysis'
 })
 ```
 

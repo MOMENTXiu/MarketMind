@@ -1,5 +1,7 @@
 # Backend Architecture Change Plan
 
+> Status note (2026-05-26): This document is a historical migration record for the pre-Analysis V2 backend architecture refactor. For the current Retail V2 runtime baseline, use `docs/ARCHITECTURE.md` and `docs/architecture/analysis-v2-integration-checklist.md`. The active analysis path is `/api/analysis` -> `RetailAnalysisFlow` -> retail pipelines/abilities -> provider interfaces -> infrastructure adapters; legacy `/api/projects`, `/api/recommend`, `/api/association`, inactive prediction/clustering controllers, and `backend/services/*` are retired.
+
 ## 1. Scope
 
 本文件记录 `/backend` 后端架构重构的设计、迁移路径、行为锚点和当前实现状态。最初阶段只允许文档规划；截至 2026-05-25，Phase 5-9 已完成代码迁移，当前运行路径已经采用分层架构。

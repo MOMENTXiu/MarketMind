@@ -72,9 +72,9 @@ make test
 make build
 ```
 
-Current baseline after the architecture migration:
+Current baseline after the Analysis V2 migration:
 
-- Backend tests: 104 pytest tests
+- Backend tests: 123 pytest tests
 - Backend lint/format: Ruff
 - Frontend build/type validation: `npm run build` (`vue-tsc && vite build`)
 
@@ -89,23 +89,24 @@ uv run python -m backend.core.runtime_checks check-config
 uv run python -m backend.core.runtime_checks check-providers
 uv run python -m backend.core.runtime_checks validate-api-schemas
 uv run python -m backend.core.runtime_checks check-telemetry
+uv run python -m backend.core.runtime_checks check-analysis-artifacts --sandbox
+uv run python -m backend.core.runtime_checks check-retail-analysis --sample
+uv run python -m backend.core.runtime_checks check-analysis-optional-runtime
 ```
 
 ## Example Dataset
 
-Use `analysis/dataset.csv` for local exploration. Uploaded project datasets are copied to:
+Use `tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv` for Retail Analysis V2 smoke tests. Uploaded runtime datasets and generated outputs are project-scoped under:
 
 ```text
-data/projects/{project_id}/dataset.csv
+data/projects/{project_id}/analysis/...
 ```
 
-Supported upload file types:
+Supported upload file type:
 
 - `.csv`
-- `.xlsx`
-- `.xls`
 
-The analysis code expects transaction-oriented retail fields such as order id/date, customer id, item/subcategory, sales amount, quantity, discount, and profit.
+Retail Analysis V2 expects the Chinese raw retail sales columns defined by `RETAIL_RAW_SALES_COLUMNS` in `backend/providers/dtos.py`.
 
 ## Optional Streamlit Entry
 

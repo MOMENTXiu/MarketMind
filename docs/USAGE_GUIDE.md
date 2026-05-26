@@ -132,21 +132,24 @@ analysis/dataset.csv
 ## API 接口说明
 
 ### 项目管理
-- `POST /api/projects/` - 创建项目
-- `GET /api/projects/` - 获取项目列表
-- `GET /api/projects/{id}` - 获取项目详情
-- `PUT /api/projects/{id}` - 更新项目
-- `DELETE /api/projects/{id}` - 删除项目
+- `POST /api/analysis/projects` - 创建 Retail V2 分析项目
+- `GET /api/analysis/projects` - 获取分析项目列表
+- `GET /api/analysis/projects/{id}` - 获取项目详情
+- `DELETE /api/analysis/projects/{id}` - 删除项目
 
 ### 文件上传
-- `POST /api/projects/{id}/upload` - 上传数据集并开始分析
+- `POST /api/analysis/projects/{id}/dataset` - 上传 Retail V2 CSV 并完成数据准备
 
 ### 分析操作
-- `POST /api/projects/{id}/reanalyze` - 重新分析
+- `POST /api/analysis/projects/{id}/run` - 启动或复用分析任务
+- `GET /api/analysis/projects/{id}/status` - 获取阶段状态
 
-### 结果下载
-- `GET /api/projects/{id}/download/report` - 下载分析报告
-- `GET /api/projects/{id}/audio` - 获取语音文件
+### 结果读取
+- `GET /api/analysis/projects/{id}/recommendations` - 获取 Retail V2 推荐结果
+- `GET /api/analysis/projects/{id}/marketer-insights` - 获取营销者洞察
+- `GET /api/analysis/projects/{id}/artifacts/{artifact_id}` - 解析分析产物引用
+- `GET /api/analysis/projects/{id}/datasets/{dataset_id}` - 解析数据集引用
+- `GET /api/analysis/projects/{id}/models/{model_type}/{version}` - 解析模型引用
 
 ## 目录结构
 
@@ -160,7 +163,6 @@ MarketMind/
 │   ├── infrastructure/     # 本地文件、TTS、LLM、Telemetry 等 Adapter
 │   ├── core/               # 配置、内部错误、runtime checks
 │   ├── models/             # 项目模型和 API schemas
-│   ├── services/           # 兼容旧服务路径，仍被部分 handler/adapter 使用
 │   └── main.py             # 应用入口
 ├── frontend/              # 前端 Vue3 应用
 │   ├── src/
@@ -177,12 +179,8 @@ MarketMind/
 │   ├── projects.json     # 项目元数据
 │   └── projects/         # 项目文件夹
 │       └── {project_id}/
-│           ├── dataset.csv    # 数据集
-│           └── outputs/       # 输出文件
-│               ├── charts/    # 图表
-│               ├── reports/   # 报告
-│               └── audio/     # 语音文件
-└── analysis/              # 原始分析代码（参考）
+│           └── analysis/      # Retail V2 runtime 数据集、产物、模型
+└── analysis/              # Analysis V2 算法蓝本（参考，不是 runtime 入口）
 ```
 
 ## 开发状态
@@ -194,9 +192,8 @@ MarketMind/
 - 前后端架构重构
 - 多步表单创建流程
 - 项目详情页面
-- 销售预测 Ability
-- 客户聚类 Ability
-- 业务 Pipeline / ProjectAnalysisFlow / Provider Adapter 分层
+- Retail V2 清洗、特征工程、分群、关联/HUIM、推荐、营销洞察 Ability
+- 业务 Pipeline / RetailAnalysisFlow / Provider Adapter 分层
 
 ## 技术栈
 
