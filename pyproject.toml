@@ -56,19 +56,14 @@ include = '\.pyi?$'
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+exclude = ["analysis/code_files"]
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 ignore = ["E501"]
 
-# Legacy ML / statistics services: 行业约定的数学符号命名豁免
-# X / Y 为特征 / 标签矩阵（PEP 8 与 sklearn 文档约定），
-# R / F / M 为 RFM 模型三要素，Q1 / Q3 / IQR 为四分位距统计量，
-# K_range 为 K-Means 候选聚类数集合。强制小写会损害与统计学 / ML 文献的一致性。
-# 豁免范围严格限定为下述三个 legacy services，不扩散到其他模块。
-[tool.ruff.per-file-ignores]
-"backend/services/prediction_service.py" = ["N806", "N803"]
-"backend/services/clustering_service.py" = ["N806", "N803"]
-"backend/services/recommender_service.py" = ["N806", "N803"]
-"backend/services/model_builder_service.py" = ["N806", "N803"]
+# Retail signal math uses uppercase matrix symbols consistent with statistical notation.
+[tool.ruff.lint.per-file-ignores]
 "backend/abilities/retail/build_retail_recommendation_signals.py" = ["N806"]
 "backend/abilities/retail/rank_retail_recommendations.py" = ["N806"]
 

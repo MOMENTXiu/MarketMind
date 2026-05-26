@@ -15,10 +15,12 @@ import json
 import tempfile
 from dataclasses import fields
 from pathlib import Path
+from typing import Any
 
 from backend.core.config import Settings
 from backend.core.errors import MarketMindError
 from backend.providers.container import ProvidersContainer
+from backend.providers.dtos import LLMRequestDTO, LLMResponseDTO, SpeechSynthesisRequestDTO
 from backend.providers.telemetry_dtos import AuditEvent, DebugEvent, ErrorEvent
 
 
@@ -102,6 +104,200 @@ def cmd_check_storage(args: argparse.Namespace) -> int:
             return 1
 
     _emit("check-storage: ok sandbox=tmp")
+    return 0
+
+
+def cmd_check_analysis_artifacts(args: argparse.Namespace) -> int:
+    if not getattr(args, "sandbox", False):
+        _emit("check-analysis-artifacts: refusing to run without --sandbox")
+        return 1
+
+    from backend.infrastructure.adapters.local_analysis_artifact_adapter import (
+        LocalAnalysisArtifactAdapter,
+    )
+    from backend.infrastructure.adapters.local_analysis_model_store_adapter import (
+        LocalAnalysisModelStoreAdapter,
+    )
+
+    project_id = "runtime-artifacts"
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            artifacts = LocalAnalysisArtifactAdapter(tmp)
+            models = LocalAnalysisModelStoreAdapter(tmp)
+            json_ref = artifacts.save_json(project_id, "summary", {"ready": True})
+            markdown_ref = artifacts.save_markdown(project_id, "report", "# Runtime Check")
+            model_ref = models.save_model(project_id, "runtime_model", {"ready": True})
+
+            resolved_json = artifacts.resolve_artifact(project_id, json_ref.id)
+            loaded_model = models.load_model(project_id, "runtime_model")
+            resolved_model = models.resolve_model(project_id, "runtime_model")
+            refs = [json_ref, markdown_ref, model_ref]
+            if resolved_json is None or resolved_model is None or loaded_model != {"ready": True}:
+                _emit("check-analysis-artifacts: resolve/load mismatch")
+                return 1
+            for ref in refs:
+                if ref.project_id != project_id:
+                    _emit(f"check-analysis-artifacts: ref not project scoped: {ref.id}")
+                    return 1
+                if not ref.url.startswith(f"/api/analysis/projects/{project_id}/"):
+                    _emit(f"check-analysis-artifacts: non-opaque url: {ref.url}")
+                    return 1
+                if Path(ref.storage_key).is_absolute() or ".." in Path(ref.storage_key).parts:
+                    _emit(f"check-analysis-artifacts: unsafe storage key: {ref.storage_key}")
+                    return 1
+        except (MarketMindError, OSError, ValueError, TypeError) as exc:
+            _emit(f"check-analysis-artifacts: failed: {exc}")
+            return 1
+
+    _emit("check-analysis-artifacts: ok sandbox=tmp")
+    return 0
+
+
+class _RuntimeCheckSpeechProvider:
+    async def synthesize(self, request: SpeechSynthesisRequestDTO) -> Any:
+        request.output_path.parent.mkdir(parents=True, exist_ok=True)
+        request.output_path.write_bytes(b"runtime-check-audio")
+        return type("SpeechResult", (), {"audio_path": request.output_path})()
+
+    async def list_voices(self) -> list[dict[str, str]]:
+        return [{"name": "runtime-check", "locale": "zh-CN"}]
+
+
+class _RuntimeCheckLLMProvider:
+    async def generate_text(self, request: LLMRequestDTO) -> LLMResponseDTO:
+        return LLMResponseDTO(text="runtime check", provider=request.provider, model=request.model)
+
+
+def _sandbox_provider_container(tmp: str) -> ProvidersContainer:
+    from backend.infrastructure.adapters.console_telemetry_adapter import ConsoleTelemetryAdapter
+    from backend.infrastructure.adapters.csv_dataset_adapter import CsvDatasetAdapter
+    from backend.infrastructure.adapters.csv_retail_dataset_adapter import CsvRetailDatasetAdapter
+    from backend.infrastructure.adapters.fastapi_background_analysis_job_adapter import (
+        FastApiBackgroundAnalysisJobAdapter,
+    )
+    from backend.infrastructure.adapters.json_project_repository_adapter import (
+        JsonProjectRepositoryAdapter,
+    )
+    from backend.infrastructure.adapters.local_analysis_artifact_adapter import (
+        LocalAnalysisArtifactAdapter,
+    )
+    from backend.infrastructure.adapters.local_analysis_model_store_adapter import (
+        LocalAnalysisModelStoreAdapter,
+    )
+    from backend.infrastructure.adapters.local_association_rule_store_adapter import (
+        LocalAssociationRuleStoreAdapter,
+    )
+    from backend.infrastructure.adapters.local_generated_asset_adapter import (
+        LocalGeneratedAssetAdapter,
+    )
+    from backend.infrastructure.adapters.local_project_file_storage_adapter import (
+        LocalProjectFileStorageAdapter,
+    )
+    from backend.infrastructure.adapters.local_recommendation_model_store_adapter import (
+        LocalRecommendationModelStoreAdapter,
+    )
+
+    root = Path(tmp)
+    return ProvidersContainer(
+        repository=JsonProjectRepositoryAdapter(tmp),
+        storage=LocalProjectFileStorageAdapter(tmp),
+        assets=LocalGeneratedAssetAdapter(
+            data_dir=tmp,
+            outputs_dir=str(root / "outputs"),
+            ai_audio_dir=str(root / "ai_audio"),
+            temp_dir=str(root / "temp"),
+        ),
+        dataset=CsvDatasetAdapter(tmp),
+        retail_dataset=CsvRetailDatasetAdapter(tmp),
+        association_rules=LocalAssociationRuleStoreAdapter(),
+        recommendation_models=LocalRecommendationModelStoreAdapter(str(root / "model_data.pkl")),
+        analysis_artifacts=LocalAnalysisArtifactAdapter(tmp),
+        analysis_models=LocalAnalysisModelStoreAdapter(tmp),
+        speech=_RuntimeCheckSpeechProvider(),
+        llm=_RuntimeCheckLLMProvider(),
+        analysis_jobs=FastApiBackgroundAnalysisJobAdapter(),
+        telemetry=ConsoleTelemetryAdapter(writer=lambda _line: None),
+    )
+
+
+def _sample_retail_csv() -> bytes:
+    return (
+        "顾客编号,大类编码,大类名称,中类编码,中类名称,小类编码,小类名称,销售日期,"
+        "销售月份,商品编码,规格型号,商品类型,单位,销售数量,销售金额,商品单价,是否促销\n"
+        "1,10,食品,101,饮品,10101,茶饮,20240102,202401,SKU-1,500ml,标准,瓶,2,20,10,否\n"
+    ).encode("utf-8")
+
+
+def cmd_check_retail_analysis(args: argparse.Namespace) -> int:
+    if not getattr(args, "sample", False):
+        _emit("check-retail-analysis: refusing to run without --sample")
+        return 1
+
+    from backend.business.flows.retail_analysis_flow import RetailAnalysisFlow
+
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            flow = RetailAnalysisFlow(_sandbox_provider_container(tmp))
+            project = flow.create_project("Runtime Retail", "sandbox runtime check")
+            upload = flow.upload_dataset(project["id"], "runtime.csv", _sample_retail_csv())
+            listed = flow.list_projects()
+            state = flow.get_project(project["id"])
+
+            if listed["total"] != 1 or listed["projects"][0]["id"] != project["id"]:
+                _emit("check-retail-analysis: project index/list mismatch")
+                return 1
+            if state["dataset_ref"] is None or not state["dataset_ref"]["url"].startswith(
+                "/api/analysis/projects/"
+            ):
+                _emit("check-retail-analysis: missing opaque dataset ref")
+                return 1
+            if upload["quality_summary"].get("original_rows") != 1:
+                _emit("check-retail-analysis: quality summary mismatch")
+                return 1
+        except (MarketMindError, OSError, ValueError, TypeError) as exc:
+            _emit(f"check-retail-analysis: failed: {exc}")
+            return 1
+
+    _emit("check-retail-analysis: ok sample=tmp")
+    return 0
+
+
+def cmd_check_analysis_optional_runtime(_args: argparse.Namespace) -> int:
+    from backend.infrastructure.factories.provider_factory import create_providers
+
+    try:
+        providers = create_providers(Settings())
+    except (MarketMindError, OSError, ValueError, RuntimeError) as exc:
+        _emit(f"check-analysis-optional-runtime: failed: {exc}")
+        return 1
+
+    required = {
+        "retail_dataset": [
+            "save_raw_sales",
+            "load_raw_sales",
+            "validate_raw_schema",
+            "save_clean_sales",
+            "load_clean_sales",
+        ],
+        "analysis_artifacts": ["save_json", "save_markdown", "save_table", "resolve_artifact"],
+        "analysis_models": [
+            "save_model",
+            "load_model",
+            "resolve_model",
+            "list_models",
+            "delete_model",
+        ],
+        "analysis_jobs": ["submit_project_analysis"],
+        "telemetry": ["emit_debug", "emit_audit", "emit_error", "start_span", "end_span"],
+    }
+    for provider_name, method_names in required.items():
+        provider = getattr(providers, provider_name)
+        missing = [name for name in method_names if not callable(getattr(provider, name, None))]
+        if missing:
+            _emit(f"check-analysis-optional-runtime: {provider_name} missing {missing}")
+            return 1
+
+    _emit("check-analysis-optional-runtime: ok interfaces present")
     return 0
 
 
@@ -318,6 +514,9 @@ COMMANDS = {
     "check-config": cmd_check_config,
     "check-providers": cmd_check_providers,
     "check-storage": cmd_check_storage,
+    "check-analysis-artifacts": cmd_check_analysis_artifacts,
+    "check-retail-analysis": cmd_check_retail_analysis,
+    "check-analysis-optional-runtime": cmd_check_analysis_optional_runtime,
     "check-llm": cmd_check_llm,
     "check-speech": cmd_check_speech,
     "validate-api-schemas": cmd_validate_api_schemas,
@@ -338,6 +537,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_storage = sub.add_parser("check-storage")
     p_storage.add_argument("--sandbox", action="store_true")
+
+    p_artifacts = sub.add_parser("check-analysis-artifacts")
+    p_artifacts.add_argument("--sandbox", action="store_true")
+
+    p_retail = sub.add_parser("check-retail-analysis")
+    p_retail.add_argument("--sample", action="store_true")
+
+    sub.add_parser("check-analysis-optional-runtime")
 
     p_llm = sub.add_parser("check-llm")
     p_llm.add_argument("--dry-run", action="store_true", dest="dry_run")

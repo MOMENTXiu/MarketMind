@@ -29,6 +29,13 @@ HAPPY_PATH_COMMANDS: list[tuple[str, list[str], str]] = [
     ("check-config", [], "check-config: ok"),
     ("check-providers", [], "check-providers: ok"),
     ("check-storage", ["--sandbox"], "check-storage: ok"),
+    ("check-analysis-artifacts", ["--sandbox"], "check-analysis-artifacts: ok"),
+    ("check-retail-analysis", ["--sample"], "check-retail-analysis: ok"),
+    (
+        "check-analysis-optional-runtime",
+        [],
+        "check-analysis-optional-runtime: ok",
+    ),
     ("check-llm", ["--dry-run"], "check-llm: dry-run skipped"),
     ("check-speech", ["--mock"], "check-speech: mock skipped"),
     ("validate-api-schemas", [], "validate-api-schemas: ok"),
@@ -53,6 +60,18 @@ def test_check_storage_requires_sandbox_flag() -> None:
     result = _run(["check-storage"])
     assert result.returncode == 1
     assert "refusing to run without --sandbox" in result.stdout
+
+
+def test_check_analysis_artifacts_requires_sandbox_flag() -> None:
+    result = _run(["check-analysis-artifacts"])
+    assert result.returncode == 1
+    assert "refusing to run without --sandbox" in result.stdout
+
+
+def test_check_retail_analysis_requires_sample_flag() -> None:
+    result = _run(["check-retail-analysis"])
+    assert result.returncode == 1
+    assert "refusing to run without --sample" in result.stdout
 
 
 def test_check_llm_requires_dry_run_flag() -> None:

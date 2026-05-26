@@ -100,6 +100,17 @@ def test_no_new_layer_import_violations() -> None:
     assert violations == []
 
 
+def test_backend_runtime_does_not_import_analysis_code_files() -> None:
+    violations: list[str] = []
+    for path in iter_python_files():
+        rel = path.relative_to(BACKEND).as_posix()
+        for module in imported_modules(path):
+            if module == "analysis.code_files" or module.startswith("analysis.code_files."):
+                violations.append(f"{rel} imports forbidden runtime blueprint {module}")
+
+    assert violations == []
+
+
 def test_no_new_generic_fallback_modules() -> None:
     offenders = [
         path.relative_to(BACKEND).as_posix()
