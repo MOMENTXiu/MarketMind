@@ -13,8 +13,15 @@ from backend.api.dependencies import get_providers
 from backend.core.storage import ProjectStorage
 from backend.infrastructure.adapters.console_telemetry_adapter import ConsoleTelemetryAdapter
 from backend.infrastructure.adapters.csv_dataset_adapter import CsvDatasetAdapter
+from backend.infrastructure.adapters.csv_retail_dataset_adapter import CsvRetailDatasetAdapter
 from backend.infrastructure.adapters.json_project_repository_adapter import (
     JsonProjectRepositoryAdapter,
+)
+from backend.infrastructure.adapters.local_analysis_artifact_adapter import (
+    LocalAnalysisArtifactAdapter,
+)
+from backend.infrastructure.adapters.local_analysis_model_store_adapter import (
+    LocalAnalysisModelStoreAdapter,
 )
 from backend.infrastructure.adapters.local_association_rule_store_adapter import (
     LocalAssociationRuleStoreAdapter,
@@ -80,8 +87,11 @@ def isolated_env(tmp_path: Path) -> Iterator[IsolatedEnv]:
             temp_dir="/tmp",
         ),
         dataset=CsvDatasetAdapter(str(data_dir)),
+        retail_dataset=CsvRetailDatasetAdapter(str(data_dir)),
         association_rules=LocalAssociationRuleStoreAdapter(),
         recommendation_models=models,
+        analysis_artifacts=LocalAnalysisArtifactAdapter(str(data_dir)),
+        analysis_models=LocalAnalysisModelStoreAdapter(str(data_dir)),
         speech=speech,
         llm=llm,
         analysis_jobs=jobs,

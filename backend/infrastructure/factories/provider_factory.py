@@ -6,6 +6,7 @@ from backend.core.config import Settings
 from backend.infrastructure.adapters.anthropic_llm_adapter import AnthropicLLMAdapter
 from backend.infrastructure.adapters.console_telemetry_adapter import ConsoleTelemetryAdapter
 from backend.infrastructure.adapters.csv_dataset_adapter import CsvDatasetAdapter
+from backend.infrastructure.adapters.csv_retail_dataset_adapter import CsvRetailDatasetAdapter
 from backend.infrastructure.adapters.edge_tts_speech_synthesis_adapter import (
     EdgeTtsSpeechSynthesisAdapter,
 )
@@ -14,6 +15,12 @@ from backend.infrastructure.adapters.fastapi_background_analysis_job_adapter imp
 )
 from backend.infrastructure.adapters.json_project_repository_adapter import (
     JsonProjectRepositoryAdapter,
+)
+from backend.infrastructure.adapters.local_analysis_artifact_adapter import (
+    LocalAnalysisArtifactAdapter,
+)
+from backend.infrastructure.adapters.local_analysis_model_store_adapter import (
+    LocalAnalysisModelStoreAdapter,
 )
 from backend.infrastructure.adapters.local_association_rule_store_adapter import (
     LocalAssociationRuleStoreAdapter,
@@ -29,8 +36,6 @@ from backend.infrastructure.adapters.openai_compatible_llm_adapter import (
     OpenAICompatibleLLMAdapter,
 )
 from backend.providers.container import ProvidersContainer
-from backend.services.analysis_service import run_project_analysis
-from backend.services.recommender_service import clear_recommender_cache
 
 
 def create_providers(
@@ -52,16 +57,13 @@ def create_providers(
             temp_dir="/tmp",
         ),
         dataset=CsvDatasetAdapter("data"),
+        retail_dataset=CsvRetailDatasetAdapter("data"),
         association_rules=LocalAssociationRuleStoreAdapter(),
-        recommendation_models=LocalRecommendationModelStoreAdapter(
-            "backend/data/model_data.pkl",
-            cache_clearer=clear_recommender_cache,
-        ),
+        recommendation_models=LocalRecommendationModelStoreAdapter("backend/data/model_data.pkl"),
+        analysis_artifacts=LocalAnalysisArtifactAdapter("data"),
+        analysis_models=LocalAnalysisModelStoreAdapter("data"),
         speech=EdgeTtsSpeechSynthesisAdapter(),
         llm=llm,
-        analysis_jobs=FastApiBackgroundAnalysisJobAdapter(
-            background_tasks,
-            default_handler=run_project_analysis,
-        ),
+        analysis_jobs=FastApiBackgroundAnalysisJobAdapter(background_tasks),
         telemetry=ConsoleTelemetryAdapter(),
     )

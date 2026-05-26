@@ -7,11 +7,18 @@ from fastapi import BackgroundTasks
 from backend.core.config import Settings
 from backend.infrastructure.adapters.anthropic_llm_adapter import AnthropicLLMAdapter
 from backend.infrastructure.adapters.console_telemetry_adapter import ConsoleTelemetryAdapter
+from backend.infrastructure.adapters.csv_retail_dataset_adapter import CsvRetailDatasetAdapter
 from backend.infrastructure.adapters.fastapi_background_analysis_job_adapter import (
     FastApiBackgroundAnalysisJobAdapter,
 )
 from backend.infrastructure.adapters.json_project_repository_adapter import (
     JsonProjectRepositoryAdapter,
+)
+from backend.infrastructure.adapters.local_analysis_artifact_adapter import (
+    LocalAnalysisArtifactAdapter,
+)
+from backend.infrastructure.adapters.local_analysis_model_store_adapter import (
+    LocalAnalysisModelStoreAdapter,
 )
 from backend.infrastructure.adapters.openai_compatible_llm_adapter import (
     OpenAICompatibleLLMAdapter,
@@ -27,6 +34,9 @@ def test_provider_factory_creates_default_local_container() -> None:
     assert isinstance(providers.llm, OpenAICompatibleLLMAdapter)
     assert isinstance(providers.analysis_jobs, FastApiBackgroundAnalysisJobAdapter)
     assert isinstance(providers.telemetry, ConsoleTelemetryAdapter)
+    assert isinstance(providers.retail_dataset, CsvRetailDatasetAdapter)
+    assert isinstance(providers.analysis_artifacts, LocalAnalysisArtifactAdapter)
+    assert isinstance(providers.analysis_models, LocalAnalysisModelStoreAdapter)
 
 
 def test_provider_factory_can_select_anthropic_llm() -> None:

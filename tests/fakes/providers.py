@@ -1,5 +1,6 @@
 """Fake provider implementations that avoid network and persistent side effects."""
 
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -7,12 +8,15 @@ import pandas as pd
 
 from backend.models.project import Project, ProjectCreate, ProjectStatus, ProjectUpdate
 from backend.providers.dtos import (
+    AnalysisArtifactReferenceDTO,
     AnalysisJobDTO,
+    AnalysisModelReferenceDTO,
     AssetReferenceDTO,
     DatasetReferenceDTO,
     LLMRequestDTO,
     LLMResponseDTO,
     ModelArtifactDTO,
+    RetailDatasetReferenceDTO,
     SpeechSynthesisRequestDTO,
     SpeechSynthesisResultDTO,
     UploadedFileDTO,
@@ -243,6 +247,184 @@ class FakeDatasetProvider:
 
     def save_dataset(self, path: Path, rows: Any) -> None:
         self.saved.append((path, rows))
+
+
+class FakeRetailDatasetProvider:
+    def __init__(self) -> None:
+        self.raw_sales: dict[str, pd.DataFrame] = {}
+        self.clean_sales: dict[str, pd.DataFrame] = {}
+        self.raw_uploads: list[tuple[str, str, bytes]] = []
+
+    def save_raw_sales(
+        self,
+        project_id: str,
+        filename: str,
+        content: bytes,
+    ) -> RetailDatasetReferenceDTO:
+        self.raw_uploads.append((project_id, filename, content))
+        try:
+            self.raw_sales[project_id] = pd.read_csv(BytesIO(content))
+        except UnicodeDecodeError:
+            self.raw_sales[project_id] = pd.read_csv(BytesIO(content), encoding="gbk")
+        return self._ref(project_id, "raw", "raw_sales.csv")
+
+    def load_raw_sales(self, project_id: str) -> pd.DataFrame:
+        if project_id not in self.raw_sales:
+            raise FileNotFoundError(project_id)
+        return self.raw_sales[project_id].copy()
+
+    def validate_raw_schema(self, raw_sales: Any) -> None:
+        if not isinstance(raw_sales, pd.DataFrame):
+            raise TypeError("raw_sales must be a DataFrame")
+
+    def save_clean_sales(
+        self,
+        project_id: str,
+        rows: Any,
+        name: str = "clean_sales.csv",
+    ) -> RetailDatasetReferenceDTO:
+        self.clean_sales[project_id] = (
+            rows.copy() if isinstance(rows, pd.DataFrame) else pd.DataFrame(rows)
+        )
+        return self._ref(project_id, "clean", name)
+
+    def load_clean_sales(self, project_id: str) -> pd.DataFrame:
+        if project_id not in self.clean_sales:
+            raise FileNotFoundError(project_id)
+        return self.clean_sales[project_id].copy()
+
+    @staticmethod
+    def _ref(project_id: str, dataset_type: str, name: str) -> RetailDatasetReferenceDTO:
+        return RetailDatasetReferenceDTO(
+            id=f"{dataset_type}-sales",
+            project_id=project_id,
+            type=dataset_type,
+            name=name,
+            storage_key=f"analysis/datasets/{name}",
+            url=f"/api/analysis/projects/{project_id}/datasets/{dataset_type}-sales",
+        )
+
+
+class FakeAnalysisArtifactProvider:
+    def __init__(self) -> None:
+        self.refs: dict[tuple[str, str], AnalysisArtifactReferenceDTO] = {}
+
+    def save_table(self, project_id: str, name: str, rows: Any) -> AnalysisArtifactReferenceDTO:
+        return self._save(project_id, "table", name, {"rows": rows})
+
+    def save_figure(
+        self,
+        project_id: str,
+        name: str,
+        content: bytes,
+        media_type: str = "image/png",
+    ) -> AnalysisArtifactReferenceDTO:
+        return self._save(
+            project_id, "figure", name, {"size_bytes": len(content), "media_type": media_type}
+        )
+
+    def save_markdown(
+        self,
+        project_id: str,
+        name: str,
+        content: str,
+    ) -> AnalysisArtifactReferenceDTO:
+        return self._save(
+            project_id, "markdown", name, {"size_bytes": len(content.encode("utf-8"))}
+        )
+
+    def save_json(
+        self,
+        project_id: str,
+        name: str,
+        payload: dict[str, Any],
+    ) -> AnalysisArtifactReferenceDTO:
+        return self._save(project_id, "json", name, {"payload": dict(payload)})
+
+    def resolve_artifact(
+        self,
+        project_id: str,
+        artifact_id: str,
+    ) -> AnalysisArtifactReferenceDTO | None:
+        return self.refs.get((project_id, artifact_id))
+
+    def _save(
+        self,
+        project_id: str,
+        artifact_type: str,
+        name: str,
+        metadata: dict[str, Any],
+    ) -> AnalysisArtifactReferenceDTO:
+        artifact_id = f"{artifact_type}:{name}"
+        ref = AnalysisArtifactReferenceDTO(
+            id=artifact_id,
+            project_id=project_id,
+            type=artifact_type,
+            name=name,
+            url=f"/api/analysis/projects/{project_id}/artifacts/{artifact_id}",
+            storage_key=f"analysis/artifacts/{artifact_type}/{name}",
+            metadata=metadata,
+        )
+        self.refs[(project_id, artifact_id)] = ref
+        return ref
+
+
+class FakeAnalysisModelStoreProvider:
+    def __init__(self) -> None:
+        self.payloads: dict[tuple[str, str, str], Any] = {}
+
+    def save_model(
+        self,
+        project_id: str,
+        model_type: str,
+        payload: Any,
+        version: str = "current",
+        metadata: dict[str, Any] | None = None,
+    ) -> AnalysisModelReferenceDTO:
+        self.payloads[(project_id, model_type, version)] = payload
+        return self._ref(project_id, model_type, version, metadata or {})
+
+    def load_model(self, project_id: str, model_type: str, version: str = "current") -> Any | None:
+        return self.payloads.get((project_id, model_type, version))
+
+    def resolve_model(
+        self,
+        project_id: str,
+        model_type: str,
+        version: str = "current",
+    ) -> AnalysisModelReferenceDTO | None:
+        if (project_id, model_type, version) not in self.payloads:
+            return None
+        return self._ref(project_id, model_type, version, {})
+
+    def list_models(self, project_id: str) -> list[AnalysisModelReferenceDTO]:
+        return [
+            self._ref(stored_project_id, model_type, version, {})
+            for stored_project_id, model_type, version in sorted(self.payloads)
+            if stored_project_id == project_id
+        ]
+
+    def delete_model(self, project_id: str, model_type: str, version: str = "current") -> bool:
+        return self.payloads.pop((project_id, model_type, version), None) is not None
+
+    @staticmethod
+    def _ref(
+        project_id: str,
+        model_type: str,
+        version: str,
+        metadata: dict[str, Any],
+    ) -> AnalysisModelReferenceDTO:
+        return AnalysisModelReferenceDTO(
+            id=f"{model_type}:{version}",
+            project_id=project_id,
+            type="model",
+            name=model_type,
+            model_type=model_type,
+            version=version,
+            url=f"/api/analysis/projects/{project_id}/models/{model_type}/{version}",
+            storage_key=f"analysis/models/{model_type}/{version}.pkl",
+            metadata=metadata,
+        )
 
 
 class FakeAssociationRuleStoreProvider:
