@@ -115,6 +115,7 @@ service-account*.json
 *.pid
 *.seed
 *.local
+.sisyphus/
 tmp/
 temp/
 .cache/
