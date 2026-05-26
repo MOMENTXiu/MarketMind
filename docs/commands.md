@@ -15,6 +15,13 @@ Run commands from the repository root.
 | `make verify` | Runs `$(MAKE) check`; `$(MAKE) hooks` |
 | `make hooks` | Runs `pre-commit run --all-files` |
 | `make clean` | No confirmed clean command; placeholder only. |
+| `make infra-up` | Starts PostgreSQL and Redis from `docker-compose.dev.yml` |
+| `make infra-down` | Stops PostgreSQL and Redis without deleting named volumes |
+| `make infra-reset` | Stops services, deletes named volumes, then starts services again |
+| `make infra-logs` | Follows PostgreSQL and Redis logs |
+| `make db-migrate` | Runs `uv run alembic upgrade head` |
+| `make db-downgrade` | Runs `uv run alembic downgrade base` |
+| `make db-revision` | Runs Alembic autogenerate; set `DB_REVISION_MESSAGE` |
 
 Quality loop after code changes:
 
@@ -26,6 +33,8 @@ Quality loop after code changes:
 6. `make check` or `make verify` when commands are configured
 
 Run `make hooks` before commit.
+
+`make check` currently reports the backend pytest baseline as `188 passed, 5 skipped` when optional live DB URLs are not configured. Pytest warnings from pandas/numpy/pydantic are known and do not fail the gate.
 
 Echo-only targets are placeholders. They are not evidence that lint, format, test, build, hooks, or CI passed.
 

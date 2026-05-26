@@ -1,8 +1,8 @@
 # Backend Architecture Construction Checklist
 
-> Status note (2026-05-26): This checklist is a historical record for the earlier backend architecture migration. The current Analysis V2 baseline is tracked in `docs/architecture/analysis-v2-integration-checklist.md`, and the live architecture overview is `docs/ARCHITECTURE.md`. Current quality gate: `make check` passes with Ruff check, Ruff format check, 179 pytest tests plus 2 skipped tests, and frontend build; `backend/services/*`, the old project/recommend/association API chain, and Voice/TTS routes (`/api/voice/*`, `/api/ai-voice/*`, `/api/tts/`) are retired. Voice/TTS references below are preserved only as historical task results.
+> Status note (2026-05-26): This checklist is a historical record for the earlier backend architecture migration. The live architecture overview is `docs/ARCHITECTURE.md`. Current quality gate: `make check` passes with Ruff check, Ruff format check, 188 pytest tests plus 5 skipped optional/live-infra tests, and frontend build; `backend/services/*`, the old project/recommend/association API chain, and Voice/TTS routes (`/api/voice/*`, `/api/ai-voice/*`, `/api/tts/`) are retired. Voice/TTS and old route references below are preserved only as historical task results.
 
-本清单用于后续 `/backend` 架构迁移。当前阶段只创建文档，不迁移业务代码。
+本清单记录已完成的 `/backend` 架构迁移过程，不再作为新的开工清单。
 
 执行规则：
 

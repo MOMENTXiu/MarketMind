@@ -1,65 +1,61 @@
-﻿# 超市 AI 营销分析系统（MarketMind）项目汇报
+﻿# MarketMind 项目汇报
 
-## 1. 要解决的痛点
-- 促销搭配与补货多靠经验：缺少对不同门店/时段/品类的客观组合验证，常出现滞销堆货或错失热销窗口。
-- 决策难以统一呈现：分析分散在表格和截图里，缺标准化的指标和可视化，业务与管理层对结论信任度低、对行动优先级难达成共识。
-- 数据价值落地慢：关联规则、预测、分群等需要多工具串联；产出后还要人工整理汇报和落地建议，导致从数据到行动的周期长、反馈闭环断裂。
+## 解决的问题
 
-## 2. 这个系统能做什么
-- 看：前端仪表盘集中展示销售、客群、规则和预测的图表/表格，支持按时间、门店、品类筛选，所有可视化文件统一存放在 outputs 目录，方便汇报或二次引用。
-- 算：后端自动跑关联规则、销售预测、客户分群，输出 Top N 规则（支持度/置信度/提升度）、未来销售/利润曲线、分群画像命名及指标，并附带促销、补货、营销的针对性建议。
-- 建议：通过 LLM 生成客户营销建议和商品洞察文本，减少人工整理和沟通成本。
-- 行动：结果自带可执行的策略清单，可直接用于促销组合设计、补货计划或客群触达，也可通过 API 推送给运营/BI 系统，减少人工整理和沟通成本。
+- 零售运营依赖经验判断促销组合、补货优先级和客户触达策略，缺少统一的分析链路。
+- 固定字段数据和通用字段数据需要不同处理方式，手工清洗与多工具串联成本高。
+- 分析结果如果只停留在表格和图表，很难直接转化为营销动作。
 
-## 3. 核心功能
-- 关联规则分析（Apriori）：
-  - 输入：min_support、min_confidence、min_lift、top_n。
-  - 输出：Top N 规则（支持度/置信度/提升度）、简单策略建议、散点/柱状图。
-- 销售预测（示例 ridge，可换其他）：
-  - 输入：forecast_weeks、model_type。
-  - 输出：未来几周的销售额与利润预测、模型效果（R2）、趋势图。
-- 客户聚类（RFM + KMeans）：
-  - 输入：n_clusters、method。
-  - 输出：分群画像（人数、R/F/M 均值、命名与营销建议）、可视化散点/对比图。
-- AI 文本建议：
-  - 输入：客户画像、推荐商品、LLM 配置。
-  - 输出：客户营销建议文本。
-- 项目管理 / 推荐 / LLM：
-  - /api/projects 管理分析任务和生成文件；/api/recommend 行为推荐；/api/llm 预留大模型配置。
-- 输出管理：
-  - 图表/报告统一落在 outputs/charts|reports，后端静态服务对外提供。
+## 系统能力
 
-## 4. 业务实现逻辑
-1) 关联规则：前端给参数 -> 后端加载交易数据 (analysis/dataset.csv) -> Apriori 找频繁项集 -> 算支持度/置信度/提升度 -> 选 Top N -> 生成图表 -> 返回数据和图表路径。
-2) 销售预测：前端给预测长度/模型 -> 后端训练/调用模型 -> 给出未来周销售/利润 + R2 -> 可视化趋势。
-3) 客户聚类：前端给分群数 -> 后端算 RFM -> KMeans 分群 -> 输出分群命名、策略、可视化。
-4) AI 文本建议：客户画像/推荐数据 -> LLM Provider -> 返回可直接展示的营销建议文本。
-5) 项目管理/推荐/LLM：统一管理任务、文件路径、推荐和大模型配置。
+| 能力 | 说明 |
+| --- | --- |
+| Retail Analysis V2 | 面向固定中文列零售 CSV，运行清洗、特征工程、客户分群、关联/HUIM、推荐、营销洞察和报告。 |
+| Data Processing | 面向通用 CSV/Excel，先做 regularization，再运行 `analysis2` 通用分析，输出 quality、capability、outputs 和 sidecars。 |
+| AI 文本建议 | 通过后端 LLM Provider 生成客户营销建议和商品洞察，前端不直接请求第三方 LLM。 |
+| 前端工作台 | Vue 3 页面覆盖 Retail 项目管理、Data Processing Job、产物查看、服务状态与设置。 |
+| 基础设施迁移 | PostgreSQL/Redis/Docker Compose/Alembic 已作为迁移基础，业务 runtime 仍以 filesystem/JSON 为真相源。 |
 
-## 5. 主要接口
-- Base URL: http://localhost:8000/api
-- POST /association/analyze  关联规则
-- GET  /projects ...         项目管理
-- POST /recommend/...        行为推荐
-- POST /analysis/customer-suggestions  客户营销建议
-- GET  /health               健康检查
-- 返回常见字段：success、message、业务数据（规则/预测/分群等）、资源路径（/outputs/... 图表或报告）。
+## 架构
 
-## 6. 亮点
-- 模块分层清晰：路由、服务、算法彻底解耦，分析模块可插拔（可切换预测/聚类模型或新增推荐算法）且接口稳定。
-- 可视 + 可解释：自动生成图表、报告和 AI 文本建议，减少口头解释和重复汇报成本。
-- 一键建议：按客户画像或商品关联数据生成文本洞察，覆盖推荐、分群和营销触达场景。
-- 输出集中：图表/报告统一落在 outputs 目录并由静态服务暴露，方便归档、外链和前端二次调用。
-- 行动导向：每个分析结果附带可执行策略（促销组合、补货优先级、客群触达），能直接转给运营或对接 BI/推荐系统。
+```text
+Vue 3 frontend
+  -> typed API client
+  -> FastAPI Controller
+  -> Business Flow / Pipeline
+  -> Ability Atom
+  -> Provider Interface
+  -> Infrastructure Adapter
+```
 
-## 7. 后续能加什么
-- 更强的预测/推荐模型，做超参搜索和模型监控。
-- 鉴权、安全和审计，保护数据和接口。
-- 运营闭环：接入优惠券/消息推送，跟踪效果。
-- 多语言文本建议，前端国际化。
+核心价值：API 层薄、业务编排可测试、算法能力可替换、存储和 LLM 通过 Provider Boundary 隔离。
 
-## 8. 注意和风险
-- 数据质量：上线要用清洗后的真实交易数据。
-- 安全：当前未强制鉴权，上线需加身份认证、限流、审计。
-- 参数调优：不同门店/品类需重新调支持度、分群数和模型参数。
-- 评估：要做 A/B 或离线评估，持续看销售/利润/转化提升。
+## 主要接口
+
+Base URL：`http://localhost:8000`
+
+| 分类 | 接口 |
+| --- | --- |
+| Health | `GET /api/health/` |
+| Retail projects | `POST/GET /api/analysis/projects`, `GET/DELETE /api/analysis/projects/{project_id}` |
+| Retail lifecycle | `POST /api/analysis/projects/{project_id}/dataset`, `POST /api/analysis/projects/{project_id}/run` |
+| Retail results | `GET /api/analysis/projects/{project_id}/artifacts`, `GET /api/analysis/projects/{project_id}/recommendations`, `GET /api/analysis/projects/{project_id}/marketer-insights` |
+| Data Processing | `POST /api/analysis/jobs`, `POST /api/analysis/jobs/{job_id}/raw-dataset`, `POST /api/analysis/jobs/{job_id}/regularize`, `POST /api/analysis/jobs/{job_id}/run`, `GET /api/analysis/jobs/{job_id}` |
+| Data Processing results | `GET /api/analysis/jobs/{job_id}/outputs`, `GET /api/analysis/jobs/{job_id}/datasets/{dataset_id}`, `GET /api/analysis/jobs/{job_id}/sidecars/{sidecar_id}` |
+| Text suggestions | `POST /api/analysis/customer-suggestions` |
+
+退役接口 `/api/projects`、`/api/recommend`、`/api/association` 不再作为兼容入口。
+
+## 当前验证
+
+- `make check` 通过：backend lint、backend format check、pytest、frontend build。
+- pytest 基线：`188 passed, 5 skipped`。
+- `make hooks` 通过。
+- 前端源码没有旧 API 路由、旧 `@/utils/http` 或浏览器直连 LLM endpoint 残留。
+
+## 后续重点
+
+1. PostgreSQL read/write switch 和历史数据迁移。
+2. Redis-backed queue 与独立 worker。
+3. 服务端 LLM 密钥管理、鉴权与审计。
+4. 前端 API client 单测、polling composable 和大 JSON/图表性能优化。

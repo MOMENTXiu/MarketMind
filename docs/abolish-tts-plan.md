@@ -1,8 +1,10 @@
 # TTS / Voice 功能废除计划
 
+> Status note (2026-05-26): TTS / Voice runtime has been retired. Current text generation goes through `POST /api/analysis/customer-suggestions`; frontend pages must not call `/api/voice/*`, `/api/ai-voice/*`, `/api/tts/*`, `/chat/completions`, or `/models` directly. This document is retained as the deprecation plan record.
+
 > 创建日期: 2026-05-26
 > 分支: `develop/sql-plugin`
-> 状态: **已审查，需按本计划修订后再执行**
+> 状态: **历史记录，已由 text-only Customer Suggestions 取代**
 
 ---
 

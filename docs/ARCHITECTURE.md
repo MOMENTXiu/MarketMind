@@ -1,228 +1,201 @@
-# MarketMind Architecture
+# MarketMind 架构
 
-MarketMind is a Vue 3 + FastAPI retail marketing system. The backend uses a layered architecture so future work can change storage, LLM, and analysis implementations without pushing SDK or filesystem details into API handlers.
+MarketMind 当前运行形态是 Vue 3 前端 + FastAPI 后端。后端以 Provider Boundary 隔离业务编排与外部资源，前端通过 `frontend/src/api/` typed client 调用后端公开契约。
 
-As of 2026-05-26, the backend runtime has two analysis chains under `/api/analysis`:
-
-1. **Retail Analysis V2** — the existing project-scoped retail pipeline.
-2. **Data-processing chain** — the new `regularization` -> `analysis2` universal
-   analysis lifecycle, fully implemented and running alongside Retail V2.
-
-Both chains share the same layered architecture and provider/adapter boundary.
-The data-processing design docs remain in
-`docs/architecture/data-processing-pipeline-integration-design.md` and
-`docs/architecture/data-processing-pipeline-integration-checklist.md` for reference.
-
-## Runtime Shape
+## 运行时总览
 
 ```text
 Browser / Vue 3
+  -> frontend/src/api typed client
   -> FastAPI Controller
-  -> Business Pipeline or RetailAnalysisFlow
+  -> Business Flow / Pipeline
   -> Ability Atom
   -> Provider Interface / ProvidersContainer
   -> Infrastructure Adapter
-  -> local files, JSON storage, LLM HTTP APIs
+  -> filesystem / JSON / generated artifacts / LLM HTTP / optional PostgreSQL foundation
 ```
 
-`RetailAnalysisFlow` is the existing Retail V2 Business Flow.
-`DataProcessingAnalysisFlow` is the new chain-native flow for the data-processing
-pipeline (raw upload -> regularization -> universal analysis -> outputs).
-Both are background lifecycles with status transitions, stage tracking, generated
-artifacts, and failure handling. Customer text suggestions are served through a
-text-only Business Pipeline under `/api/analysis`.
+`/api/analysis` 下并存两条分析链路：
 
-## Backend Layers
+| 链路 | 入口 | 适用数据 | 前端入口 | 当前状态 |
+| --- | --- | --- | --- | --- |
+| Retail Analysis V2 | `/api/analysis/projects...` | 固定中文列零售 CSV | `/projects` | 已接入前后端 runtime |
+| Data Processing | `/api/analysis/jobs...` | 通用 CSV/Excel | `/data-processing` | 已接入前后端 runtime |
 
-| Layer | Path | Responsibility |
-| --- | --- | --- |
-| API Controller | `backend/api/` | Parse HTTP input, call one pipeline/flow, map internal errors to current FastAPI responses. |
-| Business Orchestration | `backend/business/pipelines/`, `backend/business/flows/` | Coordinate use cases and preserve status/side-effect ordering. No SDK, storage client, or FastAPI response construction. |
-| Ability Atom | `backend/abilities/` | Pure atomic analysis actions, including Retail V2 cleaning, feature engineering, segmentation, association/HUIM, recommendation, marketer insight, customer text suggestion, and report helpers. |
-| Provider Boundary | `backend/providers/` | Protocols, DTOs, and frozen `ProvidersContainer` for repository, files, generated assets, datasets, retail datasets, regularized datasets, analysis artifacts, analysis models, recommendation models, LLM, jobs, and telemetry. |
-| Infrastructure | `backend/infrastructure/` | Concrete adapters for JSON storage, local files/assets, CSV/rules/model artifacts, Retail CSV datasets, regularized datasets, local Analysis V2 artifacts/models, OpenAI/Anthropic-compatible LLMs, background jobs, telemetry. |
-| Core | `backend/core/` | Settings, internal errors, legacy storage compatibility, and runtime check CLI. |
+Customer Suggestions 是文本生成链路，入口为 `POST /api/analysis/customer-suggestions`。前端业务页面不直接调用第三方 LLM endpoint。
 
-## Key Directories
+## 后端分层
+
+| 层 | 路径 | 职责 | 禁止事项 |
+| --- | --- | --- | --- |
+| API Controller | `backend/api/` | 解析 HTTP 输入、调用单个 flow/pipeline、映射错误。 | 不写算法、存储细节、SDK 调用。 |
+| Business Orchestration | `backend/business/flows/`, `backend/business/pipelines/` | 编排状态机、阶段顺序和副作用。 | 不直接 import DB/SDK/本地路径实现。 |
+| Ability Atom | `backend/abilities/` | 执行可测试的原子分析能力。 | 不依赖 FastAPI request/response。 |
+| Provider Boundary | `backend/providers/` | Protocol、DTO、`ProvidersContainer`。 | 不放具体基础设施实现。 |
+| Infrastructure | `backend/infrastructure/` | JSON/local file/LLM/artifact/model/PostgreSQL adapter 等实现。 | 不反向依赖 API controller。 |
+| Core | `backend/core/` | Settings、错误类型、runtime checks、legacy storage compatibility。 | 不承载业务流程。 |
+
+架构规则由 `tests/test_architecture_imports.py` 保护。
+
+## 主要目录
 
 ```text
 backend/
   api/
-    dependencies.py        # Provider/pipeline dependency factories
-    error_mapping.py       # MarketMindError -> HTTPException mapping
-    analysis.py            # Retail Analysis V2 HTTP boundary
+    analysis.py              # Retail V2 + Data Processing + Customer Suggestions HTTP 边界
+    dependencies.py          # Provider/pipeline/flow 依赖工厂
+    error_mapping.py         # MarketMindError -> HTTPException
   business/
-    flows/retail_analysis_flow.py
-    flows/retail_analysis_state.py
-    flows/data_processing_analysis_flow.py
-    flows/data_processing_analysis_state.py
+    flows/
+      retail_analysis_flow.py
+      data_processing_analysis_flow.py
     pipelines/
-      retail_dataset_preparation_pipeline.py
-      retail_feature_engineering_pipeline.py
-      retail_segmentation_pipeline.py
-      retail_association_pipeline.py
-      retail_recommendation_pipeline.py
-      retail_marketer_insight_pipeline.py
-      retail_report_pipeline.py
+      retail_*_pipeline.py
       dataset_regularization_pipeline.py
-      universal_overview_pipeline.py
-      universal_profile_segmentation_pipeline.py
-      universal_association_pipeline.py
-      universal_recommendation_pipeline.py
-      universal_promotion_pipeline.py
-      universal_summary_pipeline.py
-        customer_text_suggestion_pipeline.py
+      universal_*_pipeline.py
+      customer_text_suggestion_pipeline.py
   abilities/
+    retail/
     regularization/
     universal_analysis/
-    retail/
     report/
   providers/
     container.py
     *_provider.py
     dtos.py
-    telemetry_dtos.py
   infrastructure/
     adapters/
+    db/
     factories/provider_factory.py
   core/
     config.py
     errors.py
     runtime_checks.py
-    storage.py
-```
 
-Frontend:
-
-```text
 frontend/
   src/
+    api/                     # axios client、types、retail/data-processing/suggestions wrappers
     views/
-    components/
-    router/
-    stores/
-    utils/http.ts
-    env.d.ts
-  package.json
-  vite.config.ts
+      Project*.vue           # Retail V2 工作流
+      DataProcessing.vue     # 通用数据处理工作流
+      ProductRecommend.vue   # 推荐与商品洞察
+      CustomerAnalysis.vue   # 客户建议
+    components/ServiceStatus.vue
+    router/index.ts
 ```
 
-## Active API Surface
+`analysis/` 是离线实验与迁移源材料归档。后端 runtime 不直接 import `analysis/code_files` 或 `analysis/data-processing-pipeline`。
 
-Base URL in local development is `http://localhost:8000/api`. API docs are served at `http://localhost:8000/api/docs`.
+## API Surface
 
-| Area | Active Routes |
+本地默认 base URL：`http://localhost:8000`。
+
+| Area | Routes |
 | --- | --- |
-| Health | `GET /`, `GET /api/health/` |
-| Retail Analysis V2 projects | `POST /api/analysis/projects`, `GET /api/analysis/projects`, `GET/DELETE /api/analysis/projects/{id}` |
-| Retail Analysis V2 dataset/lifecycle | `POST /api/analysis/projects/{id}/dataset`, `POST /api/analysis/projects/{id}/run`; project status is returned by `GET /api/analysis/projects/{id}` |
-| Retail Analysis V2 outputs | `GET /api/analysis/projects/{id}/artifacts/{artifact_id}`, `GET /api/analysis/projects/{id}/datasets/{dataset_id}`, `GET /api/analysis/projects/{id}/models/{model_type}/{version}` |
-| Retail Analysis V2 read models | `GET /api/analysis/projects/{id}/recommendations`, `GET /api/analysis/projects/{id}/marketer-insights` |
-| Retail Analysis V2 AI text | `POST /api/analysis/customer-suggestions` |
-| Data-processing jobs | `POST /api/analysis/jobs`, `GET /api/analysis/jobs/{job_id}` |
-| Data-processing upload/regularize/run | `POST /api/analysis/jobs/{job_id}/raw-dataset`, `POST /api/analysis/jobs/{job_id}/regularize`, `POST /api/analysis/jobs/{job_id}/run` |
-| Data-processing read | `GET /api/analysis/jobs/{job_id}/datasets/{dataset_id}`, `GET /api/analysis/jobs/{job_id}/sidecars/{sidecar_id}` |
-| Data-processing outputs | `GET /api/analysis/jobs/{job_id}/outputs` |
+| App | `GET /`, `GET /api/health/`, `GET /api/docs`, `GET /api/redoc`, `GET /openapi.json` |
+| Retail projects | `POST /api/analysis/projects`, `GET /api/analysis/projects`, `GET /api/analysis/projects/{project_id}`, `DELETE /api/analysis/projects/{project_id}` |
+| Retail lifecycle | `POST /api/analysis/projects/{project_id}/dataset`, `POST /api/analysis/projects/{project_id}/run` |
+| Retail results | `GET /api/analysis/projects/{project_id}/artifacts`, `GET /api/analysis/projects/{project_id}/artifacts/{artifact_id}`, `GET /api/analysis/projects/{project_id}/datasets/{dataset_id}`, `GET /api/analysis/projects/{project_id}/models/{model_type}/{version}` |
+| Retail read models | `GET /api/analysis/projects/{project_id}/recommendations`, `GET /api/analysis/projects/{project_id}/marketer-insights` |
+| Text suggestions | `POST /api/analysis/customer-suggestions` |
+| Data Processing jobs | `POST /api/analysis/jobs`, `GET /api/analysis/jobs/{job_id}` |
+| Data Processing lifecycle | `POST /api/analysis/jobs/{job_id}/raw-dataset`, `POST /api/analysis/jobs/{job_id}/regularize`, `POST /api/analysis/jobs/{job_id}/run` |
+| Data Processing outputs | `GET /api/analysis/jobs/{job_id}/outputs`, `GET /api/analysis/jobs/{job_id}/datasets/{dataset_id}`, `GET /api/analysis/jobs/{job_id}/sidecars/{sidecar_id}` |
 
-Legacy `/api/projects`, `/api/recommend`, and `/api/association` routes are retired and intentionally return 404.
-Voice/TTS routes (`/api/voice/*`, `/api/ai-voice/*`, `/api/tts/`) are retired and intentionally absent.
+Retired routes `/api/projects`, `/api/recommend`, `/api/association`, `/api/voice/*`, `/api/ai-voice/*` and `/api/tts/*` are intentionally absent.
 
-## Main Flows
-
-Retail Analysis V2 lifecycle:
+## Retail Analysis V2 Flow
 
 ```text
-POST /api/analysis/projects/{id}/dataset
-  -> RetailAnalysisFlow.upload_dataset
+Create project
+  -> upload Retail CSV
   -> RetailDatasetPreparationPipeline
-  -> RetailDatasetProvider + AnalysisArtifactProvider
-  -> AnalysisJobProvider
-  -> RetailAnalysisFlow scheduled handler
+  -> run RetailAnalysisFlow background task
+  -> feature engineering
+  -> segmentation
+  -> association / HUIM
+  -> recommendation
+  -> marketer insights
+  -> report/artifact refs
+  -> project status completed or failed
 ```
 
-Retail Analysis V2 analysis:
+状态：`queued`, `processing`, `completed`, `failed`。阶段：`dataset_preparation`, `feature_engineering`, `segmentation`, `association`, `recommendation`, `marketer_insights`, `report`。
+
+Retail V2 输入是固定中文列 CSV，字段以 `backend/providers/dtos.py` 的 `RETAIL_RAW_SALES_COLUMNS` 为准。
+
+## Data Processing Flow
 
 ```text
-RetailAnalysisFlow
-  -> feature engineering / segmentation / association / recommendation / marketer insight / report pipelines
-  -> retail ability atoms
-  -> generated Analysis V2 refs through AnalysisArtifactProvider and AnalysisModelStoreProvider
-  -> project status pending, processing, completed, or failed
-```
-
-Data-processing chain lifecycle:
-
-```text
-POST /api/analysis/jobs/{job_id}/raw-dataset
-  -> DataProcessingAnalysisFlow.upload_raw_dataset
-  -> RegularizedDatasetProvider (raw upload)
-
-POST /api/analysis/jobs/{job_id}/regularize
-  -> DataProcessingAnalysisFlow.regularize
+Create job
+  -> upload raw CSV/Excel
   -> DatasetRegularizationPipeline
-  -> regularization ability atoms
-  -> RegularizedDatasetProvider (normalized dataset + sidecars)
-  -> job status queued, needs_review, or completed
-
-POST /api/analysis/jobs/{job_id}/run
-  -> DataProcessingAnalysisFlow.run_analysis
-  -> universal analysis pipelines (overview, profile, association, recommendation, promotion, summary)
-  -> universal_analysis ability atoms
-  -> AnalysisArtifactProvider + AnalysisModelStoreProvider
-  -> job status processing, completed, or failed
+  -> quality/capability/sidecars
+  -> needs_review or ready
+  -> universal overview/profile/association/recommendation/promotion/summary pipelines
+  -> output refs and skipped reasons
+  -> job status completed or failed
 ```
 
-Customer text suggestion:
+状态：`queued`, `processing`, `completed`, `failed`, `needs_review`。标准化只会因为 core 字段需要复核而阻断后续分析；optional/marketing fuzzy mapping 不阻断通用分析。
 
-```text
-Controller
-  -> CustomerTextSuggestionPipeline
-  -> retail text suggestion ability
-  -> LLMProvider
-  -> text response with metadata
-```
+重要 sidecars：
 
-## Persistence And Generated Assets
+- `sidecar:schema_mapping_detail`
+- `sidecar:quality_report`
+- `sidecar:capability`
+- `sidecar:manifest`
+- `sidecar:preview_rows`
 
-- Project metadata: `data/projects.json`
-- Project workspace: `data/projects/{project_id}/`
-- Uploaded dataset: `data/projects/{project_id}/dataset.csv`
-- Project reports/customers: `data/projects/{project_id}/outputs/` and `data/projects/{project_id}/customers.csv`
-- Retail Analysis V2 datasets/artifacts/models: `data/projects/{project_id}/analysis/...`
-- Global static assets: `outputs/`
-- Recommendation model artifact: `backend/data/model_data.pkl`
-- Dynamic rules: `backend/data/dynamic_rules.csv`
+## 前端接入边界
 
-`analysis/` is an algorithm blueprint/reference directory. Backend runtime code must not import `analysis/code_files` directly and must not write runtime outputs to `analysis/output`.
+`frontend/src/api/` 是页面访问后端的唯一业务 API 边界：
 
-`analysis/data-processing-pipeline/` is a source archive for the planned
-generalized data-processing chain. It contains:
+- `client.ts`：axios 实例、timeout、envelope 解包。
+- `errors.ts`：400/404/422/500 错误归一化。
+- `types.ts`：API DTO、状态枚举和状态 helper。
+- `retail.ts`：Retail V2 endpoint wrappers。
+- `data-processing.ts`：Data Processing endpoint wrappers。
+- `suggestions.ts`：Customer Suggestions 直返接口。
+- `health.ts`：`GET /api/health/`。
 
-- `regularization/`: arbitrary retail input -> standard schema +
-  `capability.json`.
-- `analysis2/`: standard schema + capability -> universal analysis outputs.
-- `analysis/`: fixed retail analysis benchmark and algorithm reference.
+Vite dev proxy 在 `frontend/vite.config.ts` 中将 `/api` 与 `/outputs` 转发到后端。部署时可用 `VITE_API_BASE_URL` 改写 base URL。
 
-Backend runtime code must not import this archive directly. Migrate logic into
-`backend/abilities`, `backend/business`, `backend/providers`, and
-`backend/infrastructure` according to the data-processing integration design and
-checklist.
+## Persistence And Infrastructure
 
-## Quality And Runtime Checks
+当前业务 runtime 仍以本地文件和 JSON 为主要真相源：
 
-Primary commands:
+- Project metadata：`data/projects.json`
+- Project workspace：`data/projects/{project_id}/`
+- Retail datasets/artifacts/models：`data/projects/{project_id}/analysis/...`
+- Data Processing raw/normalized datasets and sidecars：通过 `RegularizedDatasetProvider` 落地到项目空间。
+- Static generated assets：`outputs/`
+
+PostgreSQL/Redis foundation 已存在：
+
+- Compose：`docker-compose.dev.yml`
+- Alembic：`alembic/`, `alembic.ini`
+- SQLAlchemy base/session/models：`backend/infrastructure/db/`
+- PostgreSQL project repository adapter：`backend/infrastructure/adapters/postgres_project_repository_adapter.py`
+
+尚未完成：业务 read/write switch、历史数据迁移、Redis-backed queue。Redis 不能作为业务真相源，大 CSV/图表/报告/音频不应直接塞进 PostgreSQL。
+
+## Worker Limitation
+
+分析任务当前使用 FastAPI in-process background tasks 和 filesystem-backed state。Redis Queue 实现前，后端应以单 worker 运行；多 worker 或多 replica 可能让任务状态不可见或覆盖本地状态。
+
+## Quality Gate
 
 ```bash
 make lint
 make format
-make test
-make build
 make check
+make hooks
 ```
 
-`make check` runs backend Ruff lint, backend Ruff format check, backend pytest, and frontend `npm run build`.
+`make check` 运行 backend Ruff lint、backend Ruff format check、pytest、frontend `npm run build`。当前测试基线为 `188 passed, 5 skipped`。`make typecheck` 与 `make clean` 是占位目标。
 
-Runtime checks live in `backend/core/runtime_checks.py` and are intended for local or CI smoke validation:
+Runtime smoke checks：
 
 ```bash
 uv run python -m backend.core.runtime_checks check-config
@@ -235,5 +208,3 @@ uv run python -m backend.core.runtime_checks check-data-processing --sample --sa
 uv run python -m backend.core.runtime_checks check-regularization --sandbox
 uv run python -m backend.core.runtime_checks check-analysis-optional-runtime
 ```
-
-Architecture import rules are enforced by `tests/test_architecture_imports.py`. Current backend pytest coverage is 174 tests.

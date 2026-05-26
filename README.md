@@ -1,115 +1,157 @@
 # MarketMind
 
-MarketMind 是一个面向零售/超市场景的 AI 营销系统，采用 **Vue 3 + FastAPI** 的前后端分离架构，聚焦于项目化的数据分析与智能营销决策。
+MarketMind 是一个面向零售与通用交易数据的 AI 营销分析系统。当前主线是 **Vue 3 + FastAPI** 前后端分离应用，后端通过分层架构编排分析流程，前端通过 typed API client 接入公开 HTTP 契约。
 
-## 功能概览
+## 当前能力
 
-- Retail Analysis V2：创建分析项目、上传 CSV、跟踪分析状态
-- 购物篮/高效用组合分析：FP-Growth、HUIM 与营销策略建议
-- 行为推荐：基于分析结果的个性化推荐能力
-- AI 文本建议：基于 LLM 的客户营销建议与商品洞察文本
-- 客户分群、营销洞察、促销因果分析
-- 数据处理链路：`regularization -> analysis2` 通用分析链路已完整实现并接入后端 runtime，与 Retail V2 并存
+- Retail Analysis V2：创建项目、上传固定中文列零售 CSV、运行清洗、特征工程、分群、关联、推荐、营销洞察和报告链路。
+- Data Processing：创建 Job、上传通用 CSV/Excel、执行 `regularization -> analysis2` 通用分析链路，读取 quality、capability、outputs 和 sidecars。
+- AI 文本建议：前端通过后端 `POST /api/analysis/customer-suggestions` 生成客户营销建议与商品洞察文本。
+- 前端工作台：Retail 项目页、Data Processing 页、产物引用展示、服务健康状态和设置页 LLM 配置。
+- 本地基础设施：Docker Compose 提供 PostgreSQL 与 Redis；SQLAlchemy/Alembic/PostgreSQL adapter 已落地，但业务 runtime 尚未切换到数据库真相源，Redis Queue 尚未实现。
 
 ## 技术栈
 
-- 后端：FastAPI、Uvicorn、Pydantic、pandas、scikit-learn、mlxtend、httpx
-- 前端：Vue 3、Vite、TypeScript、Pinia、Vue Router、Element Plus、ECharts、Axios
+| 层 | 技术 |
+| --- | --- |
+| 后端 | FastAPI, Uvicorn, Pydantic 2, pandas, scikit-learn, mlxtend, SQLAlchemy, Alembic |
+| 前端 | Vue 3, Vite, TypeScript, Vue Router, Pinia, Element Plus, ECharts, Axios |
+| 工具 | uv, npm, Ruff, pytest, pre-commit, Docker Compose |
 
 ## 环境要求
 
-- Python 3.13.x（项目约束：`>=3.13,<3.14`，建议 3.13.9）
-- [uv](https://github.com/astral-sh/uv) 包管理器
-- Node.js 18+ 与 npm
+- Python `>=3.13,<3.14`，建议 Python 3.13.9。
+- `uv`。
+- Node.js 18+ 与 npm。
+- 可选：OrbStack 或 Docker Desktop，用于 PostgreSQL/Redis 本地服务。
 
-## 快速启动（推荐脚本）
+## 快速启动
 
-macOS / Linux:
+一键启动前后端：
+
 ```bash
 bash scripts/start-project.sh
 ```
 
-Windows:
+Windows：
+
 ```bat
 scripts\start-project.bat
 ```
 
-脚本会自动安装依赖、创建必要目录并启动前后端服务：
+默认地址：
+
 - 前端：`http://localhost:5173`
 - 后端 API：`http://localhost:8000/api`
-- API 文档：`http://localhost:8000/api/docs`
+- Swagger：`http://localhost:8000/api/docs`
+- ReDoc：`http://localhost:8000/api/redoc`
 
-## 手动启动（分步）
+## 手动启动
 
-### 1) 后端
+后端：
+
 ```bash
 uv sync
 uv run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 2) 前端
+前端：
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-前端默认使用 `.env.development` 中的配置（脚本会自动生成）：
-```
-VITE_API_BASE_URL=http://localhost:8000/api
-VITE_API_TIMEOUT=30000
+前端默认通过 `frontend/vite.config.ts` 将 `/api` 与 `/outputs` 代理到 `http://localhost:8000`。需要跨域或部署时可设置 `VITE_API_BASE_URL` 与 `VITE_API_TIMEOUT`。
+
+## 本地基础设施
+
+PostgreSQL/Redis 是开发期基础设施，不会自动替代当前 filesystem/JSON runtime。
+
+```bash
+make infra-up
+make db-migrate
 ```
 
-## 当前数据集要求
+常用命令：
 
-当前后端 `/api/analysis` runtime 只支持 CSV。Retail V2 smoke fixture 位于：
+- `make infra-down`：停止 PostgreSQL/Redis。
+- `make infra-reset`：删除 named volumes 后重启。
+- `make infra-logs`：查看 PostgreSQL/Redis 日志。
+- `make db-downgrade`：Alembic downgrade 到 base。
+- `make db-revision DB_REVISION_MESSAGE="describe change"`：生成迁移草稿。
+
+## 使用入口
+
+### Retail Analysis V2
+
+1. 打开 `http://localhost:5173/projects`。
+2. 创建项目。
+3. 上传 Retail V2 CSV。
+4. 启动分析并等待状态进入 `completed` 或 `failed`。
+5. 在项目详情页查看 summary、quality、stage status、artifact refs、推荐与营销洞察。
+
+Retail V2 CSV 字段以 `backend/providers/dtos.py` 的 `RETAIL_RAW_SALES_COLUMNS` 为准。冒烟数据位于：
 
 ```text
 tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv
 ```
 
-当前 Retail V2 raw CSV 字段契约定义在 `backend/providers/dtos.py` 的
-`RETAIL_RAW_SALES_COLUMNS`。
+### Data Processing
 
-通用数据处理链路已实现：
-
-```text
-原始数据上传 -> regularization 正则化 -> analysis2 通用分析 -> 结果产物
-```
-
-相关代码位于 `backend/abilities/regularization/`、`backend/abilities/universal_analysis/`、`backend/business/pipelines/` 和 `backend/business/flows/`。归档源材料仍保留在 `analysis/data-processing-pipeline/` 作为参考。
+1. 打开 `http://localhost:5173/data-processing`。
+2. 填写 `project_id` 与 Job 名称。
+3. 上传 `.csv`、`.xls` 或 `.xlsx`。
+4. 执行标准化，查看 quality/capability/sidecars。
+5. 若状态为 `needs_review`，先复核 mapping 与 quality；当前后端没有 approval endpoint，前端会阻止继续 run。
+6. 标准化通过后运行分析，轮询到终态后查看 outputs 与 skipped reasons。
 
 ## 目录结构
 
-```
-MarketMind/
-├── backend/              # FastAPI 后端
-├── frontend/             # Vue 3 前端
-├── scripts/              # 一键启动脚本（sh/bat）
-├── analysis/             # 离线分析蓝本、data-processing pipeline 归档
-├── outputs/              # 图表/报告输出
-├── data/                 # 项目数据存储
-├── docs/                 # 文档（架构/指南/规划）
-├── app.py                # Streamlit 单机版入口（可选）
-└── pyproject.toml
+```text
+backend/      FastAPI 后端、业务编排、能力原子、Provider 边界、Infrastructure adapters
+frontend/     Vue 3 前端、typed API client、Retail/Data Processing 页面
+docs/         当前架构、接口、运行、开发、接入和历史计划文档
+analysis/     离线实验蓝本和 data-processing 源材料归档；runtime 不直接 import
+data/         本地项目状态和 runtime 数据
+outputs/      静态输出文件挂载目录
+scripts/      一键启动脚本与 PostgreSQL 初始化脚本
+tests/        API、业务流、能力、Provider、DB、架构规则测试
 ```
 
-## 相关文档
+## 质量门
 
-- 架构说明：`docs/ARCHITECTURE.md`
-- 后端接口接入文档：`docs/backend-api.md`
-- 前端接入方案：`docs/frontend-api-integration-plan.md`
-- 使用指南：`docs/USAGE_GUIDE.md`
-- 快速开始：`docs/QUICKSTART.md`
-- 数据处理链路方案：`docs/architecture/data-processing-pipeline-integration-design.md`
+```bash
+make lint
+make format
+make check
+make hooks
+```
 
-## 其他入口（可选）
+当前 `make check` 覆盖 backend Ruff lint、backend Ruff format check、pytest、frontend `npm run build`。最近基线为 `188 passed, 5 skipped`，pytest 仍有 pandas/numpy/pydantic 运行时 warnings。
 
-如果需要独立的 Streamlit 版本：
+`make typecheck` 与 `make clean` 是占位目标，不能作为验证通过的证据。
+
+## 主要文档
+
+- [docs/README.md](docs/README.md)：文档地图。
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)：当前架构。
+- [docs/backend-api.md](docs/backend-api.md)：后端 HTTP 接口。
+- [docs/frontend-api-integration-plan.md](docs/frontend-api-integration-plan.md)：前端接入状态与后续计划。
+- [docs/QUICKSTART.md](docs/QUICKSTART.md)：启动和验收。
+- [docs/USAGE_GUIDE.md](docs/USAGE_GUIDE.md)：功能使用指南。
+- [docs/commands.md](docs/commands.md)：Makefile 命令契约。
+- [docs/env.md](docs/env.md)：环境变量约定。
+
+## 可选 Streamlit 入口
+
+`app.py` 是早期单机版入口，不是当前主应用路径。
+
 ```bash
 uv run streamlit run app.py
 ```
 
 ## License
 
-MIT License. See `LICENSE`.
+MIT License. See [LICENSE](LICENSE).

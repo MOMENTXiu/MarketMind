@@ -1,7 +1,6 @@
 # Data Processing Pipeline Integration Checklist
 
-> Status: planning checklist. Do not implement runtime migration before the
-> relevant design and checklist item is marked `in_progress`.
+> Status note (2026-05-26): Data Processing runtime is implemented and exposed through `/api/analysis/jobs...`; the frontend entry is `/data-processing`. Use `docs/ARCHITECTURE.md`, `docs/backend-api.md`, and `docs/frontend-api-integration-plan.md` for current operation. This checklist remains as migration history.
 >
 > Target chain:
 >

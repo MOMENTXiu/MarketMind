@@ -1,88 +1,128 @@
 # Quickstart
 
-MarketMind runs as a split Vue 3 + FastAPI application. Run commands from the repository root unless a step says otherwise.
+MarketMind 当前主应用是 Vue 3 + FastAPI。命令默认从仓库根目录执行。
 
 ## Requirements
 
-- Python 3.13.x (`pyproject.toml` requires `>=3.13,<3.14`)
-- uv
-- Node.js 18+ and npm
+- Python `>=3.13,<3.14`，建议 3.13.9。
+- `uv`。
+- Node.js 18+ 与 npm。
+- 可选：OrbStack 或 Docker Desktop，用于 PostgreSQL/Redis。
 
 ## One-command Start
 
-macOS / Linux:
+macOS / Linux：
 
 ```bash
 bash scripts/start-project.sh
 ```
 
-Windows:
+Windows：
 
 ```bat
 scripts\start-project.bat
 ```
 
-Default local URLs:
+默认地址：
 
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:8000/api`
-- API docs: `http://localhost:8000/api/docs`
+- Swagger: `http://localhost:8000/api/docs`
+- ReDoc: `http://localhost:8000/api/redoc`
 
 ## Manual Start
 
-Install backend dependencies:
+安装后端依赖：
 
 ```bash
 uv sync
 ```
 
-Install frontend dependencies:
-
-```bash
-cd frontend
-npm install
-```
-
-Start the backend:
+启动后端：
 
 ```bash
 uv run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Start the frontend in another terminal:
+安装并启动前端：
 
 ```bash
 cd frontend
+npm install
 npm run dev
 ```
 
+前端开发环境通过 `frontend/vite.config.ts` 代理 `/api` 与 `/outputs` 到 `http://localhost:8000`。跨域部署时使用 `VITE_API_BASE_URL` 和 `VITE_API_TIMEOUT`。
+
+## Optional Local Infrastructure
+
+PostgreSQL/Redis 用于当前基础设施切片和 DB smoke tests。业务 runtime 尚未切换到 DB 真相源。
+
+```bash
+make infra-up
+make db-migrate
+```
+
+常用命令：
+
+```bash
+make infra-down
+make infra-reset
+make infra-logs
+make db-downgrade
+make db-revision DB_REVISION_MESSAGE="describe change"
+```
+
+`TEST_DATABASE_URL` 必须指向隔离测试库；迁移 roundtrip 测试会 drop/recreate 表。新 volume 会通过 `scripts/postgres-init/01-create-test-db.sql` 创建 `marketmind_test`。
+
 ## Verify The Workspace
 
-Run the full local quality gate:
+完整本地质量门：
 
 ```bash
 make check
+make hooks
 ```
 
-Equivalent pieces:
+拆分命令：
 
 ```bash
 make lint
+make format
 make test
 make build
 ```
 
-Current baseline after the Analysis V2 and data-processing pipeline migrations:
+当前基线：
 
-- Backend tests: 188 pytest tests
-- Backend lint/format: Ruff
-- Frontend build/type validation: `npm run build` (`vue-tsc && vite build`)
+- Backend tests: `188 passed, 5 skipped`。
+- Backend lint/format: Ruff。
+- Frontend build/type validation: `cd frontend && npm run build`。
+- `make typecheck` 和 `make clean` 是占位目标，不能作为验证证据。
 
-`make typecheck` and `make clean` are placeholders and should not be treated as verification evidence.
+## Retail V2 Smoke Data
+
+Retail V2 使用固定中文列 CSV：
+
+```text
+tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv
+```
+
+字段契约以 `backend/providers/dtos.py` 的 `RETAIL_RAW_SALES_COLUMNS` 为准。
+
+## Data Processing Smoke Flow
+
+前端入口：`http://localhost:5173/data-processing`。
+
+后端流程：
+
+```text
+create job -> upload raw CSV/Excel -> regularize -> run -> outputs/sidecars
+```
+
+当数据没有共购结构时，association 阶段可以 `skipped`，Job 仍可 `completed`。`needs_review` 只应阻断 core 字段需要复核的标准化结果。
 
 ## Runtime Checks
-
-The backend includes a CLI smoke-check module:
 
 ```bash
 uv run python -m backend.core.runtime_checks check-config
@@ -96,40 +136,10 @@ uv run python -m backend.core.runtime_checks check-regularization --sandbox
 uv run python -m backend.core.runtime_checks check-analysis-optional-runtime
 ```
 
-## Example Dataset
-
-Use `tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv` for Retail Analysis V2 smoke tests. Uploaded runtime datasets and generated outputs are project-scoped under:
-
-```text
-data/projects/{project_id}/analysis/...
-```
-
-Supported upload file type:
-
-- `.csv`
-
-Retail Analysis V2 expects the Chinese raw retail sales columns defined by `RETAIL_RAW_SALES_COLUMNS` in `backend/providers/dtos.py`.
-
-The generalized data-processing chain is implemented in backend runtime
-(`backend/abilities/regularization/`, `backend/abilities/universal_analysis/`,
-`backend/business/flows/data_processing_analysis_flow.py`). The original source
-archive remains under `analysis/data-processing-pipeline/` as reference.
-
 ## Optional Streamlit Entry
 
-The repository still contains `app.py` as an optional standalone Streamlit entry. It is not the primary application path after the FastAPI + Vue architecture migration.
+`app.py` 是早期单机版入口，不是当前主应用路径。
 
 ```bash
 uv run streamlit run app.py
 ```
-
-## Useful Files
-
-- `AGENTS.md`: agent-facing project baseline and quality rules
-- `docs/ARCHITECTURE.md`: current architecture overview
-- `docs/architecture/architecture-change.md`: detailed migration record
-- `docs/architecture/construction-checklist.md`: staged migration checklist and verification notes
-- `docs/architecture/data-processing-pipeline-integration-design.md`: future raw upload -> regularization -> analysis2 architecture plan
-- `docs/architecture/data-processing-pipeline-integration-checklist.md`: future data-processing migration checklist
-- `docs/commands.md`: Makefile command contract
-- `docs/env.md`: environment variable policy

@@ -30,6 +30,7 @@ Current backend test baseline covers API contracts (Retail V2 + data-processing
 chain-native), controller thinness, Retail V2 flows/pipelines, data-processing
 regularization/universal analysis abilities, provider adapters, DB
 infrastructure smoke tests, runtime checks, and architecture import rules.
+The latest local baseline is `188 passed, 5 skipped`; the skipped tests are optional/live-infra paths.
 
 The backend runtime now has two analysis chains:
 1. Retail V2 — the existing project-scoped retail pipeline.
@@ -40,6 +41,8 @@ The backend runtime now has two analysis chains:
    reference; backend runtime code must not import from it directly.
 
 `make check` is the canonical local gate because it combines backend lint, backend format check, backend tests, and frontend build/type validation.
+
+Frontend business pages call backend endpoints through `frontend/src/api/`. Do not add page-local raw axios calls for MarketMind business APIs, retired `/api/projects` / `/api/recommend` / `/api/association` routes, or browser direct LLM `/chat/completions` / `/models` calls.
 
 ## Local Infrastructure
 

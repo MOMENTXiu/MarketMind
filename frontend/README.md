@@ -1,139 +1,94 @@
-# MarketMind Frontend - Vue3 前端
+# MarketMind Frontend
 
-## 技术栈
+Vue 3 + Vite frontend for Retail Analysis V2, Data Processing, recommendations, and customer text suggestions.
 
-- **Vue 3** - 渐进式JavaScript框架
-- **Vite** - 新一代前端构建工具
-- **TypeScript** - 类型安全
-- **Pinia** - 状态管理
-- **Vue Router** - 路由
-- **Axios** - HTTP 客户端
-- **Element Plus** - UI组件库
-- **ECharts** - 数据可视化
+## Stack
 
-## 快速开始
+- Vue 3.5
+- Vite 6
+- TypeScript 5.7
+- Vue Router
+- Pinia
+- Axios
+- Element Plus
+- ECharts / vue-echarts
 
-### 1. 安装依赖
+## Development
 
 ```bash
 cd frontend
 npm install
-# 或使用 pnpm
-pnpm install
-```
-
-### 2. 开发运行
-
-```bash
 npm run dev
 ```
 
-访问: http://localhost:5173
-
-### 3. 构建生产版本
+Build:
 
 ```bash
 npm run build
 ```
 
-## 项目结构
+The dev server runs at `http://localhost:5173`.
 
-```
-frontend/
-├── src/
-│   ├── assets/           # 静态资源
-│   ├── components/       # 组件
-│   ├── stores/           # Pinia 状态管理
-│   ├── router/           # 路由配置
-│   ├── views/            # 页面
-│   │   ├── Home.vue
-│   │   ├── ProjectList.vue
-│   │   ├── ProjectCreate.vue
-│   │   ├── ProjectDetail.vue
-│   │   ├── CustomerAnalysis.vue
-│   │   ├── ProductRecommend.vue
-│   │   ├── Association.vue
-│   │   ├── Prediction.vue
-│   │   ├── Clustering.vue
-│   │   ├── Voice.vue
-│   │   └── Settings.vue
-│   ├── styles/           # 样式
-│   ├── utils/            # 工具函数
-│   ├── App.vue
-│   └── main.ts
-├── public/               # 公共资源
-├── index.html
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-└── README.md
+## API Boundary
+
+Pages call the backend through `frontend/src/api/`:
+
+```text
+src/api/
+  client.ts            # axios instance, timeout, envelope unwrap
+  errors.ts            # normalized API errors
+  types.ts             # shared API DTOs and status helpers
+  health.ts            # GET /api/health/
+  retail.ts            # Retail V2 endpoints
+  data-processing.ts   # Data Processing endpoints
+  suggestions.ts       # POST /api/analysis/customer-suggestions
+  index.ts             # barrel exports
 ```
 
-## 初始化命令
+Do not add page-local raw axios calls for MarketMind business endpoints. Do not reintroduce retired routes `/api/projects`, `/api/recommend`, or `/api/association`.
 
-在 `frontend/` 目录下执行：
+## Routes
 
-```bash
-# 使用 Vite 创建 Vue3 项目
-npm create vite@latest . -- --template vue-ts
+| Route | Page | Purpose |
+| --- | --- | --- |
+| `/` | `Home.vue` | Home entry. |
+| `/projects` | `ProjectList.vue` | Retail V2 project list. |
+| `/projects/new` | `ProjectCreate.vue` | Retail V2 create/upload/run. |
+| `/projects/:id` | `ProjectDetail.vue` | Retail V2 details, stages, artifacts, recommendations. |
+| `/projects/:id/recommend` | `ProductRecommend.vue` | Recommendation exploration and product insight text. |
+| `/projects/:id/customer/:customerId` | `CustomerAnalysis.vue` | Customer detail and suggestion text. |
+| `/data-processing` | `DataProcessing.vue` | Create/upload/regularize/run Data Processing jobs. |
+| `/data-processing/jobs/:jobId` | `DataProcessing.vue` | Read an existing Data Processing job with `project_id` query. |
+| `/settings` | `Settings.vue` | Local LLM config passed to backend suggestion endpoint. |
 
-# 安装依赖
-npm install
+## Environment
 
-# 安装UI组件库
-npm install element-plus
+`frontend/vite.config.ts` proxies `/api` and `/outputs` to `http://localhost:8000` in local development.
 
-# 安装路由
-npm install vue-router@4
-
-# 安装状态管理
-npm install pinia
-
-# 安装 HTTP 客户端
-npm install axios
-
-# 安装图表库
-npm install echarts vue-echarts
-
-# 安装工具库
-npm install @vueuse/core dayjs
-```
-
-## 环境变量
-
-创建 `.env.development` 和 `.env.production`:
+Optional Vite variables:
 
 ```env
-# .env.development
-VITE_API_BASE_URL=http://localhost:8000/api
-VITE_API_TIMEOUT=30000
-
-# .env.production
-VITE_API_BASE_URL=/api
+VITE_API_BASE_URL=
 VITE_API_TIMEOUT=30000
 ```
 
-## API 调用示例
+Set `VITE_API_BASE_URL` when the frontend and API are not served from the same origin or Vite proxy is unavailable.
 
-```typescript
-import axios from 'axios'
+## LLM Rule
 
-const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL })
+Business pages call `POST /api/analysis/customer-suggestions`. They should not call third-party `/chat/completions` or `/models` directly from the browser.
 
-// 当前 runtime：创建 Retail Analysis V2 项目
-const project = await api.post('/analysis/projects', {
-  name: 'Retail analysis',
-  description: 'Store transaction analysis'
-})
+## Verification
+
+From the repository root:
+
+```bash
+make build
+make check
 ```
 
-下一阶段后端计划切换到 `regularization -> analysis2` 的通用数据处理链路；
-前端接口应以后端新 contract tests 和 architecture docs 为准，不要假设旧
-Retail V2 响应结构长期稳定。
+From `frontend/` only:
 
-## 开发规范
-
-- 使用 TypeScript 进行类型检查
-- 组件使用 `<script setup>` 语法
-- 遵循 Vue 3 Composition API
-- 使用 ESLint + Prettier 格式化代码
+```bash
+npm run build
+```
