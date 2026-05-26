@@ -11,9 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 API_DIR = ROOT / "backend" / "api"
 
 CONTROLLER_FILES: tuple[str, ...] = (
-    "projects.py",
-    "recommend.py",
-    "association.py",
+    "analysis.py",
     "voice.py",
     "ai_voice.py",
 )

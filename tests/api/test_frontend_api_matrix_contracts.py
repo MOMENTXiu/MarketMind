@@ -1,19 +1,16 @@
-"""Frontend-dependent API response shape contracts via dependency overrides."""
+"""Frontend-facing API response shape contracts."""
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.api.dependencies import (
-    get_ai_voice_broadcast_pipeline,
-    get_recommendation_pipeline,
-    get_voice_synthesis_pipeline,
-)
+from backend.api.dependencies import get_ai_voice_broadcast_pipeline, get_voice_synthesis_pipeline
+from backend.business.flows.retail_analysis_flow import PROJECT_STATE_MODEL_TYPE
 from backend.main import app
-from backend.models.project import AnalysisResults, Project, ProjectStatus
 from tests.api.conftest import IsolatedEnv
 
 
@@ -22,137 +19,102 @@ def client() -> TestClient:
     return TestClient(app)
 
 
-def test_project_create_list_detail_fields_used_by_frontend(
+def _create_analysis_project(client: TestClient) -> str:
+    response = client.post(
+        "/api/analysis/projects",
+        json={"name": "Frontend Matrix", "description": "retail api matrix"},
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["data"]["id"]
+    return str(payload["data"]["id"])
+
+
+def test_analysis_project_create_list_detail_delete_fields_used_by_frontend(
     client: TestClient,
     isolated_env: IsolatedEnv,
 ) -> None:
-    create_response = client.post(
-        "/api/projects/",
-        json={"name": "Frontend Matrix", "parameters": {"min_support": 0.05}},
-    )
-    assert create_response.status_code == 200
-    create_payload = create_response.json()
-    assert create_payload["success"] is True
-    assert create_payload["data"]["id"]
+    project_id = _create_analysis_project(client)
 
-    project_id = create_payload["data"]["id"]
-    isolated_env.storage.update_project(
-        project_id,
-        {
-            "status": ProjectStatus.COMPLETED,
-            "results": AnalysisResults(
-                association_rules=[],
-                prediction_data={"sales_r2": 0.9},
-                clustering_data={"cluster_profiles": []},
-                charts={"sales": "/outputs/charts/sales.png"},
-                audio_path="/tmp/audio.mp3",
-                report_path="/tmp/report.md",
-            ).model_dump(),
-        },
-    )
-
-    list_response = client.get("/api/projects/")
+    list_response = client.get("/api/analysis/projects")
     assert list_response.status_code == 200
-    list_payload = list_response.json()
-    assert list_payload["success"] is True
-    assert isinstance(list_payload["data"], list)
-    assert {"id", "name", "status", "created_at", "updated_at"}.issubset(list_payload["data"][0])
+    list_data = list_response.json()["data"]
+    assert list_data["total"] == 1
+    assert isinstance(list_data["projects"], list)
+    assert {"id", "name", "status", "created_at", "updated_at"}.issubset(list_data["projects"][0])
 
-    detail_response = client.get(f"/api/projects/{project_id}/")
+    detail_response = client.get(f"/api/analysis/projects/{project_id}")
     assert detail_response.status_code == 200
     detail_data = detail_response.json()["data"]
-    assert detail_data["status"] == "已完成"
-    assert {"association_rules", "prediction_data", "clustering_data", "charts"}.issubset(
-        detail_data["results"]
+    assert detail_data["id"] == project_id
+    assert {"stage_statuses", "summary", "quality_summary", "artifact_refs"}.issubset(detail_data)
+
+    delete_response = client.delete(f"/api/analysis/projects/{project_id}")
+    assert delete_response.status_code == 200
+    assert delete_response.json()["data"]["deleted"] is True
+    assert (
+        isolated_env.container.analysis_models.load_model(project_id, PROJECT_STATE_MODEL_TYPE)
+        is None
     )
 
 
-def test_frontend_error_detail_and_customer_fields(
+def test_analysis_dataset_result_fields_used_by_frontend(client: TestClient) -> None:
+    project_id = _create_analysis_project(client)
+    fixture_path = Path("tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv")
+    with fixture_path.open("rb") as dataset_file:
+        upload_response = client.post(
+            f"/api/analysis/projects/{project_id}/dataset",
+            files={"file": ("retail.csv", dataset_file, "text/csv")},
+        )
+    assert upload_response.status_code == 200
+    upload_data = upload_response.json()["data"]
+    assert {"project_id", "status", "dataset_ref", "quality_summary"}.issubset(upload_data)
+    assert upload_data["dataset_ref"]["url"].startswith("/api/analysis/projects/")
+    assert "path" not in upload_data["dataset_ref"]
+
+
+def test_analysis_recommendation_and_insight_fields_used_by_frontend(
     client: TestClient,
     isolated_env: IsolatedEnv,
 ) -> None:
-    missing_response = client.get("/api/projects/missing/")
-    assert missing_response.status_code == 404
-    assert missing_response.json()["detail"].startswith("项目不存在")
+    project_id = _create_analysis_project(client)
+    state = isolated_env.container.analysis_models.load_model(project_id, PROJECT_STATE_MODEL_TYPE)
+    assert isinstance(state, dict)
+    state["recommendations"] = [
+        {
+            "customer_id": "C002",
+            "item": "Milk",
+            "score": 0.8,
+            "reason": "repeat purchase",
+            "score_breakdown": {"source": "runtime"},
+        }
+    ]
+    state["marketer_insights"] = {
+        "segment_value": [{"cluster_id": 1, "cluster_name": "高价值客户"}],
+        "promotion_effect": [],
+        "bundle_strategy": [],
+        "category_strategy": [],
+    }
+    isolated_env.container.analysis_models.save_model(project_id, PROJECT_STATE_MODEL_TYPE, state)
 
-    project = isolated_env.storage.create_project(
-        Project(name="Customer Matrix", status=ProjectStatus.COMPLETED)
+    recommendations_response = client.get(
+        f"/api/analysis/projects/{project_id}/recommendations",
+        params={"customer_id": "C002"},
     )
-    customers_csv = isolated_env.storage.get_project_dir(project.id) / "customers.csv"
-    customers_csv.write_text(
-        "客户ID,R_最近购买天数,F_购买频次,M_消费金额,客户分群\nC002,3,9,450.75,1\n",
-        encoding="utf-8",
-    )
+    assert recommendations_response.status_code == 200
+    recommendation = recommendations_response.json()["data"]["recommendations"][0]
+    assert {"customer_id", "item", "score", "reason", "score_breakdown"}.issubset(recommendation)
 
-    response = client.get(f"/api/projects/{project.id}/customers/")
-    assert response.status_code == 200
-    customer = response.json()["data"][0]
-    assert {"id", "name", "recency", "frequency", "monetary", "cluster_id"}.issubset(customer)
-
-
-class MatrixRecommendationPipeline:
-    def recommend_user(self, user_id: str, top_n: int = 10) -> dict[str, Any]:
-        return {
-            "item": user_id,
-            "recommends": [{"item": "Milk", "score": 0.8}],
-            "target_customers": [{"cluster_name": "高价值客户"}],
-            "speech": "您属于高价值客户，为您推荐：Milk。",
-            "model_tries": 3,
-            "human_fallback": False,
-            "warning": None,
-        }
-
-    def recommend_item(self, item: str, top_n: int = 8) -> dict[str, Any]:
-        return {
-            "success": True,
-            "item": item,
-            "upstream": [{"item": "Bread", "confidence": 0.4, "lift": 1.1}],
-            "downstream": [{"item": item, "confidence": 0.7, "lift": 1.6}],
-            "target_customers": [{"cluster_name": "普通活跃客户"}],
-        }
-
-    def calculate_rules(
-        self, item: str, min_confidence: float = 0.1, top_n: int = 10
-    ) -> dict[str, Any]:
-        return {
-            "success": True,
-            "item": item,
-            "rules": [{"item": item, "confidence": min_confidence, "lift": 1.3}],
-            "source": "realtime_calculation",
-        }
-
-
-def test_recommendation_fields_used_by_frontend(client: TestClient) -> None:
-    app.dependency_overrides[get_recommendation_pipeline] = lambda: MatrixRecommendationPipeline()
-    try:
-        item_response = client.get("/api/recommend/item/?item=Milk")
-        assert item_response.status_code == 200
-        item_payload = item_response.json()
-        assert {"item", "upstream", "downstream", "target_customers", "success"}.issubset(
-            item_payload
-        )
-        assert {"item", "confidence", "lift"}.issubset(item_payload["downstream"][0])
-
-        user_response = client.get("/api/recommend/user/?user_id=C002")
-        assert user_response.status_code == 200
-        user_payload = user_response.json()
-        assert {
-            "item",
-            "recommends",
-            "target_customers",
-            "speech",
-            "model_tries",
-            "human_fallback",
-            "warning",
-        }.issubset(user_payload)
-
-        calculate_response = client.post("/api/recommend/calculate/", json={"item": "Milk"})
-        assert calculate_response.status_code == 200
-        calculate_payload = calculate_response.json()
-        assert {"success", "item", "rules", "source"}.issubset(calculate_payload)
-        assert calculate_payload["rules"]
-    finally:
-        app.dependency_overrides.pop(get_recommendation_pipeline, None)
+    insights_response = client.get(f"/api/analysis/projects/{project_id}/marketer-insights")
+    assert insights_response.status_code == 200
+    insights_data = insights_response.json()["data"]
+    assert {
+        "segment_value",
+        "promotion_effect",
+        "bundle_strategy",
+        "category_strategy",
+    }.issubset(insights_data)
 
 
 def test_voice_and_ai_voice_fields_used_by_frontend(client: TestClient) -> None:

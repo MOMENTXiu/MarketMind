@@ -9,7 +9,9 @@ import pytest
 from backend.business.pipelines.ai_voice_broadcast_pipeline import AIVoiceBroadcastPipeline
 from backend.providers.container import ProvidersContainer
 from tests.fakes.providers import (
+    FakeAnalysisArtifactProvider,
     FakeAnalysisJobProvider,
+    FakeAnalysisModelStoreProvider,
     FakeAssociationRuleStoreProvider,
     FakeDatasetProvider,
     FakeGeneratedAssetProvider,
@@ -17,6 +19,7 @@ from tests.fakes.providers import (
     FakeProjectFileStorageProvider,
     FakeProjectRepositoryProvider,
     FakeRecommendationModelStoreProvider,
+    FakeRetailDatasetProvider,
     FakeSpeechSynthesisProvider,
     FakeTelemetryProvider,
 )
@@ -33,8 +36,11 @@ def _make_container(
             storage=FakeProjectFileStorageProvider(tmp_path / "projects"),
             assets=assets,
             dataset=FakeDatasetProvider(),
+            retail_dataset=FakeRetailDatasetProvider(),
             association_rules=FakeAssociationRuleStoreProvider(),
             recommendation_models=FakeRecommendationModelStoreProvider(),
+            analysis_artifacts=FakeAnalysisArtifactProvider(),
+            analysis_models=FakeAnalysisModelStoreProvider(),
             speech=FakeSpeechSynthesisProvider(),
             llm=llm,
             analysis_jobs=FakeAnalysisJobProvider(),

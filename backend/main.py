@@ -8,10 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from backend.api import ai_voice, association, projects, recommend, voice
-
-# 注释掉独立的 prediction 和 clustering API，现在通过 projects API 使用
-# from backend.api import prediction, clustering
+from backend.api import ai_voice, analysis, voice
 from backend.core.config import settings
 
 # 创建 FastAPI 应用
@@ -38,13 +35,8 @@ outputs_dir.mkdir(exist_ok=True)
 app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 
 # 注册路由
-app.include_router(projects.router, prefix="/api/projects", tags=["项目管理"])
-app.include_router(association.router, prefix="/api/association", tags=["关联规则分析"])
-# 暂时注释掉独立的 prediction 和 clustering API
-# app.include_router(prediction.router, prefix="/api/prediction", tags=["销售预测"])
-# app.include_router(clustering.router, prefix="/api/clustering", tags=["客户聚类"])
+app.include_router(analysis.router, prefix="/api/analysis", tags=["Retail Analysis V2"])
 app.include_router(voice.router, prefix="/api/voice", tags=["语音播报"])
-app.include_router(recommend.router, prefix="/api", tags=["行为推荐"])
 app.include_router(ai_voice.router, prefix="/api", tags=["AI 语音播报"])
 
 

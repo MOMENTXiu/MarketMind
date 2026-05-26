@@ -1,4 +1,4 @@
-"""Smoke tests for current public API contracts wired via dependency overrides."""
+"""Smoke tests for current public API contracts."""
 
 from __future__ import annotations
 
@@ -8,34 +8,14 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.api.dependencies import (
-    get_ai_voice_broadcast_pipeline,
-    get_association_analysis_pipeline,
-    get_project_recommendation_pipeline,
-    get_recommendation_pipeline,
-    get_voice_synthesis_pipeline,
-)
+from backend.api.dependencies import get_ai_voice_broadcast_pipeline, get_voice_synthesis_pipeline
 from backend.core.errors import NotFoundError
 from backend.main import app
-from backend.models.schemas import AssociationRuleResponse
-from tests.api.conftest import IsolatedEnv
 
 
 @pytest.fixture()
 def client() -> TestClient:
     return TestClient(app)
-
-
-def create_project(client: TestClient, name: str = "Contract Project") -> str:
-    response = client.post(
-        "/api/projects/",
-        json={"name": name, "description": "contract smoke"},
-    )
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["success"] is True
-    assert payload["data"]["id"]
-    return payload["data"]["id"]
 
 
 def test_root_and_health_contracts(client: TestClient) -> None:
@@ -55,215 +35,24 @@ def test_root_and_health_contracts(client: TestClient) -> None:
     }
 
 
-def test_project_crud_contracts(client: TestClient, isolated_env: IsolatedEnv) -> None:
-    project_id = create_project(client)
+def test_retired_analysis_routes_are_not_public(client: TestClient) -> None:
+    schema_paths = set(app.openapi()["paths"])
+    assert not any(path.startswith("/api/projects") for path in schema_paths)
+    assert not any(path.startswith("/api/recommend") for path in schema_paths)
+    assert not any(path.startswith("/api/association") for path in schema_paths)
 
-    list_response = client.get("/api/projects/")
-    assert list_response.status_code == 200
-    list_payload = list_response.json()
-    assert list_payload["success"] is True
-    assert list_payload["total"] == 1
-    assert list_payload["data"][0]["id"] == project_id
-
-    get_response = client.get(f"/api/projects/{project_id}/")
-    assert get_response.status_code == 200
-    assert get_response.json()["data"]["status"] == "待处理"
-
-    update_response = client.put(
-        f"/api/projects/{project_id}/",
-        json={"name": "Updated Contract Project"},
-    )
-    assert update_response.status_code == 200
-    assert update_response.json()["data"]["name"] == "Updated Contract Project"
-
-    missing_response = client.get("/api/projects/missing/")
-    assert missing_response.status_code == 404
-    assert missing_response.json()["detail"].startswith("项目不存在")
-
-    delete_response = client.delete(f"/api/projects/{project_id}/")
-    assert delete_response.status_code == 200
-    assert delete_response.json() == {"success": True, "message": "删除项目成功"}
-    assert isolated_env.storage.get_project(project_id) is None
+    retired_requests = [
+        client.get("/api/projects/"),
+        client.get("/api/projects/missing/"),
+        client.get("/api/recommend/item/?item=Milk"),
+        client.post("/api/recommend/calculate/", json={"item": "Milk"}),
+        client.post("/api/association/analyze/", json={"top_n": 3}),
+        client.get("/api/association/status/"),
+    ]
+    assert {response.status_code for response in retired_requests} == {404}
 
 
-def test_upload_reanalyze_customers_and_project_recommend_contracts(
-    client: TestClient,
-    isolated_env: IsolatedEnv,
-) -> None:
-    project_id = create_project(client)
-
-    invalid_upload = client.post(
-        f"/api/projects/{project_id}/upload/",
-        files={"file": ("dataset.txt", b"not,csv", "text/plain")},
-    )
-    assert invalid_upload.status_code == 400
-    assert invalid_upload.json()["detail"] == "仅支持 CSV 和 Excel 文件"
-
-    valid_upload = client.post(
-        f"/api/projects/{project_id}/upload/",
-        files={"file": ("dataset.csv", b"a,b\n1,2\n", "text/csv")},
-    )
-    assert valid_upload.status_code == 200
-    assert valid_upload.json() == {
-        "success": True,
-        "message": "文件上传成功，开始分析",
-        "project_id": project_id,
-    }
-    project = isolated_env.storage.get_project(project_id)
-    assert project is not None
-    assert project.dataset_filename == "dataset.csv"
-    assert project.status == "处理中"
-    assert [job.project_id for job in isolated_env.jobs.jobs] == [project_id]
-
-    reanalyze_response = client.post(f"/api/projects/{project_id}/reanalyze/")
-    assert reanalyze_response.status_code == 200
-    assert reanalyze_response.json() == {
-        "success": True,
-        "message": "重新分析任务已启动",
-    }
-    assert [job.project_id for job in isolated_env.jobs.jobs] == [project_id, project_id]
-
-    customers_csv = isolated_env.storage.get_project_dir(project_id) / "customers.csv"
-    customers_csv.write_text(
-        "客户ID,R_最近购买天数,F_购买频次,M_消费金额,客户分群\nC001,7,3,188.5,2\n",
-        encoding="utf-8",
-    )
-    customers_response = client.get(f"/api/projects/{project_id}/customers/?cluster_id=2")
-    assert customers_response.status_code == 200
-    assert customers_response.json() == {
-        "success": True,
-        "data": [
-            {
-                "id": "C001",
-                "name": "C001",
-                "recency": 7,
-                "frequency": 3,
-                "monetary": 188.5,
-                "cluster_id": 2,
-            }
-        ],
-    }
-
-    class FakeProjectRecommendation:
-        def recommend_for_item(self, project_id: str, item: str) -> dict[str, Any]:
-            return {
-                "item": item,
-                "upstream": [],
-                "downstream": [{"item": "Tea", "confidence": 0.5, "lift": 1.2}],
-                "target_customers": [],
-            }
-
-    app.dependency_overrides[get_project_recommendation_pipeline] = (
-        lambda: FakeProjectRecommendation()
-    )
-    try:
-        recommend_response = client.get(f"/api/projects/{project_id}/recommend/?item=Milk")
-    finally:
-        app.dependency_overrides.pop(get_project_recommendation_pipeline, None)
-    assert recommend_response.status_code == 200
-    recommend_payload = recommend_response.json()
-    assert recommend_payload["item"] == "Milk"
-    assert recommend_payload["downstream"][0]["item"] == "Tea"
-    assert recommend_payload["dataset_path"] == project.dataset_path
-
-
-def test_reanalyze_missing_dataset_contract(
-    client: TestClient,
-    isolated_env: IsolatedEnv,
-) -> None:
-    project_id = create_project(client, name="No Dataset")
-
-    response = client.post(f"/api/projects/{project_id}/reanalyze/")
-    assert response.status_code == 400
-    assert response.json()["detail"] == "项目未上传数据集"
-
-
-class FakeRecommendationPipeline:
-    def recommend_user(self, user_id: str, top_n: int = 10) -> dict[str, Any]:
-        return {
-            "item": user_id,
-            "recommends": [{"item": "Milk", "reason": f"user:{user_id}"}],
-            "target_customers": [{"cluster_name": "活跃客户"}],
-            "speech": "您属于活跃客户，为您推荐：Milk。",
-            "model_tries": 3,
-            "human_fallback": False,
-            "warning": "预训练模型未加载，使用热门商品推荐",
-        }
-
-    def recommend_item(self, item: str, top_n: int = 8) -> dict[str, Any]:
-        return {
-            "success": True,
-            "item": item,
-            "upstream": [{"item": "Bread", "confidence": 0.4}],
-            "downstream": [{"item": item, "confidence": 0.6}],
-            "target_customers": [{"cluster_name": "高价值客户"}],
-        }
-
-    def calculate_rules(
-        self, item: str, min_confidence: float = 0.1, top_n: int = 10
-    ) -> dict[str, Any]:
-        if item == "Unknown":
-            return {
-                "success": False,
-                "message": "商品不存在于数据集中",
-                "item": item,
-                "rules": [],
-            }
-        return {
-            "success": True,
-            "item": item,
-            "rules": [{"item": item, "confidence": min_confidence, "lift": 1.5}],
-            "source": "realtime_calculation",
-        }
-
-    async def play_tts(self, project_id: str, speech: str) -> dict[str, Any]:
-        return {"success": True, "audio_url": f"/outputs/audio/recommend_{project_id}.mp3"}
-
-
-def test_recommendation_api_contracts(client: TestClient) -> None:
-    app.dependency_overrides[get_recommendation_pipeline] = lambda: FakeRecommendationPipeline()
-    try:
-        user_response = client.get("/api/recommend/user/?user_id=U001")
-        assert user_response.status_code == 200
-        user_payload = user_response.json()
-        assert user_payload["item"] == "U001"
-        assert user_payload["recommends"][0]["item"] == "Milk"
-        assert user_payload["warning"] == "预训练模型未加载，使用热门商品推荐"
-
-        item_response = client.get("/api/recommend/item/?item=Milk")
-        assert item_response.status_code == 200
-        item_payload = item_response.json()
-        assert item_payload["success"] is True
-        assert item_payload["downstream"][0]["item"] == "Milk"
-
-        calculate_response = client.post(
-            "/api/recommend/calculate/",
-            json={"item": "Milk", "min_confidence": 0.25},
-        )
-        assert calculate_response.status_code == 200
-        calculate_payload = calculate_response.json()
-        assert calculate_payload["success"] is True
-        assert calculate_payload["source"] == "realtime_calculation"
-        assert calculate_payload["rules"][0]["confidence"] == 0.25
-
-        missing_item_response = client.post("/api/recommend/calculate/", json={"item": "Unknown"})
-        assert missing_item_response.status_code == 200
-        assert missing_item_response.json() == {
-            "success": False,
-            "message": "商品不存在于数据集中",
-            "rules": [],
-        }
-    finally:
-        app.dependency_overrides.pop(get_recommendation_pipeline, None)
-
-
-def test_association_and_voice_contracts(client: TestClient) -> None:
-    class FakeAssociationPipeline:
-        def analyze(self, request: Any) -> AssociationRuleResponse:
-            return AssociationRuleResponse(
-                success=True, message="ok", data={"top_n": request.top_n}
-            )
-
+def test_voice_contracts(client: TestClient) -> None:
     class FakeVoicePipeline:
         async def synthesize(
             self,
@@ -278,17 +67,8 @@ def test_association_and_voice_contracts(client: TestClient) -> None:
                 "text": text,
             }
 
-    app.dependency_overrides[get_association_analysis_pipeline] = lambda: FakeAssociationPipeline()
     app.dependency_overrides[get_voice_synthesis_pipeline] = lambda: FakeVoicePipeline()
     try:
-        association_response = client.post("/api/association/analyze/", json={"top_n": 3})
-        assert association_response.status_code == 200
-        assert association_response.json()["success"] is True
-
-        status_response = client.get("/api/association/status/")
-        assert status_response.status_code == 200
-        assert status_response.json()["status"] == "ready"
-
         tts_response = client.post("/api/voice/tts/", json={"text": "hello"})
         assert tts_response.status_code == 200
         tts_payload = tts_response.json()
@@ -300,7 +80,6 @@ def test_association_and_voice_contracts(client: TestClient) -> None:
         assert voice_response.status_code == 200
         assert voice_response.json()["audio_url"] == "/outputs/audio/temp.mp3"
     finally:
-        app.dependency_overrides.pop(get_association_analysis_pipeline, None)
         app.dependency_overrides.pop(get_voice_synthesis_pipeline, None)
 
 
@@ -321,8 +100,7 @@ def test_ai_voice_contracts(client: TestClient) -> None:
 
         def resolve_audio_path(self, filename: str) -> Path:
             if filename == "marketmind-contract-audio.mp3":
-                path = Path("/tmp/marketmind-contract-audio.mp3")
-                return path
+                return Path("/tmp/marketmind-contract-audio.mp3")
             raise NotFoundError("音频文件不存在")
 
     app.dependency_overrides[get_ai_voice_broadcast_pipeline] = lambda: FakeAIVoicePipeline()
