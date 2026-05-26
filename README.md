@@ -4,11 +4,12 @@ MarketMind 是一个面向零售/超市场景的 AI 营销系统，采用 **Vue 
 
 ## 功能概览
 
-- 项目管理：创建项目、上传数据、跟踪分析状态
-- 关联规则分析：Apriori 购物篮分析与营销策略建议
-- 行为推荐：基于分析结果的推荐能力
+- Retail Analysis V2：创建分析项目、上传 CSV、跟踪分析状态
+- 购物篮/高效用组合分析：FP-Growth、HUIM 与营销策略建议
+- 行为推荐：基于分析结果的个性化推荐能力
 - AI 语音播报：分析报告生成与语音合成
-- 销售预测、客户聚类（部分功能仍在开发中）
+- 客户分群、营销洞察、促销因果分析
+- 数据处理链路规划：`regularization -> analysis2` 通用分析链路已归档并完成设计，尚未进入后端 runtime
 
 ## 技术栈
 
@@ -59,14 +60,23 @@ VITE_API_BASE_URL=http://localhost:8000/api
 VITE_API_TIMEOUT=30000
 ```
 
-## 数据集要求
+## 当前数据集要求
 
-支持 CSV / Excel（`.csv` / `.xlsx` / `.xls`），必要字段示例：
-```
-订单 ID, 订单日期, 客户ID, 产品ID, 子类别, 销售额, 折扣, 利润
+当前后端 `/api/analysis` runtime 只支持 CSV。Retail V2 smoke fixture 位于：
+
+```text
+tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv
 ```
 
-项目内置示例数据：`analysis/dataset.csv`
+当前 Retail V2 raw CSV 字段契约定义在 `backend/providers/dtos.py` 的
+`RETAIL_RAW_SALES_COLUMNS`。
+
+下一阶段通用数据处理链路已归档在
+`analysis/data-processing-pipeline/`，目标是：
+
+```text
+原始数据上传 -> regularization 正则化 -> analysis2 通用分析 -> 结果产物
+```
 
 ## 目录结构
 
@@ -75,7 +85,7 @@ MarketMind/
 ├── backend/              # FastAPI 后端
 ├── frontend/             # Vue 3 前端
 ├── scripts/              # 一键启动脚本（sh/bat）
-├── analysis/             # 离线分析与样例数据
+├── analysis/             # 离线分析蓝本、data-processing pipeline 归档
 ├── outputs/              # 图表/报告/语音输出
 ├── data/                 # 项目数据存储
 ├── docs/                 # 文档（架构/指南/规划）
@@ -88,6 +98,7 @@ MarketMind/
 - 架构说明：`docs/ARCHITECTURE.md`
 - 使用指南：`docs/USAGE_GUIDE.md`
 - 快速开始：`docs/QUICKSTART.md`
+- 数据处理链路方案：`docs/architecture/data-processing-pipeline-integration-design.md`
 
 ## 其他入口（可选）
 

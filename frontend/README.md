@@ -41,25 +41,22 @@ npm run build
 ```
 frontend/
 ├── src/
-│   ├── api/              # API 接口
-│   │   ├── association.ts
-│   │   ├── prediction.ts
-│   │   ├── clustering.ts
-│   │   └── voice.ts
 │   ├── assets/           # 静态资源
 │   ├── components/       # 组件
-│   │   ├── Association/  # 关联规则组件
-│   │   ├── Prediction/   # 预测组件
-│   │   ├── Clustering/   # 聚类组件
-│   │   └── Common/       # 通用组件
 │   ├── stores/           # Pinia 状态管理
 │   ├── router/           # 路由配置
 │   ├── views/            # 页面
 │   │   ├── Home.vue
+│   │   ├── ProjectList.vue
+│   │   ├── ProjectCreate.vue
+│   │   ├── ProjectDetail.vue
+│   │   ├── CustomerAnalysis.vue
+│   │   ├── ProductRecommend.vue
 │   │   ├── Association.vue
 │   │   ├── Prediction.vue
 │   │   ├── Clustering.vue
-│   │   └── Voice.vue
+│   │   ├── Voice.vue
+│   │   └── Settings.vue
 │   ├── styles/           # 样式
 │   ├── utils/            # 工具函数
 │   ├── App.vue
@@ -123,12 +120,16 @@ import axios from 'axios'
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL })
 
-// 创建 Retail Analysis V2 项目
+// 当前 runtime：创建 Retail Analysis V2 项目
 const project = await api.post('/analysis/projects', {
   name: 'Retail analysis',
   description: 'Store transaction analysis'
 })
 ```
+
+下一阶段后端计划切换到 `regularization -> analysis2` 的通用数据处理链路；
+前端接口应以后端新 contract tests 和 architecture docs 为准，不要假设旧
+Retail V2 响应结构长期稳定。
 
 ## 开发规范
 

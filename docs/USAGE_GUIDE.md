@@ -115,19 +115,28 @@ npm run dev
 ## 数据集要求
 
 ### 文件格式
-- CSV 文件（推荐）
-- Excel 文件（.xlsx, .xls）
+- 当前 runtime：CSV 文件
+- 后续通用链路：正则化引擎设计支持 CSV / Excel，但尚未接入后端 runtime
 
-### 必需字段
-```
-订单 ID, 订单日期, 客户ID, 产品ID, 子类别, 销售额, 折扣, 利润
-```
+### 当前 Retail V2 CSV 字段
+
+当前后端 runtime 只支持 Retail V2 CSV。字段契约以代码为准：
+`backend/providers/dtos.py` 中的 `RETAIL_RAW_SALES_COLUMNS`。
 
 ### 示例数据
-可使用项目自带的示例数据集：
+
+可使用测试夹具进行本地冒烟：
+
 ```bash
-analysis/dataset.csv
+tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv
 ```
+
+### 后续通用链路
+
+`analysis/data-processing-pipeline/` 已归档新的通用数据处理源材料：
+`regularization/` 负责任意数据正则化，`analysis2/` 负责基于标准 Schema
+与 capability 的通用分析。该链路尚未接入后端 runtime，施工方案见
+`docs/architecture/data-processing-pipeline-integration-design.md`。
 
 ## API 接口说明
 
@@ -142,7 +151,7 @@ analysis/dataset.csv
 
 ### 分析操作
 - `POST /api/analysis/projects/{id}/run` - 启动或复用分析任务
-- `GET /api/analysis/projects/{id}/status` - 获取阶段状态
+- `GET /api/analysis/projects/{id}` - 获取项目详情、阶段状态、summary 与 refs
 
 ### 结果读取
 - `GET /api/analysis/projects/{id}/recommendations` - 获取 Retail V2 推荐结果
@@ -180,7 +189,7 @@ MarketMind/
 │   └── projects/         # 项目文件夹
 │       └── {project_id}/
 │           └── analysis/      # Retail V2 runtime 数据集、产物、模型
-└── analysis/              # Analysis V2 算法蓝本（参考，不是 runtime 入口）
+└── analysis/              # Analysis V2 算法蓝本 + data-processing pipeline 归档
 ```
 
 ## 开发状态
@@ -194,6 +203,7 @@ MarketMind/
 - 项目详情页面
 - Retail V2 清洗、特征工程、分群、关联/HUIM、推荐、营销洞察 Ability
 - 业务 Pipeline / RetailAnalysisFlow / Provider Adapter 分层
+- Data-processing pipeline 源材料归档和迁移方案（未接入 runtime）
 
 ## 技术栈
 
@@ -230,7 +240,7 @@ A: 确保 Edge-TTS 已正确安装，检查网络连接。
 
 为了 10 分钟的课程演示，建议：
 
-1. **准备好示例数据**：使用 `analysis/dataset.csv`
+1. **准备好示例数据**：使用 `tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv`
 2. **提前创建一个项目**：演示时可直接查看结果
 3. **熟悉操作流程**：新建项目 → 上传数据 → 查看分析 → 播放语音
 4. **准备讲解要点**：

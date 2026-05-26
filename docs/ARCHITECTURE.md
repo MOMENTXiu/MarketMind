@@ -2,6 +2,14 @@
 
 MarketMind is a Vue 3 + FastAPI retail marketing system. The backend now uses a layered architecture so future work can change storage, LLM, TTS, and analysis implementations without pushing SDK or filesystem details into API handlers.
 
+As of 2026-05-26, the implemented backend runtime is the Retail Analysis V2
+chain under `/api/analysis`. The next planned architecture target is the
+data-processing pipeline documented in
+`docs/architecture/data-processing-pipeline-integration-design.md`: raw upload
+-> `regularization` -> `analysis2` universal analysis -> final outputs. As of
+2026-05-26, that target is design-only and may replace the current Retail V2 API/state
+contract when implementation starts.
+
 ## Runtime Shape
 
 ```text
@@ -14,7 +22,7 @@ Browser / Vue 3
   -> local files, JSON storage, Edge TTS, LLM HTTP APIs
 ```
 
-`RetailAnalysisFlow` is the main Analysis V2 Business Flow because upload/reanalysis is a background lifecycle with status transitions, multiple retail analysis stages, generated artifacts, model persistence, and failure handling. Voice and AI broadcast paths remain separate Business Pipelines.
+`RetailAnalysisFlow` is the current implemented Analysis V2 Business Flow because upload/reanalysis is a background lifecycle with status transitions, multiple retail analysis stages, generated artifacts, model persistence, and failure handling. Voice and AI broadcast paths remain separate Business Pipelines.
 
 ## Backend Layers
 
@@ -92,7 +100,7 @@ Base URL in local development is `http://localhost:8000/api`. API docs are serve
 | --- | --- |
 | Health | `GET /`, `GET /api/health/` |
 | Retail Analysis V2 projects | `POST /api/analysis/projects`, `GET /api/analysis/projects`, `GET/DELETE /api/analysis/projects/{id}` |
-| Retail Analysis V2 dataset/lifecycle | `POST /api/analysis/projects/{id}/dataset`, `POST /api/analysis/projects/{id}/run`, `GET /api/analysis/projects/{id}/status` |
+| Retail Analysis V2 dataset/lifecycle | `POST /api/analysis/projects/{id}/dataset`, `POST /api/analysis/projects/{id}/run`; project status is returned by `GET /api/analysis/projects/{id}` |
 | Retail Analysis V2 outputs | `GET /api/analysis/projects/{id}/artifacts/{artifact_id}`, `GET /api/analysis/projects/{id}/datasets/{dataset_id}`, `GET /api/analysis/projects/{id}/models/{model_type}/{version}` |
 | Retail Analysis V2 read models | `GET /api/analysis/projects/{id}/recommendations`, `GET /api/analysis/projects/{id}/marketer-insights` |
 | Voice | `POST /api/voice/tts/`, `POST /api/voice/generate/`, `GET /api/voice/status/` |
@@ -146,6 +154,19 @@ Controller
 - Dynamic rules: `backend/data/dynamic_rules.csv`
 
 `analysis/` is an algorithm blueprint/reference directory. Backend runtime code must not import `analysis/code_files` directly and must not write runtime outputs to `analysis/output`.
+
+`analysis/data-processing-pipeline/` is a source archive for the planned
+generalized data-processing chain. It contains:
+
+- `regularization/`: arbitrary retail input -> standard schema +
+  `capability.json`.
+- `analysis2/`: standard schema + capability -> universal analysis outputs.
+- `analysis/`: fixed retail analysis benchmark and algorithm reference.
+
+Backend runtime code must not import this archive directly. Migrate logic into
+`backend/abilities`, `backend/business`, `backend/providers`, and
+`backend/infrastructure` according to the data-processing integration design and
+checklist.
 
 ## Quality And Runtime Checks
 

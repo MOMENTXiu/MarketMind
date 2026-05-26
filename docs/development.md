@@ -28,6 +28,13 @@ Current configured checks:
 
 Current backend test baseline is 123 pytest tests covering API contracts, controller thinness, Retail V2 flows/pipelines, ability atoms, provider adapters, runtime checks, and architecture import rules.
 
+The current implemented analysis runtime is Retail V2. The planned generalized
+data-processing chain (`regularization -> analysis2`) is archived under
+`analysis/data-processing-pipeline/` and tracked by
+`docs/architecture/data-processing-pipeline-integration-design.md` plus
+`docs/architecture/data-processing-pipeline-integration-checklist.md`; do not
+treat the archive as backend runtime code.
+
 `make check` is the canonical local gate because it combines backend lint, backend format check, backend tests, and frontend build/type validation.
 
 ## Commit Convention

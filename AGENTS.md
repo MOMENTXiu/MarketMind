@@ -58,12 +58,15 @@ Before commit:
 - Use package managers detected by repo setup unless project files change.
 - Current `make check` includes backend Ruff lint, backend Ruff format check, backend pytest, and frontend `npm run build`.
 - Current backend test baseline is 123 pytest tests across API contracts, controller thinness, Retail V2 flows/pipelines, ability atoms, provider adapters, runtime checks, and architecture import rules.
-- The backend architecture baseline is `API Controller -> Business Pipeline/RetailAnalysisFlow -> Ability Atom -> Provider Interface -> Infrastructure Adapter`.
+- Current implemented backend architecture baseline is `API Controller -> Business Pipeline/RetailAnalysisFlow -> Ability Atom -> Provider Interface -> Infrastructure Adapter`.
 - Key architecture paths: `backend/business/pipelines/`, `backend/business/flows/`, `backend/abilities/`, `backend/providers/`, `backend/infrastructure/`, and `backend/core/runtime_checks.py`.
-- Analysis V2 / Retail V2 work is tracked in `docs/architecture/analysis-v2-integration-design.md` and `docs/architecture/analysis-v2-integration-checklist.md`; `analysis/` is an algorithm blueprint/reference directory, not a backend runtime entry.
+- Analysis V2 / Retail V2 implemented work is tracked in `docs/architecture/analysis-v2-integration-design.md` and `docs/architecture/analysis-v2-integration-checklist.md`; `analysis/` is an algorithm blueprint/reference directory, not a backend runtime entry.
+- Future data-processing pipeline work is tracked in `docs/architecture/data-processing-pipeline-integration-design.md` and `docs/architecture/data-processing-pipeline-integration-checklist.md`; it targets `原始数据上传 -> regularization -> analysis2 -> outputs` and is not implemented in backend runtime yet.
+- `analysis/data-processing-pipeline/` is an archived source/reference snapshot from `add-analysis-2`, containing `analysis/`, `analysis2/`, and `regularization/`; backend runtime must not import from this archive directly.
+- The future data-processing target is allowed to replace the current Retail V2 API/state contract; do not add compatibility wrappers unless the user explicitly asks.
 - Current Analysis V2 API contract anchor is `tests/api/test_retail_analysis_contracts.py`; it guards `/api/analysis` schema/status/artifact/list/delete behavior plus retired old-route absence.
 - `/api/projects`, `/api/recommend`, and `/api/association` are retired; frontend project/recommendation views must use `/api/analysis` endpoints and graceful Retail V2 empty states.
-- `analysis/code_files` is excluded from Ruff lint/format because `analysis/` is a reference blueprint directory, not backend runtime code.
+- `analysis/code_files` and `analysis/data-processing-pipeline` are excluded from Ruff lint/format because they are reference blueprint/archive directories, not backend runtime code.
 - Legacy `backend/api/{projects,recommend,association,prediction,clustering}.py`, old project/recommend/association business flow/pipelines, and `backend/services/*` were deleted after import search; do not reintroduce compatibility wrappers.
 - Do not bypass `.editorconfig`, `.gitignore`, pre-commit, or CI rules.
 - Expand this file only when a stable convention is confirmed by project files or user decision.

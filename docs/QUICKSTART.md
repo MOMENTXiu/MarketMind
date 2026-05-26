@@ -108,6 +108,11 @@ Supported upload file type:
 
 Retail Analysis V2 expects the Chinese raw retail sales columns defined by `RETAIL_RAW_SALES_COLUMNS` in `backend/providers/dtos.py`.
 
+The planned generalized data-processing chain is archived under
+`analysis/data-processing-pipeline/` and documented in
+`docs/architecture/data-processing-pipeline-integration-design.md`. It is not
+yet wired into backend runtime.
+
 ## Optional Streamlit Entry
 
 The repository still contains `app.py` as an optional standalone Streamlit entry. It is not the primary application path after the FastAPI + Vue architecture migration.
@@ -122,5 +127,7 @@ uv run streamlit run app.py
 - `docs/ARCHITECTURE.md`: current architecture overview
 - `docs/architecture/architecture-change.md`: detailed migration record
 - `docs/architecture/construction-checklist.md`: staged migration checklist and verification notes
+- `docs/architecture/data-processing-pipeline-integration-design.md`: future raw upload -> regularization -> analysis2 architecture plan
+- `docs/architecture/data-processing-pipeline-integration-checklist.md`: future data-processing migration checklist
 - `docs/commands.md`: Makefile command contract
 - `docs/env.md`: environment variable policy
