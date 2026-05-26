@@ -33,7 +33,6 @@ from tests.fakes.providers import (
     FakeRecommendationModelStoreProvider,
     FakeRegularizedDatasetProvider,
     FakeRetailDatasetProvider,
-    FakeSpeechSynthesisProvider,
     FakeTelemetryProvider,
 )
 
@@ -62,7 +61,6 @@ def _make_container(
         recommendation_models=FakeRecommendationModelStoreProvider(),
         analysis_artifacts=analysis_artifacts,
         analysis_models=analysis_models,
-        speech=FakeSpeechSynthesisProvider(),
         llm=FakeLLMProvider(),
         analysis_jobs=FakeAnalysisJobProvider(),
         telemetry=FakeTelemetryProvider(),

@@ -1,22 +1,19 @@
-"""Unit tests for report and voice abilities."""
+"""Unit tests for report and customer text suggestion abilities."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 
 import pytest
 
 from backend.abilities.report.generate_analysis_report import generate_analysis_report
-from backend.abilities.report.generate_speech_text import generate_speech_text
-from backend.abilities.voice.generate_broadcast_script import generate_broadcast_script
-from backend.abilities.voice.synthesize_speech import synthesize_speech
+from backend.abilities.retail.generate_customer_text_suggestion import (
+    generate_customer_text_suggestion,
+)
 from backend.providers.dtos import (
     LLMRequestDTO,
     LLMResponseDTO,
-    SpeechSynthesisRequestDTO,
-    SpeechSynthesisResultDTO,
 )
 
 
@@ -38,7 +35,7 @@ class RuleFixture:
 
 
 class FakeLLMProvider:
-    def __init__(self, text: str = "生成的播报文案", fail: bool = False) -> None:
+    def __init__(self, text: str = "生成的建议文案", fail: bool = False) -> None:
         self.text = text
         self.fail = fail
         self.requests: list[LLMRequestDTO] = []
@@ -48,18 +45,6 @@ class FakeLLMProvider:
         if self.fail:
             raise RuntimeError("llm unavailable")
         return LLMResponseDTO(text=self.text, provider=request.provider, model=request.model)
-
-
-class FakeSpeechProvider:
-    def __init__(self) -> None:
-        self.requests: list[SpeechSynthesisRequestDTO] = []
-
-    async def synthesize(self, request: SpeechSynthesisRequestDTO) -> SpeechSynthesisResultDTO:
-        self.requests.append(request)
-        return SpeechSynthesisResultDTO(audio_path=request.output_path, audio_url="/audio/demo.mp3")
-
-    async def list_voices(self) -> list[dict[str, str]]:
-        return []
 
 
 def make_results() -> dict:
@@ -115,23 +100,19 @@ def test_generate_analysis_report_keeps_current_sections_and_fields() -> None:
     assert "本报告基于 Apriori 算法" in report
 
 
-def test_generate_speech_text_keeps_current_summary_shape() -> None:
-    speech = generate_speech_text(ProjectFixture(), make_results())
-
-    assert "Demo Project营销分析报告播报" in speech
-    assert "本次分析共发现1条关联规则" in speech
-    assert "第1条规则：Milk、Bread，推荐搭配Cheese" in speech
-    assert "销售预测模型训练完成" in speech
-    assert "客户聚类分析将6位客户分为2个群体" in speech
-    assert speech.endswith("报告播报完毕。")
-
-
 @pytest.mark.anyio
-async def test_generate_broadcast_script_uses_llm_provider_contract() -> None:
-    provider = FakeLLMProvider(text="客户分析播报")
+async def test_generate_customer_text_suggestion_uses_llm_provider_contract() -> None:
+    provider = FakeLLMProvider(text="客户分析建议")
 
-    script = await generate_broadcast_script(
-        {"cluster_name": "高价值活跃客户"},
+    text = await generate_customer_text_suggestion(
+        {
+            "customer_name": "张三",
+            "customer_id": "C1",
+            "cluster_name": "高价值活跃客户",
+            "monetary": 3000,
+            "frequency": 5,
+            "recency": 3,
+        },
         provider,
         {
             "provider": "openai",
@@ -139,21 +120,21 @@ async def test_generate_broadcast_script_uses_llm_provider_contract() -> None:
             "apiKey": "redacted",
             "modelName": "demo-model",
         },
-        "summary",
     )
 
-    assert script == "客户分析播报"
+    assert text == "客户分析建议"
     assert provider.requests[0].provider == "openai"
     assert provider.requests[0].model == "demo-model"
     assert provider.requests[0].messages[0].role == "system"
     assert provider.requests[0].messages[1].content.startswith("数据：")
+    assert "audio" not in provider.requests[0].extra
 
 
 @pytest.mark.anyio
-async def test_generate_broadcast_script_falls_back_when_provider_fails() -> None:
+async def test_generate_customer_text_suggestion_falls_back_when_provider_fails() -> None:
     provider = FakeLLMProvider(fail=True)
 
-    script = await generate_broadcast_script(
+    text = await generate_customer_text_suggestion(
         {
             "customer_name": "张三",
             "customer_id": "C1",
@@ -169,28 +150,6 @@ async def test_generate_broadcast_script_falls_back_when_provider_fails() -> Non
             "apiKey": "redacted",
             "modelName": "demo-model",
         },
-        "summary",
     )
 
-    assert "客户张三-C1被分类为'普通活跃客户'" in script
-
-
-@pytest.mark.anyio
-async def test_synthesize_speech_uses_speech_provider_contract(tmp_path: Path) -> None:
-    provider = FakeSpeechProvider()
-    output_path = tmp_path / "demo.mp3"
-
-    result = await synthesize_speech(
-        "播报文本",
-        output_path,
-        provider,
-        voice="zh-CN-XiaoxiaoNeural",
-        rate="+10%",
-        volume="+0%",
-    )
-
-    assert result.audio_path == output_path
-    assert result.audio_url == "/audio/demo.mp3"
-    assert provider.requests[0].text == "播报文本"
-    assert provider.requests[0].voice == "zh-CN-XiaoxiaoNeural"
-    assert provider.requests[0].rate == "+10%"
+    assert "客户张三-C1被分类为'普通活跃客户'" in text

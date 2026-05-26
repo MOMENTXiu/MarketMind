@@ -2,8 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
-import http from '@/utils/http'
-import { Cpu, Microphone, Headset } from '@element-plus/icons-vue'
+import { Cpu } from '@element-plus/icons-vue'
 
 // LLM Configuration
 interface LLMConfig {
@@ -23,49 +22,13 @@ const llmConfig = ref<LLMConfig>({
 const llmTesting = ref(false)
 const llmSaving = ref(false)
 
-// TTS Configuration
-interface TTSConfig {
-  voice: string
-  rate: string
-  volume: string
-}
-
-const ttsConfig = ref<TTSConfig>({
-  voice: 'zh-CN-XiaoxiaoNeural',
-  rate: '+0%',
-  volume: '+0%'
-})
-
-const ttsTesting = ref(false)
-const ttsSaving = ref(false)
-
-// Slider values
-const rateValue = ref(0)
-const volumeValue = ref(0)
-
-const updateRate = (val: number) => { ttsConfig.value.rate = val >= 0 ? `+${val}%` : `${val}%` }
-const updateVolume = (val: number) => { ttsConfig.value.volume = val >= 0 ? `+${val}%` : `${val}%` }
-
 const loadConfig = () => {
-  // Load LLM config
   const savedLLM = localStorage.getItem('llm_config')
   if (savedLLM) {
     try {
       llmConfig.value = JSON.parse(savedLLM)
     } catch (e) {
       console.error('Failed to parse LLM config', e)
-    }
-  }
-
-  // Load TTS config
-  const savedTTS = localStorage.getItem('tts_config')
-  if (savedTTS) {
-    try {
-      ttsConfig.value = JSON.parse(savedTTS)
-      rateValue.value = parseInt(ttsConfig.value.rate.replace('%', '').replace('+', '')) || 0
-      volumeValue.value = parseInt(ttsConfig.value.volume.replace('%', '').replace('+', '')) || 0
-    } catch (e) {
-      console.error('Failed to parse TTS config', e)
     }
   }
 }
@@ -142,90 +105,6 @@ const applyTemplate = (template: 'openai' | 'claude' | 'deepseek') => {
   ElMessage.info(`已应用 ${template.toUpperCase()} 模板`)
 }
 
-// TTS functions
-const saveTTSConfig = () => {
-  ttsSaving.value = true
-  try {
-    localStorage.setItem('tts_config', JSON.stringify(ttsConfig.value))
-    ElMessage.success('TTS 配置已保存')
-  } catch (e) {
-    ElMessage.error('保存失败')
-  } finally {
-    ttsSaving.value = false
-  }
-}
-
-const testTTS = async () => {
-  console.log('[TTS Frontend] 开始测试 TTS 功能')
-  console.log('[TTS Frontend] 请求参数:', {
-    text: "测试语音播报效果，欢迎使用超市 AI 营销系统。",
-    voice: ttsConfig.value.voice,
-    rate: ttsConfig.value.rate,
-    volume: ttsConfig.value.volume
-  })
-
-  ttsTesting.value = true
-  try {
-    console.log('[TTS Frontend] 发送 POST 请求到 /api/voice/tts/')
-    const { data } = await http.post('/api/voice/tts/', {
-      text: "测试语音播报效果，欢迎使用超市 AI 营销系统。",
-      voice: ttsConfig.value.voice,
-      rate: ttsConfig.value.rate,
-      volume: ttsConfig.value.volume
-    })
-
-    console.log('[TTS Frontend] 收到响应:', data)
-
-    if (data.success) {
-      const fullAudioUrl = data.audio_url
-      console.log('[TTS Frontend] 音频 URL:', fullAudioUrl)
-      console.log('[TTS Frontend] 创建 Audio 对象并播放')
-
-      const audio = new Audio(fullAudioUrl)
-
-      audio.addEventListener('loadstart', () => {
-        console.log('[TTS Frontend] Audio 开始加载')
-      })
-
-      audio.addEventListener('canplay', () => {
-        console.log('[TTS Frontend] Audio 可以播放')
-      })
-
-      audio.addEventListener('error', (e) => {
-        console.error('[TTS Frontend] Audio 播放错误:', e)
-        console.error('[TTS Frontend] Audio error code:', audio.error?.code)
-        console.error('[TTS Frontend] Audio error message:', audio.error?.message)
-      })
-
-      audio.addEventListener('play', () => {
-        console.log('[TTS Frontend] Audio 开始播放')
-      })
-
-      audio.play().then(() => {
-        console.log('[TTS Frontend] Audio.play() 成功')
-        ElMessage.success('试听成功')
-      }).catch(err => {
-        console.error('[TTS Frontend] Audio.play() 失败:', err)
-        ElMessage.error('音频播放失败: ' + err.message)
-      })
-    } else {
-      console.error('[TTS Frontend] 响应 success=false')
-      ElMessage.error('TTS 生成失败')
-    }
-  } catch (error: any) {
-    console.error('[TTS Frontend] 请求失败:', error)
-    console.error('[TTS Frontend] 错误详情:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    })
-    ElMessage.error('TTS 测试失败: ' + (error.response?.data?.detail || error.message))
-  } finally {
-    ttsTesting.value = false
-    console.log('[TTS Frontend] 测试完成')
-  }
-}
-
 onMounted(() => {
   loadConfig()
 })
@@ -247,7 +126,7 @@ onMounted(() => {
               <h3 class="card-title" style="display: flex; align-items: center; gap: 10px">
                 <el-icon><Cpu /></el-icon> AI 模型设置
               </h3>
-              <p class="card-desc">配置 LLM 服务，用于生成智能播报文案</p>
+              <p class="card-desc">配置 LLM 服务，用于生成智能营销建议</p>
             </div>
           </div>
 
@@ -295,7 +174,7 @@ onMounted(() => {
 
             <div class="glass-actions">
               <div class="hint-text">
-                用于生成语音播报文案 (Edge-TTS)
+                用于生成客户建议和商品洞察文本
               </div>
 
               <div style="display: flex; gap: 12px;">
@@ -304,82 +183,6 @@ onMounted(() => {
                 </el-button>
                 <el-button type="primary" @click="saveLLMConfig" :loading="llmSaving" class="btn-premium">
                   保存 AI 配置
-                </el-button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- TTS 语音配置卡片 -->
-        <section class="glass-settings-card">
-          <div class="card-header-minimal">
-            <div class="header-info">
-              <h3 class="card-title" style="display: flex; align-items: center; gap: 10px">
-                <el-icon><Microphone /></el-icon> 语音播报设置
-              </h3>
-              <p class="card-desc">配置 Edge-TTS 语音合成参数</p>
-            </div>
-          </div>
-
-          <div class="glass-form">
-            <div class="glass-form-item">
-              <label>语音模型</label>
-              <el-select v-model="ttsConfig.voice" class="full-width">
-                <el-option label="晓晓 (女声)" value="zh-CN-XiaoxiaoNeural" />
-                <el-option label="云扬 (男声)" value="zh-CN-YunyangNeural" />
-                <el-option label="晓伊 (女声)" value="zh-CN-XiaoyiNeural" />
-                <el-option label="云健 (男声)" value="zh-CN-YunjianNeural" />
-                <el-option label="晓涵 (女声)" value="zh-CN-XiaohanNeural" />
-                <el-option label="晓梦 (女声)" value="zh-CN-XiaomengNeural" />
-                <el-option label="云野 (男声)" value="zh-CN-YunyeNeural" />
-                <el-option label="晓墨 (女声)" value="zh-CN-XiaomoNeural" />
-              </el-select>
-            </div>
-
-            <div class="form-row-precise">
-              <div style="flex: 1;">
-                <label>语速 ({{ ttsConfig.rate }})</label>
-                <el-slider
-                  v-model="rateValue"
-                  :min="-50"
-                  :max="50"
-                  :step="10"
-                  :marks="{ '-50': '慢', '0': '正常', '50': '快' }"
-                  @change="updateRate"
-                />
-              </div>
-
-              <div style="flex: 1;">
-                <label>音量 ({{ ttsConfig.volume }})</label>
-                <el-slider
-                  v-model="volumeValue"
-                  :min="-50"
-                  :max="50"
-                  :step="10"
-                  :marks="{ '-50': '小', '0': '正常', '50': '大' }"
-                  @change="updateVolume"
-                />
-              </div>
-            </div>
-
-            <div class="info-grid-settings">
-              <div class="info-tag-item">
-                <span class="it-l">引擎</span>
-                <span class="it-v">Edge TTS</span>
-              </div>
-              <div class="info-tag-item">
-                <span class="it-l">采样</span>
-                <span class="it-v">24kHz</span>
-              </div>
-            </div>
-
-            <div class="glass-actions">
-              <div style="display: flex; gap: 12px;">
-                <el-button @click="testTTS" :loading="ttsTesting">
-                  <el-icon style="margin-right: 6px"><Headset /></el-icon> 试听语音
-                </el-button>
-                <el-button type="primary" @click="saveTTSConfig" :loading="ttsSaving" class="btn-premium">
-                  保存语音配置
                 </el-button>
               </div>
             </div>

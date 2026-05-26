@@ -37,7 +37,6 @@ HAPPY_PATH_COMMANDS: list[tuple[str, list[str], str]] = [
         "check-analysis-optional-runtime: ok",
     ),
     ("check-llm", ["--dry-run"], "check-llm: dry-run skipped"),
-    ("check-speech", ["--mock"], "check-speech: mock skipped"),
     ("validate-api-schemas", [], "validate-api-schemas: ok"),
     ("check-telemetry", [], "check-telemetry: ok"),
     ("check-audit-sink", [], "check-audit-sink: ok"),
@@ -80,12 +79,6 @@ def test_check_llm_requires_dry_run_flag() -> None:
     result = _run(["check-llm"])
     assert result.returncode == 1
     assert "refusing to run without --dry-run" in result.stdout
-
-
-def test_check_speech_requires_mock_flag() -> None:
-    result = _run(["check-speech"])
-    assert result.returncode == 1
-    assert "refusing to run without --mock" in result.stdout
 
 
 def test_check_data_processing_requires_sample_flag() -> None:

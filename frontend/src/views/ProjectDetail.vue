@@ -8,7 +8,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
-import { VideoPlay, ArrowLeft, User, ShoppingCart, TrendCharts, Search, MagicStick } from '@element-plus/icons-vue'
+import { ArrowLeft, User, ShoppingCart, TrendCharts, Search, MagicStick } from '@element-plus/icons-vue'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent])
 
@@ -19,13 +19,11 @@ const router = useRouter()
 interface ForecastRow { week: number; date?: string; sales: number; profit: number; profit_rate?: number }
 interface ForecastSummary { total_sales: number; total_profit: number; avg_profit_rate: number }
 interface ClusterProfile { cluster_id: number; cluster_name: string; customer_count: number; avg_recency: number; avg_frequency: number; avg_monetary: number; avg_order_value: number; marketing_strategy: string }
-interface Project { id: string; name: string; description?: string; dataset_filename?: string; dataset_ref?: { name?: string } | null; status: string; created_at: string; updated_at: string; parameters?: any; summary?: Record<string, any>; quality_summary?: Record<string, any>; artifact_refs?: any[]; recommendations?: any[]; marketer_insights?: Record<string, any[]>; stage_statuses?: any[]; results?: { association_rules?: any[]; prediction_data?: { sales_r2?: number; profit_r2?: number; train_samples?: number; forecast_weeks?: number; forecast_data?: ForecastRow[]; forecast_summary?: ForecastSummary }; clustering_data?: { total_customers?: number; n_clusters?: number; silhouette_score?: number; cluster_profiles?: ClusterProfile[]; contribution?: any[]; cluster_customers?: any }; audio_path?: string; report_path?: string }; error?: string; error_message?: string }
+interface Project { id: string; name: string; description?: string; dataset_filename?: string; dataset_ref?: { name?: string } | null; status: string; created_at: string; updated_at: string; parameters?: any; summary?: Record<string, any>; quality_summary?: Record<string, any>; artifact_refs?: any[]; recommendations?: any[]; marketer_insights?: Record<string, any[]>; stage_statuses?: any[]; results?: { association_rules?: any[]; prediction_data?: { sales_r2?: number; profit_r2?: number; train_samples?: number; forecast_weeks?: number; forecast_data?: ForecastRow[]; forecast_summary?: ForecastSummary }; clustering_data?: { total_customers?: number; n_clusters?: number; silhouette_score?: number; cluster_profiles?: ClusterProfile[]; contribution?: any[]; cluster_customers?: any }; report_path?: string }; error?: string; error_message?: string }
 
 // --- State ---
 const project = ref<Project | null>(null)
 const loading = ref(false)
-const audioRef = ref<HTMLAudioElement>()
-const currentAudioUrl = ref('')
 
 // Drill-down State
 const selectedClusterId = ref<number | null>(null)
@@ -41,11 +39,6 @@ const selectedAntecedent = ref('')
 const recommendedItems = ref<any[]>([])
 const recLoading = ref(false)
 const calcLoading = ref(false)
-
-// Voice Logic
-const voiceLoading = ref<Record<string, boolean>>({})
-const subtitleText = ref('')
-const showSubtitle = ref(false)
 
 // --- Computed ---
 const associationRules = computed(() => project.value?.results?.association_rules || [])
@@ -180,88 +173,6 @@ const calculateRealtimeRules = async () => {
   } finally {
     calcLoading.value = false
   }
-}
-
-const speakAnalysis = async (type: string, data: any) => {
-  const key = `${type}_${data.cluster_id ?? 'global'}`
-  console.log(`[Clustering TTS] 开始播报`, { type, key, data })
-
-  voiceLoading.value[key] = true
-  try {
-    const savedLLM = localStorage.getItem('llm_config')
-    const savedTTS = localStorage.getItem('tts_config')
-    if (!savedLLM) {
-      ElMessage.warning('请先在设置页面配置 AI 模型')
-      router.push('/settings')
-      return
-    }
-
-    const llmConfig = JSON.parse(savedLLM)
-    const ttsConfig = savedTTS ? JSON.parse(savedTTS) : null
-    console.log('[Clustering TTS] 配置:', { llmConfig: { provider: llmConfig.provider, model: llmConfig.modelName }, ttsConfig })
-
-    // 使用后端的 AI Voice API，支持 OpenAI 和 Claude
-    console.log('[Clustering TTS] 发送请求到 /api/ai-voice/broadcast/')
-    const { data: voiceData } = await http.post('/api/ai-voice/broadcast/', {
-      data,
-      llm_config: llmConfig,
-      tts_config: ttsConfig,
-      scene_type: type === 'cluster' || type === 'list' ? 'clustering' : 'summary'
-    })
-
-    console.log('[Clustering TTS] 收到响应:', voiceData)
-
-    if (voiceData.success) {
-      subtitleText.value = voiceData.text
-      console.log('[Clustering TTS] LLM生成文本:', voiceData.text)
-
-      currentAudioUrl.value = voiceData.audio_url
-      console.log('[Clustering TTS] 音频URL:', voiceData.audio_url)
-
-      setTimeout(() => {
-        if (audioRef.value) {
-          console.log('[Clustering TTS] 准备播放音频, audioRef存在:', !!audioRef.value)
-          console.log('[Clustering TTS] Audio src:', audioRef.value.src)
-
-          audioRef.value.play().then(() => {
-            console.log('[Clustering TTS] 音频播放成功')
-            showSubtitle.value = true
-          }).catch(err => {
-            console.error('[Clustering TTS] 音频播放失败:', err)
-            ElMessage.error('音频播放失败: ' + err.message)
-          })
-        } else {
-          console.error('[Clustering TTS] audioRef不存在')
-        }
-      }, 100)
-    } else {
-      console.error('[Clustering TTS] 响应success=false')
-    }
-  } catch (error: any) {
-    console.error('[Clustering TTS] 请求失败:', error)
-    console.error('[Clustering TTS] 错误详情:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    })
-    const msg = error.response?.data?.detail || error.message
-    ElMessage.error(`播报失败: ${msg}`)
-  } finally {
-    voiceLoading.value[key] = false
-  }
-}
-
-const stopAudio = () => {
-  if (audioRef.value) {
-    audioRef.value.pause()
-  }
-
-  // 暂停后5秒自动消失
-  setTimeout(() => {
-    if (audioRef.value && audioRef.value.paused) {
-      showSubtitle.value = false
-    }
-  }, 5000)
 }
 
 // 提取会员姓名（从name字段中移除ID部分）
@@ -434,14 +345,6 @@ onMounted(() => { loadProject() })
               <div v-for="cluster in clusterProfiles" :key="cluster.cluster_id" class="cluster-card-modern">
                 <div class="card-head">
                   <span class="badge">Group {{ cluster.cluster_id + 1 }}</span>
-                  <el-button
-                    circle size="small"
-                    class="btn-voice"
-                    @click.stop="speakAnalysis('cluster', cluster)"
-                    :loading="voiceLoading[`cluster_${cluster.cluster_id}`]"
-                  >
-                    <el-icon v-if="!voiceLoading[`cluster_${cluster.cluster_id}`]"><VideoPlay /></el-icon>
-                  </el-button>
                 </div>
                 <h4>{{ cluster.cluster_name }}</h4>
                 <div class="kpi-summary-row">
@@ -507,21 +410,6 @@ onMounted(() => { loadProject() })
       </main>
     </div>
 
-    <!-- Subtitle Overlay -->
-    <transition name="subtitle-fade">
-      <div class="voice-subtitle" v-if="showSubtitle">
-        <div class="sub-content">
-          <div class="indicator"><span></span><span></span><span></span></div>
-          <p>{{ subtitleText }}</p>
-          <button class="stop-btn" @click="stopAudio" title="停止播报">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="6" y="6" width="12" height="12" rx="2"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </transition>
-
     <!-- Personalized Recommendation & Detail Dialog -->
     <el-dialog
       v-model="showRecommendationDialog"
@@ -571,7 +459,6 @@ onMounted(() => { loadProject() })
       </div>
     </el-dialog>
 
-    <audio ref="audioRef" :src="currentAudioUrl" @ended="showSubtitle = false" class="hidden-audio"></audio>
   </div>
 </template>
 
@@ -923,43 +810,6 @@ html.dark :deep(.clickable-row:hover > td) {
   background-color: rgba(255, 255, 255, 0.03) !important;
 }
 
-/* Subtitle */
-.voice-subtitle { position: fixed; bottom: 40px; left: 0; right: 0; display: flex; justify-content: center; z-index: 2000; }
-.sub-content { background: rgba(0,0,0,0.85); backdrop-filter: blur(12px); padding: 12px 32px; border-radius: 40px; display: flex; align-items: center; gap: 16px; color: white; max-width: 80%; }
-.indicator { display: flex; gap: 3px; }
-.indicator span { width: 3px; height: 12px; background: #10B981; animation: jump 1s infinite; }
-@keyframes jump { 50% { height: 4px; } }
-
-/* Subtitle Transitions */
-.subtitle-fade-enter-active, .subtitle-fade-leave-active {
-  transition: all 0.4s var(--ease-spring);
-}
-.subtitle-fade-enter-from, .subtitle-fade-leave-to {
-  opacity: 0;
-  transform: translateY(20px) scale(0.95);
-}
-
-.stop-btn {
-  background: rgba(239, 68, 68, 0.2);
-  border: 1px solid rgba(239, 68, 68, 0.5);
-  border-radius: 50%;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: #ef4444;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-
-.stop-btn:hover {
-  background: rgba(239, 68, 68, 0.3);
-  border-color: #ef4444;
-  transform: scale(1.1);
-}
-
 /* Premium Detail Dialog Styles */
 .detail-dialog-content {
   display: flex;
@@ -1062,5 +912,4 @@ html.dark .rec-row-modern {
 .item-reason { font-size: 0.8rem; color: var(--text-tertiary); flex: 1; margin-left: 12px; }
 .item-prob { font-weight: 800; color: var(--color-accent); font-size: 0.85rem; }
 
-.hidden-audio { display: none; }
 </style>

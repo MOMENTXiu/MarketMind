@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from pydantic import BaseModel, Field, field_validator
 
 from backend.api.dependencies import (
+    get_customer_text_suggestion_pipeline,
     get_data_processing_analysis_flow,
     get_retail_analysis_flow,
 )
 from backend.api.error_mapping import map_internal_error
 from backend.business.flows.data_processing_analysis_flow import DataProcessingAnalysisFlow
 from backend.business.flows.retail_analysis_flow import RetailAnalysisFlow
+from backend.business.pipelines.customer_text_suggestion_pipeline import (
+    CustomerTextSuggestionPipeline,
+)
 from backend.core.errors import MarketMindError
 
 router = APIRouter()
@@ -45,8 +49,24 @@ class DataProcessingJobCreate(BaseModel):
         return stripped
 
 
+class CustomerSuggestionCreate(BaseModel):
+    data: dict[str, Any] = Field(default_factory=dict)
+    llm_config: dict[str, str | None] = Field(default_factory=dict)
+
+
 def _success(data: dict) -> dict:
     return {"success": True, "data": data}
+
+
+@router.post("/customer-suggestions")
+async def generate_customer_suggestion(
+    payload: CustomerSuggestionCreate,
+    pipeline: CustomerTextSuggestionPipeline = Depends(get_customer_text_suggestion_pipeline),
+) -> dict:
+    try:
+        return await pipeline.generate(payload.data, payload.llm_config)
+    except MarketMindError as exc:
+        raise map_internal_error(exc) from exc
 
 
 # ---------- Retail V2 (legacy) ----------

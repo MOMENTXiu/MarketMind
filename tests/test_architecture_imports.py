@@ -133,6 +133,17 @@ def test_backend_runtime_does_not_import_data_processing_archive() -> None:
     assert violations == []
 
 
+def test_backend_runtime_does_not_import_edge_tts() -> None:
+    violations: list[str] = []
+    for path in iter_python_files():
+        rel = path.relative_to(BACKEND).as_posix()
+        for module in imported_modules(path):
+            if module == "edge_tts" or module.startswith("edge_tts."):
+                violations.append(f"{rel} imports retired TTS module {module}")
+
+    assert violations == []
+
+
 def test_abilities_do_not_import_infrastructure_or_fastapi() -> None:
     abilities_dir = BACKEND / "abilities"
     violations: list[str] = []

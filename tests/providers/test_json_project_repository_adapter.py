@@ -27,7 +27,6 @@ def test_json_project_repository_crud_preserves_current_storage_behavior(tmp_pat
     assert adapter.get_project(second.id).parameters.min_support == 0.05
     assert (tmp_path / "data/projects" / first.id / "outputs/charts").exists()
     assert (tmp_path / "data/projects" / first.id / "outputs/reports").exists()
-    assert (tmp_path / "data/projects" / first.id / "outputs/audio").exists()
 
     first.created_at = second.created_at + timedelta(seconds=1)
     adapter._storage.update_project(first.id, {"created_at": first.created_at})

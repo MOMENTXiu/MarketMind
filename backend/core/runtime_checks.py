@@ -15,12 +15,11 @@ import json
 import tempfile
 from dataclasses import fields
 from pathlib import Path
-from typing import Any
 
 from backend.core.config import Settings
 from backend.core.errors import MarketMindError
 from backend.providers.container import ProvidersContainer
-from backend.providers.dtos import LLMRequestDTO, LLMResponseDTO, SpeechSynthesisRequestDTO
+from backend.providers.dtos import LLMRequestDTO, LLMResponseDTO
 from backend.providers.telemetry_dtos import AuditEvent, DebugEvent, ErrorEvent
 
 
@@ -153,16 +152,6 @@ def cmd_check_analysis_artifacts(args: argparse.Namespace) -> int:
     return 0
 
 
-class _RuntimeCheckSpeechProvider:
-    async def synthesize(self, request: SpeechSynthesisRequestDTO) -> Any:
-        request.output_path.parent.mkdir(parents=True, exist_ok=True)
-        request.output_path.write_bytes(b"runtime-check-audio")
-        return type("SpeechResult", (), {"audio_path": request.output_path})()
-
-    async def list_voices(self) -> list[dict[str, str]]:
-        return [{"name": "runtime-check", "locale": "zh-CN"}]
-
-
 class _RuntimeCheckLLMProvider:
     async def generate_text(self, request: LLMRequestDTO) -> LLMResponseDTO:
         return LLMResponseDTO(text="runtime check", provider=request.provider, model=request.model)
@@ -207,8 +196,6 @@ def _sandbox_provider_container(tmp: str) -> ProvidersContainer:
         assets=LocalGeneratedAssetAdapter(
             data_dir=tmp,
             outputs_dir=str(root / "outputs"),
-            ai_audio_dir=str(root / "ai_audio"),
-            temp_dir=str(root / "temp"),
         ),
         dataset=CsvDatasetAdapter(tmp),
         retail_dataset=CsvRetailDatasetAdapter(tmp),
@@ -216,7 +203,6 @@ def _sandbox_provider_container(tmp: str) -> ProvidersContainer:
         recommendation_models=LocalRecommendationModelStoreAdapter(str(root / "model_data.pkl")),
         analysis_artifacts=LocalAnalysisArtifactAdapter(tmp),
         analysis_models=LocalAnalysisModelStoreAdapter(tmp),
-        speech=_RuntimeCheckSpeechProvider(),
         llm=_RuntimeCheckLLMProvider(),
         analysis_jobs=FastApiBackgroundAnalysisJobAdapter(),
         telemetry=ConsoleTelemetryAdapter(writer=lambda _line: None),
@@ -318,22 +304,6 @@ def cmd_check_llm(args: argparse.Namespace) -> int:
         return 1
 
     _emit("check-llm: dry-run skipped: requires network; provider interface present")
-    return 0
-
-
-def cmd_check_speech(args: argparse.Namespace) -> int:
-    if not getattr(args, "mock", False):
-        _emit("check-speech: refusing to run without --mock")
-        return 1
-
-    from backend.infrastructure.factories.provider_factory import create_providers
-
-    providers = create_providers(Settings())
-    if not callable(getattr(providers.speech, "synthesize", None)):
-        _emit("check-speech: provider missing callable synthesize()")
-        return 1
-
-    _emit("check-speech: mock skipped: real synthesis not invoked; provider interface present")
     return 0
 
 
@@ -604,7 +574,6 @@ COMMANDS = {
     "check-retail-analysis": cmd_check_retail_analysis,
     "check-analysis-optional-runtime": cmd_check_analysis_optional_runtime,
     "check-llm": cmd_check_llm,
-    "check-speech": cmd_check_speech,
     "validate-api-schemas": cmd_validate_api_schemas,
     "check-telemetry": cmd_check_telemetry,
     "check-audit-sink": cmd_check_audit_sink,
@@ -636,9 +605,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_llm = sub.add_parser("check-llm")
     p_llm.add_argument("--dry-run", action="store_true", dest="dry_run")
-
-    p_speech = sub.add_parser("check-speech")
-    p_speech.add_argument("--mock", action="store_true")
 
     sub.add_parser("validate-api-schemas")
     sub.add_parser("check-telemetry")

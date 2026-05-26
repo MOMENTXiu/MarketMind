@@ -1,7 +1,7 @@
 """
 超市AI营销系统 - Streamlit Web界面
 作者: MarketMind团队
-功能: 关联规则分析、销售预测、客户聚类、语音播报
+功能: 关联规则分析、销售预测、客户聚类、完整报告
 """
 
 import os
@@ -53,7 +53,6 @@ with st.sidebar:
             "📊 关联规则分析",
             "📈 销售预测",
             "👥 客户聚类",
-            "🔊 语音播报",
             "📑 完整报告",
         ],
     )
@@ -151,12 +150,12 @@ if module == "🏠 系统首页":
         st.markdown(
             """
         <div class="metric-card">
-            <h3>🔊 语音播报</h3>
-            <p>AI自动生成分析报告</p>
+            <h3>📑 完整报告</h3>
+            <p>自动汇总核心分析结论</p>
             <ul>
-                <li>文本生成</li>
-                <li>语音合成</li>
-                <li>自动播报</li>
+                <li>Markdown报告</li>
+                <li>结论汇总</li>
+                <li>可下载输出</li>
             </ul>
         </div>
         """,
@@ -170,7 +169,7 @@ if module == "🏠 系统首页":
     1. 在左侧上传数据文件（或使用默认数据）
     2. 选择分析模块进行分析
     3. 查看分析结果和可视化图表
-    4. 下载报告和语音文件
+    4. 下载完整分析报告
     """)
 
     # 系统架构图
@@ -467,63 +466,6 @@ elif module == "👥 客户聚类":
         - ☎️ 电话回访关怀
         """)
 
-elif module == "🔊 语音播报":
-    st.header("语音合成播报")
-
-    st.info("""
-    **功能说明**:
-    - 自动汇总三大分析模块的核心结论
-    - 使用edge-tts（微软Edge TTS引擎）生成语音
-    - 支持中文男声/女声
-    """)
-
-    st.markdown("---")
-
-    # 播报文本
-    st.subheader("📝 播报文本")
-
-    report_text = """
-    超市AI营销系统分析报告。
-
-    第一部分，商品关联规则分析。关联规则分析发现，购买系固件, 纸张的顾客，有48%的概率会同时购买椅子，建议将这些商品设置为组合促销。
-
-    第二部分，销售预测分析。根据历史数据分析，下个季度预测总销售额约102万元，利润约12万元，预计利润率11.5%。
-
-    第三部分，客户聚类分析。客户聚类分析将客户分为4个群体。其中，高价值活跃客户共258人，贡献了57.8%的销售额。建议对这类客户提供VIP专属优惠和会员积分加倍活动。
-
-    以上是本次AI营销分析的全部内容，感谢收听。
-    """
-
-    st.text_area("播报内容", report_text, height=300)
-
-    st.markdown("---")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        voice = st.selectbox(
-            "选择语音", ["zh-CN-YunxiNeural (中文男声)", "zh-CN-XiaoxiaoNeural (中文女声)"]
-        )
-
-    with col2:
-        if st.button("🎙️ 生成语音", type="primary"):
-            with st.spinner("正在合成语音..."):
-                st.success("✅ 语音生成成功！")
-
-    st.markdown("---")
-
-    st.subheader("🔊 播放语音")
-
-    audio_path = "analysis/marketing_report.mp3"
-    if os.path.exists(audio_path):
-        st.audio(audio_path)
-
-        with open(audio_path, "rb") as f:
-            st.download_button(
-                label="📥 下载语音文件", data=f, file_name="marketing_report.mp3", mime="audio/mpeg"
-            )
-    else:
-        st.info("请先生成语音文件")
-
 elif module == "📑 完整报告":
     st.header("完整分析报告")
 
@@ -560,7 +502,7 @@ st.markdown(
     """
 <div style='text-align: center; color: #666;'>
     <p>超市AI营销系统 v1.0 | Powered by MarketMind Team</p>
-    <p>技术栈: Python • Streamlit • scikit-learn • mlxtend • edge-tts</p>
+    <p>技术栈: Python • Streamlit • scikit-learn • mlxtend</p>
 </div>
 """,
     unsafe_allow_html=True,

@@ -14,7 +14,6 @@ from backend.providers.project_repository_provider import ProjectRepositoryProvi
 from backend.providers.recommendation_model_store_provider import RecommendationModelStoreProvider
 from backend.providers.regularized_dataset_provider import RegularizedDatasetProvider
 from backend.providers.retail_dataset_provider import RetailDatasetProvider
-from backend.providers.speech_synthesis_provider import SpeechSynthesisProvider
 from backend.providers.telemetry_provider import TelemetryProvider
 
 
@@ -30,7 +29,6 @@ class ProvidersContainer:
     recommendation_models: RecommendationModelStoreProvider
     analysis_artifacts: AnalysisArtifactProvider
     analysis_models: AnalysisModelStoreProvider
-    speech: SpeechSynthesisProvider
     llm: LLMProvider
     analysis_jobs: AnalysisJobProvider
     telemetry: TelemetryProvider

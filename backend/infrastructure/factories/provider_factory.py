@@ -7,9 +7,6 @@ from backend.infrastructure.adapters.anthropic_llm_adapter import AnthropicLLMAd
 from backend.infrastructure.adapters.console_telemetry_adapter import ConsoleTelemetryAdapter
 from backend.infrastructure.adapters.csv_dataset_adapter import CsvDatasetAdapter
 from backend.infrastructure.adapters.csv_retail_dataset_adapter import CsvRetailDatasetAdapter
-from backend.infrastructure.adapters.edge_tts_speech_synthesis_adapter import (
-    EdgeTtsSpeechSynthesisAdapter,
-)
 from backend.infrastructure.adapters.fastapi_background_analysis_job_adapter import (
     FastApiBackgroundAnalysisJobAdapter,
 )
@@ -56,8 +53,6 @@ def create_providers(
         assets=LocalGeneratedAssetAdapter(
             data_dir="data",
             outputs_dir=settings.OUTPUT_DIR,
-            ai_audio_dir="backend/data/audio",
-            temp_dir="/tmp",
         ),
         dataset=CsvDatasetAdapter("data"),
         retail_dataset=CsvRetailDatasetAdapter("data"),
@@ -66,7 +61,6 @@ def create_providers(
         recommendation_models=LocalRecommendationModelStoreAdapter("backend/data/model_data.pkl"),
         analysis_artifacts=LocalAnalysisArtifactAdapter("data"),
         analysis_models=LocalAnalysisModelStoreAdapter("data"),
-        speech=EdgeTtsSpeechSynthesisAdapter(),
         llm=llm,
         analysis_jobs=FastApiBackgroundAnalysisJobAdapter(background_tasks),
         telemetry=ConsoleTelemetryAdapter(),

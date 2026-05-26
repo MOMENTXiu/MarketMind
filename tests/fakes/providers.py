@@ -19,8 +19,6 @@ from backend.providers.dtos import (
     RegularizationSidecarReferenceDTO,
     RegularizedDatasetReferenceDTO,
     RetailDatasetReferenceDTO,
-    SpeechSynthesisRequestDTO,
-    SpeechSynthesisResultDTO,
     UploadedFileDTO,
 )
 from backend.providers.telemetry_dtos import (
@@ -31,22 +29,6 @@ from backend.providers.telemetry_dtos import (
     SpanHandle,
     TelemetryResult,
 )
-
-
-class FakeSpeechSynthesisProvider:
-    def __init__(self) -> None:
-        self.requests: list[SpeechSynthesisRequestDTO] = []
-
-    async def synthesize(self, request: SpeechSynthesisRequestDTO) -> SpeechSynthesisResultDTO:
-        self.requests.append(request)
-        request.output_path.parent.mkdir(parents=True, exist_ok=True)
-        request.output_path.write_bytes(b"fake-audio")
-        return SpeechSynthesisResultDTO(
-            audio_path=request.output_path, audio_url="/outputs/audio/fake.mp3"
-        )
-
-    async def list_voices(self) -> list[dict[str, str]]:
-        return [{"name": "fake", "locale": "zh-CN"}]
 
 
 class FakeLLMProvider:
@@ -450,46 +432,16 @@ class FakeAssociationRuleStoreProvider:
 class FakeGeneratedAssetProvider:
     def __init__(self, root: Path) -> None:
         self.root = root
-        self.public_audio_calls: list[tuple[str, Path]] = []
-        self.ai_audio_calls: list[tuple[str, Path]] = []
-        self.report_calls: list[tuple[str, str, bytes]] = []
-        self.project_audio_calls: list[tuple[str, str, Path]] = []
+        self.report_calls: list[tuple[str, str, str]] = []
 
     def save_project_report(
-        self, project_id: str, filename: str, content: bytes
+        self, project_id: str, filename: str, content: str
     ) -> AssetReferenceDTO:
         self.report_calls.append((project_id, filename, content))
         path = self.root / project_id / filename
         return AssetReferenceDTO(path=path, media_type="text/markdown")
 
-    def resolve_project_report(self, project_id: str, filename: str) -> AssetReferenceDTO | None:
-        return None
-
-    def save_project_audio(
-        self, project_id: str, filename: str, source_path: Path
-    ) -> AssetReferenceDTO:
-        self.project_audio_calls.append((project_id, filename, source_path))
-        path = self.root / project_id / filename
-        return AssetReferenceDTO(path=path, url=f"/projects/{project_id}/audio/{filename}")
-
-    def resolve_project_audio(self, project_id: str, filename: str) -> AssetReferenceDTO | None:
-        return None
-
-    def save_public_audio(self, filename: str, source_path: Path) -> AssetReferenceDTO:
-        self.public_audio_calls.append((filename, source_path))
-        path = self.root / "public" / filename
-        return AssetReferenceDTO(
-            path=path, url=f"/outputs/audio/{filename}", media_type="audio/mpeg"
-        )
-
-    def save_ai_audio(self, filename: str, source_path: Path) -> AssetReferenceDTO:
-        self.ai_audio_calls.append((filename, source_path))
-        path = self.root / "ai_audio" / filename
-        return AssetReferenceDTO(
-            path=path, url=f"/api/ai-voice/audio/{filename}/", media_type="audio/mpeg"
-        )
-
-    def resolve_ai_audio(self, filename: str) -> AssetReferenceDTO | None:
+    def resolve_project_report(self, project_id: str) -> AssetReferenceDTO | None:
         return None
 
 

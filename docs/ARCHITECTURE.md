@@ -1,6 +1,6 @@
 # MarketMind Architecture
 
-MarketMind is a Vue 3 + FastAPI retail marketing system. The backend now uses a layered architecture so future work can change storage, LLM, TTS, and analysis implementations without pushing SDK or filesystem details into API handlers.
+MarketMind is a Vue 3 + FastAPI retail marketing system. The backend uses a layered architecture so future work can change storage, LLM, and analysis implementations without pushing SDK or filesystem details into API handlers.
 
 As of 2026-05-26, the backend runtime has two analysis chains under `/api/analysis`:
 
@@ -22,15 +22,15 @@ Browser / Vue 3
   -> Ability Atom
   -> Provider Interface / ProvidersContainer
   -> Infrastructure Adapter
-  -> local files, JSON storage, Edge TTS, LLM HTTP APIs
+  -> local files, JSON storage, LLM HTTP APIs
 ```
 
 `RetailAnalysisFlow` is the existing Retail V2 Business Flow.
 `DataProcessingAnalysisFlow` is the new chain-native flow for the data-processing
 pipeline (raw upload -> regularization -> universal analysis -> outputs).
 Both are background lifecycles with status transitions, stage tracking, generated
-artifacts, and failure handling. Voice and AI broadcast paths remain separate
-Business Pipelines.
+artifacts, and failure handling. Customer text suggestions are served through a
+text-only Business Pipeline under `/api/analysis`.
 
 ## Backend Layers
 
@@ -38,9 +38,9 @@ Business Pipelines.
 | --- | --- | --- |
 | API Controller | `backend/api/` | Parse HTTP input, call one pipeline/flow, map internal errors to current FastAPI responses. |
 | Business Orchestration | `backend/business/pipelines/`, `backend/business/flows/` | Coordinate use cases and preserve status/side-effect ordering. No SDK, storage client, or FastAPI response construction. |
-| Ability Atom | `backend/abilities/` | Pure atomic analysis actions, including Retail V2 cleaning, feature engineering, segmentation, association/HUIM, recommendation, marketer insight, and voice/report helpers. |
-| Provider Boundary | `backend/providers/` | Protocols, DTOs, and frozen `ProvidersContainer` for repository, files, generated assets, datasets, retail datasets, regularized datasets, analysis artifacts, analysis models, recommendation models, LLM, TTS, jobs, and telemetry. |
-| Infrastructure | `backend/infrastructure/` | Concrete adapters for JSON storage, local files/assets, CSV/rules/model artifacts, Retail CSV datasets, regularized datasets, local Analysis V2 artifacts/models, Edge TTS, OpenAI/Anthropic-compatible LLMs, background jobs, telemetry. |
+| Ability Atom | `backend/abilities/` | Pure atomic analysis actions, including Retail V2 cleaning, feature engineering, segmentation, association/HUIM, recommendation, marketer insight, customer text suggestion, and report helpers. |
+| Provider Boundary | `backend/providers/` | Protocols, DTOs, and frozen `ProvidersContainer` for repository, files, generated assets, datasets, retail datasets, regularized datasets, analysis artifacts, analysis models, recommendation models, LLM, jobs, and telemetry. |
+| Infrastructure | `backend/infrastructure/` | Concrete adapters for JSON storage, local files/assets, CSV/rules/model artifacts, Retail CSV datasets, regularized datasets, local Analysis V2 artifacts/models, OpenAI/Anthropic-compatible LLMs, background jobs, telemetry. |
 | Core | `backend/core/` | Settings, internal errors, legacy storage compatibility, and runtime check CLI. |
 
 ## Key Directories
@@ -51,8 +51,6 @@ backend/
     dependencies.py        # Provider/pipeline dependency factories
     error_mapping.py       # MarketMindError -> HTTPException mapping
     analysis.py            # Retail Analysis V2 HTTP boundary
-    voice.py
-    ai_voice.py
   business/
     flows/retail_analysis_flow.py
     flows/retail_analysis_state.py
@@ -73,14 +71,12 @@ backend/
       universal_recommendation_pipeline.py
       universal_promotion_pipeline.py
       universal_summary_pipeline.py
-      voice_synthesis_pipeline.py
-      ai_voice_broadcast_pipeline.py
+        customer_text_suggestion_pipeline.py
   abilities/
     regularization/
     universal_analysis/
     retail/
     report/
-    voice/
   providers/
     container.py
     *_provider.py
@@ -122,14 +118,14 @@ Base URL in local development is `http://localhost:8000/api`. API docs are serve
 | Retail Analysis V2 dataset/lifecycle | `POST /api/analysis/projects/{id}/dataset`, `POST /api/analysis/projects/{id}/run`; project status is returned by `GET /api/analysis/projects/{id}` |
 | Retail Analysis V2 outputs | `GET /api/analysis/projects/{id}/artifacts/{artifact_id}`, `GET /api/analysis/projects/{id}/datasets/{dataset_id}`, `GET /api/analysis/projects/{id}/models/{model_type}/{version}` |
 | Retail Analysis V2 read models | `GET /api/analysis/projects/{id}/recommendations`, `GET /api/analysis/projects/{id}/marketer-insights` |
+| Retail Analysis V2 AI text | `POST /api/analysis/customer-suggestions` |
 | Data-processing jobs | `POST /api/analysis/jobs`, `GET /api/analysis/jobs/{job_id}` |
 | Data-processing upload/regularize/run | `POST /api/analysis/jobs/{job_id}/raw-dataset`, `POST /api/analysis/jobs/{job_id}/regularize`, `POST /api/analysis/jobs/{job_id}/run` |
 | Data-processing read | `GET /api/analysis/jobs/{job_id}/datasets/{dataset_id}`, `GET /api/analysis/jobs/{job_id}/sidecars/{sidecar_id}` |
 | Data-processing outputs | `GET /api/analysis/jobs/{job_id}/outputs` |
-| Voice | `POST /api/voice/tts/`, `POST /api/voice/generate/`, `GET /api/voice/status/` |
-| AI voice | `POST /api/ai-voice/broadcast/`, `POST /api/tts/`, `GET /api/ai-voice/audio/{filename}/` |
 
 Legacy `/api/projects`, `/api/recommend`, and `/api/association` routes are retired and intentionally return 404.
+Voice/TTS routes (`/api/voice/*`, `/api/ai-voice/*`, `/api/tts/`) are retired and intentionally absent.
 
 ## Main Flows
 
@@ -176,14 +172,14 @@ POST /api/analysis/jobs/{job_id}/run
   -> job status processing, completed, or failed
 ```
 
-Voice and AI broadcast:
+Customer text suggestion:
 
 ```text
 Controller
-  -> VoiceSynthesisPipeline or AIVoiceBroadcastPipeline
-  -> report/voice abilities
-  -> SpeechSynthesisProvider and LLMProvider
-  -> GeneratedAssetProvider for playable URLs
+  -> CustomerTextSuggestionPipeline
+  -> retail text suggestion ability
+  -> LLMProvider
+  -> text response with metadata
 ```
 
 ## Persistence And Generated Assets
@@ -191,10 +187,9 @@ Controller
 - Project metadata: `data/projects.json`
 - Project workspace: `data/projects/{project_id}/`
 - Uploaded dataset: `data/projects/{project_id}/dataset.csv`
-- Project reports/audio/customers: `data/projects/{project_id}/outputs/` and `data/projects/{project_id}/customers.csv`
+- Project reports/customers: `data/projects/{project_id}/outputs/` and `data/projects/{project_id}/customers.csv`
 - Retail Analysis V2 datasets/artifacts/models: `data/projects/{project_id}/analysis/...`
 - Global static assets: `outputs/`
-- AI voice audio lookup: `/tmp/{filename}` then `backend/data/audio/{filename}`
 - Recommendation model artifact: `backend/data/model_data.pkl`
 - Dynamic rules: `backend/data/dynamic_rules.csv`
 

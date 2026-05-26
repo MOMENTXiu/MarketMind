@@ -1,6 +1,6 @@
 # Backend Architecture Construction Checklist
 
-> Status note (2026-05-26): This checklist is a historical record for the earlier backend architecture migration. The current Analysis V2 baseline is tracked in `docs/architecture/analysis-v2-integration-checklist.md`, and the live architecture overview is `docs/ARCHITECTURE.md`. Current quality gate: `make check` passes with Ruff check, Ruff format check, 123 pytest tests, and frontend build; `backend/services/*` and the old project/recommend/association API chain are retired.
+> Status note (2026-05-26): This checklist is a historical record for the earlier backend architecture migration. The current Analysis V2 baseline is tracked in `docs/architecture/analysis-v2-integration-checklist.md`, and the live architecture overview is `docs/ARCHITECTURE.md`. Current quality gate: `make check` passes with Ruff check, Ruff format check, 179 pytest tests plus 2 skipped tests, and frontend build; `backend/services/*`, the old project/recommend/association API chain, and Voice/TTS routes (`/api/voice/*`, `/api/ai-voice/*`, `/api/tts/`) are retired. Voice/TTS references below are preserved only as historical task results.
 
 本清单用于后续 `/backend` 架构迁移。当前阶段只创建文档，不迁移业务代码。
 
@@ -37,6 +37,7 @@
   - `uv run ruff format --check backend/abilities tests/abilities tests/test_architecture_imports.py`
   - `git diff --check`
   - Full `make lint` remains blocked by pre-existing repository lint debt in `analysis/marketing_modeling.py` and legacy `backend/services/*`; this commit intentionally does not mix old lint debt fixes.
+  - 2026-05-26: Voice/TTS abolish retired Generic Voice, AI Voice Broadcast, `SpeechSynthesisProvider`, Edge TTS adapter, audio generated asset methods, and frontend TTS controls. The replacement customer AI suggestion path is text-only under `/api/analysis/customer-suggestions`.
 
 ## 0. Ready-to-Start Gate
 

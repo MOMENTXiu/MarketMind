@@ -34,7 +34,6 @@ class Settings(BaseSettings):
     OUTPUT_DIR: str = "outputs"
     CHARTS_DIR: str = "outputs/charts"
     REPORTS_DIR: str = "outputs/reports"
-    AUDIO_DIR: str = "outputs/audio"
 
     # 算法参数 - 关联规则
     ASSOCIATION_MIN_SUPPORT: float = 0.02
@@ -47,9 +46,6 @@ class Settings(BaseSettings):
 
     # 算法参数 - 聚类
     CLUSTER_N_CLUSTERS: int = 4
-
-    # 语音合成
-    TTS_VOICE: str = "zh-CN-YunxiNeural"
 
     model_config = ConfigDict(env_file=".env", case_sensitive=True)
 

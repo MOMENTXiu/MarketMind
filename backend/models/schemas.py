@@ -100,28 +100,6 @@ class ClusteringResponse(BaseModel):
     charts: Dict[str, str] = Field(default_factory=dict)
 
 
-# ============ 语音播报模块 ============
-class VoiceRequest(BaseModel):
-    """语音生成请求"""
-
-    text: Optional[str] = Field(None, description="自定义文本，为空则自动生成")
-    voice: str = Field("zh-CN-YunxiNeural", description="语音角色")
-    include_modules: List[str] = Field(
-        default_factory=lambda: ["association", "prediction", "clustering"],
-        description="包含的模块",
-    )
-
-
-class VoiceResponse(BaseModel):
-    """语音生成响应"""
-
-    success: bool
-    message: str
-    text: str
-    audio_url: str
-    duration: Optional[float] = None
-
-
 # ============ 通用响应 ============
 class HealthResponse(BaseModel):
     """健康检查响应"""

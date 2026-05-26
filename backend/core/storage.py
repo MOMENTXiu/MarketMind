@@ -54,7 +54,6 @@ class ProjectStorage:
         (project_dir / "outputs").mkdir(exist_ok=True)
         (project_dir / "outputs" / "charts").mkdir(exist_ok=True)
         (project_dir / "outputs" / "reports").mkdir(exist_ok=True)
-        (project_dir / "outputs" / "audio").mkdir(exist_ok=True)
 
         return project
 

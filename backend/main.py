@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from backend.api import ai_voice, analysis, voice
+from backend.api import analysis
 from backend.core.config import settings
 
 # 创建 FastAPI 应用
@@ -36,8 +36,6 @@ app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 
 # 注册路由
 app.include_router(analysis.router, prefix="/api/analysis", tags=["Retail Analysis V2"])
-app.include_router(voice.router, prefix="/api/voice", tags=["语音播报"])
-app.include_router(ai_voice.router, prefix="/api", tags=["AI 语音播报"])
 
 
 @app.get("/")

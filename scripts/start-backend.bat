@@ -56,12 +56,10 @@ REM Create necessary directories
 echo [4/6] Creating required directories...
 if not exist "outputs\charts" mkdir outputs\charts
 if not exist "outputs\reports" mkdir outputs\reports
-if not exist "outputs\audio" mkdir outputs\audio
 if not exist "data\projects" mkdir data\projects
 echo + Directories created:
 echo   - outputs\charts
 echo   - outputs\reports
-echo   - outputs\audio
 echo   - data\projects
 echo.
 

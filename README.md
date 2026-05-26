@@ -7,13 +7,13 @@ MarketMind 是一个面向零售/超市场景的 AI 营销系统，采用 **Vue 
 - Retail Analysis V2：创建分析项目、上传 CSV、跟踪分析状态
 - 购物篮/高效用组合分析：FP-Growth、HUIM 与营销策略建议
 - 行为推荐：基于分析结果的个性化推荐能力
-- AI 语音播报：分析报告生成与语音合成
+- AI 文本建议：基于 LLM 的客户营销建议与商品洞察文本
 - 客户分群、营销洞察、促销因果分析
 - 数据处理链路：`regularization -> analysis2` 通用分析链路已完整实现并接入后端 runtime，与 Retail V2 并存
 
 ## 技术栈
 
-- 后端：FastAPI、Uvicorn、Pydantic、pandas、scikit-learn、mlxtend、edge-tts
+- 后端：FastAPI、Uvicorn、Pydantic、pandas、scikit-learn、mlxtend、httpx
 - 前端：Vue 3、Vite、TypeScript、Pinia、Vue Router、Element Plus、ECharts、Axios
 
 ## 环境要求
@@ -87,7 +87,7 @@ MarketMind/
 ├── frontend/             # Vue 3 前端
 ├── scripts/              # 一键启动脚本（sh/bat）
 ├── analysis/             # 离线分析蓝本、data-processing pipeline 归档
-├── outputs/              # 图表/报告/语音输出
+├── outputs/              # 图表/报告输出
 ├── data/                 # 项目数据存储
 ├── docs/                 # 文档（架构/指南/规划）
 ├── app.py                # Streamlit 单机版入口（可选）

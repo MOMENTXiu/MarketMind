@@ -40,7 +40,6 @@ from tests.fakes.providers import (
     FakeLLMProvider,
     FakeRecommendationModelStoreProvider,
     FakeRegularizedDatasetProvider,
-    FakeSpeechSynthesisProvider,
 )
 
 
@@ -65,12 +64,10 @@ class IsolatedEnv:
     storage: ProjectStorage
     container: ProvidersContainer
     jobs: RecordingAnalysisJobs
-    speech: FakeSpeechSynthesisProvider
     llm: FakeLLMProvider
     models: FakeRecommendationModelStoreProvider
     data_dir: Path
     outputs_dir: Path
-    ai_audio_dir: Path
 
 
 @pytest.fixture()
@@ -79,14 +76,11 @@ def isolated_env(tmp_path: Path) -> Iterator[IsolatedEnv]:
 
     data_dir = tmp_path / "data"
     outputs_dir = tmp_path / "outputs"
-    ai_audio_dir = tmp_path / "ai_audio"
     data_dir.mkdir(parents=True, exist_ok=True)
     outputs_dir.mkdir(parents=True, exist_ok=True)
-    ai_audio_dir.mkdir(parents=True, exist_ok=True)
 
     storage = ProjectStorage(str(data_dir))
     jobs = RecordingAnalysisJobs()
-    speech = FakeSpeechSynthesisProvider()
     llm = FakeLLMProvider(text="generated broadcast")
     models = FakeRecommendationModelStoreProvider()
     container = ProvidersContainer(
@@ -95,8 +89,6 @@ def isolated_env(tmp_path: Path) -> Iterator[IsolatedEnv]:
         assets=LocalGeneratedAssetAdapter(
             data_dir=str(data_dir),
             outputs_dir=str(outputs_dir),
-            ai_audio_dir=str(ai_audio_dir),
-            temp_dir="/tmp",
         ),
         dataset=CsvDatasetAdapter(str(data_dir)),
         retail_dataset=CsvRetailDatasetAdapter(str(data_dir)),
@@ -104,7 +96,6 @@ def isolated_env(tmp_path: Path) -> Iterator[IsolatedEnv]:
         recommendation_models=models,
         analysis_artifacts=LocalAnalysisArtifactAdapter(str(data_dir)),
         analysis_models=LocalAnalysisModelStoreAdapter(str(data_dir)),
-        speech=speech,
         llm=llm,
         analysis_jobs=jobs,
         telemetry=ConsoleTelemetryAdapter(),
@@ -117,12 +108,10 @@ def isolated_env(tmp_path: Path) -> Iterator[IsolatedEnv]:
             storage=storage,
             container=container,
             jobs=jobs,
-            speech=speech,
             llm=llm,
             models=models,
             data_dir=data_dir,
             outputs_dir=outputs_dir,
-            ai_audio_dir=ai_audio_dir,
         )
     finally:
         app.dependency_overrides.clear()
@@ -134,14 +123,11 @@ def isolated_env_real_adapter(tmp_path: Path) -> Iterator[IsolatedEnv]:
 
     data_dir = tmp_path / "data"
     outputs_dir = tmp_path / "outputs"
-    ai_audio_dir = tmp_path / "ai_audio"
     data_dir.mkdir(parents=True, exist_ok=True)
     outputs_dir.mkdir(parents=True, exist_ok=True)
-    ai_audio_dir.mkdir(parents=True, exist_ok=True)
 
     storage = ProjectStorage(str(data_dir))
     jobs = SynchronousAnalysisJobs()
-    speech = FakeSpeechSynthesisProvider()
     llm = FakeLLMProvider(text="generated broadcast")
     models = FakeRecommendationModelStoreProvider()
     container = ProvidersContainer(
@@ -150,8 +136,6 @@ def isolated_env_real_adapter(tmp_path: Path) -> Iterator[IsolatedEnv]:
         assets=LocalGeneratedAssetAdapter(
             data_dir=str(data_dir),
             outputs_dir=str(outputs_dir),
-            ai_audio_dir=str(ai_audio_dir),
-            temp_dir="/tmp",
         ),
         dataset=CsvDatasetAdapter(str(data_dir)),
         retail_dataset=CsvRetailDatasetAdapter(str(data_dir)),
@@ -159,7 +143,6 @@ def isolated_env_real_adapter(tmp_path: Path) -> Iterator[IsolatedEnv]:
         recommendation_models=models,
         analysis_artifacts=LocalAnalysisArtifactAdapter(str(data_dir)),
         analysis_models=LocalAnalysisModelStoreAdapter(str(data_dir)),
-        speech=speech,
         llm=llm,
         analysis_jobs=jobs,
         telemetry=ConsoleTelemetryAdapter(),
@@ -172,12 +155,10 @@ def isolated_env_real_adapter(tmp_path: Path) -> Iterator[IsolatedEnv]:
             storage=storage,
             container=container,
             jobs=jobs,
-            speech=speech,
             llm=llm,
             models=models,
             data_dir=data_dir,
             outputs_dir=outputs_dir,
-            ai_audio_dir=ai_audio_dir,
         )
     finally:
         app.dependency_overrides.clear()

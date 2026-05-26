@@ -59,12 +59,10 @@ echo ""
 echo -e "${YELLOW}[4/6] Creating required directories...${NC}"
 mkdir -p outputs/charts
 mkdir -p outputs/reports
-mkdir -p outputs/audio
 mkdir -p data/projects
 echo -e "${GREEN}✓ Directories created:${NC}"
 echo "  - outputs/charts"
 echo "  - outputs/reports"
-echo "  - outputs/audio"
 echo "  - data/projects"
 echo ""
 

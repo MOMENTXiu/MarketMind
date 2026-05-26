@@ -6,8 +6,9 @@ from fastapi import BackgroundTasks, Depends
 
 from backend.business.flows.data_processing_analysis_flow import DataProcessingAnalysisFlow
 from backend.business.flows.retail_analysis_flow import RetailAnalysisFlow
-from backend.business.pipelines.ai_voice_broadcast_pipeline import AIVoiceBroadcastPipeline
-from backend.business.pipelines.voice_synthesis_pipeline import VoiceSynthesisPipeline
+from backend.business.pipelines.customer_text_suggestion_pipeline import (
+    CustomerTextSuggestionPipeline,
+)
 from backend.core.config import settings
 from backend.infrastructure.factories.provider_factory import create_providers
 from backend.providers.container import ProvidersContainer
@@ -19,16 +20,10 @@ def get_providers(background_tasks: BackgroundTasks) -> ProvidersContainer:
     return create_providers(settings, background_tasks=background_tasks)
 
 
-def get_voice_synthesis_pipeline(
+def get_customer_text_suggestion_pipeline(
     providers: ProvidersContainer = Depends(get_providers),
-) -> VoiceSynthesisPipeline:
-    return VoiceSynthesisPipeline(providers)
-
-
-def get_ai_voice_broadcast_pipeline(
-    providers: ProvidersContainer = Depends(get_providers),
-) -> AIVoiceBroadcastPipeline:
-    return AIVoiceBroadcastPipeline(providers)
+) -> CustomerTextSuggestionPipeline:
+    return CustomerTextSuggestionPipeline(providers)
 
 
 def get_retail_analysis_flow(

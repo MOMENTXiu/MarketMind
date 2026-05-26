@@ -36,7 +36,6 @@ class AnalysisResults(BaseModel):
     prediction_data: Optional[Dict[str, Any]] = None
     clustering_data: Optional[Dict[str, Any]] = None
     charts: Optional[Dict[str, str]] = None  # 图表路径
-    audio_path: Optional[str] = None  # 语音文件路径
     report_path: Optional[str] = None  # 报告路径
 
 

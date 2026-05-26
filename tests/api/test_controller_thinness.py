@@ -10,11 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 API_DIR = ROOT / "backend" / "api"
 
-CONTROLLER_FILES: tuple[str, ...] = (
-    "analysis.py",
-    "voice.py",
-    "ai_voice.py",
-)
+CONTROLLER_FILES: tuple[str, ...] = ("analysis.py",)
 
 FORBIDDEN_PREFIXES: tuple[str, ...] = (
     "backend.services",

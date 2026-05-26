@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.api.dependencies import get_ai_voice_broadcast_pipeline, get_voice_synthesis_pipeline
-from backend.core.errors import NotFoundError
+from backend.api.dependencies import get_customer_text_suggestion_pipeline
 from backend.main import app
 
 
@@ -52,61 +50,23 @@ def test_retired_analysis_routes_are_not_public(client: TestClient) -> None:
     assert {response.status_code for response in retired_requests} == {404}
 
 
-def test_voice_contracts(client: TestClient) -> None:
-    class FakeVoicePipeline:
-        async def synthesize(
-            self,
-            text: str,
-            voice: str | None = None,
-            rate: str | None = None,
-            volume: str | None = None,
+def test_customer_text_suggestion_contract(client: TestClient) -> None:
+    class FakeCustomerTextSuggestionPipeline:
+        async def generate(
+            self, data: dict[str, Any], llm_config: dict[str, str]
         ) -> dict[str, Any]:
             return {
                 "success": True,
-                "audio_url": f"/outputs/audio/tts_{abs(hash(text)) % 1000}.mp3",
-                "text": text,
+                "text": "generated customer suggestion",
+                "metadata": {"provider": llm_config["provider"]},
             }
 
-    app.dependency_overrides[get_voice_synthesis_pipeline] = lambda: FakeVoicePipeline()
+    app.dependency_overrides[get_customer_text_suggestion_pipeline] = (
+        lambda: FakeCustomerTextSuggestionPipeline()
+    )
     try:
-        tts_response = client.post("/api/voice/tts/", json={"text": "hello"})
-        assert tts_response.status_code == 200
-        tts_payload = tts_response.json()
-        assert tts_payload["success"] is True
-        assert tts_payload["audio_url"].startswith("/outputs/audio/tts_")
-        assert tts_payload["text"] == "hello"
-
-        voice_response = client.post("/api/voice/generate/", json={"text": "custom voice"})
-        assert voice_response.status_code == 200
-        assert voice_response.json()["audio_url"] == "/outputs/audio/temp.mp3"
-    finally:
-        app.dependency_overrides.pop(get_voice_synthesis_pipeline, None)
-
-
-def test_ai_voice_contracts(client: TestClient) -> None:
-    class FakeAIVoicePipeline:
-        async def broadcast(self, **kwargs: Any) -> dict[str, Any]:
-            return {
-                "success": True,
-                "text": "generated broadcast",
-                "audio_url": "/api/ai-voice/audio/contract-broadcast.mp3/",
-            }
-
-        async def synthesize_tts(self, text: str, **kwargs: Any) -> dict[str, Any]:
-            return {
-                "success": True,
-                "audio_url": "/api/ai-voice/audio/contract-tts.mp3/",
-            }
-
-        def resolve_audio_path(self, filename: str) -> Path:
-            if filename == "marketmind-contract-audio.mp3":
-                return Path("/tmp/marketmind-contract-audio.mp3")
-            raise NotFoundError("音频文件不存在")
-
-    app.dependency_overrides[get_ai_voice_broadcast_pipeline] = lambda: FakeAIVoicePipeline()
-    try:
-        broadcast_response = client.post(
-            "/api/ai-voice/broadcast/",
+        response = client.post(
+            "/api/analysis/customer-suggestions",
             json={
                 "data": {"metric": 1},
                 "llm_config": {
@@ -115,36 +75,14 @@ def test_ai_voice_contracts(client: TestClient) -> None:
                     "apiKey": "redacted",
                     "modelName": "fake",
                 },
-                "scene_type": "summary",
-                "tts_config": None,
             },
         )
-        assert broadcast_response.status_code == 200
-        assert broadcast_response.json() == {
+        assert response.status_code == 200
+        assert response.json() == {
             "success": True,
-            "text": "generated broadcast",
-            "audio_url": "/api/ai-voice/audio/contract-broadcast.mp3/",
+            "text": "generated customer suggestion",
+            "metadata": {"provider": "openai"},
         }
-
-        tts_response = client.post("/api/tts/", json={"text": "hello"})
-        assert tts_response.status_code == 200
-        assert tts_response.json() == {
-            "success": True,
-            "audio_url": "/api/ai-voice/audio/contract-tts.mp3/",
-        }
-
-        missing_audio_response = client.get("/api/ai-voice/audio/missing-contract-audio.mp3/")
-        assert missing_audio_response.status_code == 404
-        assert missing_audio_response.json()["detail"] == "音频文件不存在"
-
-        audio_path = Path("/tmp/marketmind-contract-audio.mp3")
-        audio_path.write_bytes(b"fake mp3")
-        try:
-            audio_response = client.get("/api/ai-voice/audio/marketmind-contract-audio.mp3/")
-            assert audio_response.status_code == 200
-            assert audio_response.headers["content-type"] == "audio/mpeg"
-            assert audio_response.content == b"fake mp3"
-        finally:
-            audio_path.unlink(missing_ok=True)
+        assert "audio_url" not in response.json()
     finally:
-        app.dependency_overrides.pop(get_ai_voice_broadcast_pipeline, None)
+        app.dependency_overrides.pop(get_customer_text_suggestion_pipeline, None)

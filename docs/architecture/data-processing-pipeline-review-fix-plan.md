@@ -445,4 +445,3 @@ Commit only when all of these are true:
 - At least one API contract test uses the real local regularized dataset
   adapter.
 - Focused tests and project quality gate pass.
-

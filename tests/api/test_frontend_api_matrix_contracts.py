@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.api.dependencies import get_ai_voice_broadcast_pipeline, get_voice_synthesis_pipeline
+from backend.api.dependencies import get_customer_text_suggestion_pipeline
 from backend.business.flows.retail_analysis_flow import PROJECT_STATE_MODEL_TYPE
 from backend.main import app
 from tests.api.conftest import IsolatedEnv
@@ -117,39 +117,23 @@ def test_analysis_recommendation_and_insight_fields_used_by_frontend(
     }.issubset(insights_data)
 
 
-def test_voice_and_ai_voice_fields_used_by_frontend(client: TestClient) -> None:
-    class FakeVoicePipeline:
-        async def synthesize(
-            self,
-            text: str,
-            voice: str | None = None,
-            rate: str | None = None,
-            volume: str | None = None,
+def test_customer_text_suggestion_fields_used_by_frontend(client: TestClient) -> None:
+    class FakeCustomerTextSuggestionPipeline:
+        async def generate(
+            self, data: dict[str, Any], llm_config: dict[str, str]
         ) -> dict[str, Any]:
             return {
                 "success": True,
-                "audio_url": f"/outputs/audio/tts_{abs(hash(text)) % 1000}.mp3",
-                "text": text,
+                "text": "front-end customer suggestion",
+                "metadata": {"provider": llm_config["provider"], "scene_type": "customer"},
             }
 
-    class FakeAIVoicePipeline:
-        async def broadcast(self, **kwargs: Any) -> dict[str, Any]:
-            return {
-                "success": True,
-                "text": "front-end broadcast",
-                "audio_url": "/api/ai-voice/audio/frontend-broadcast.mp3/",
-            }
-
-    app.dependency_overrides[get_voice_synthesis_pipeline] = lambda: FakeVoicePipeline()
-    app.dependency_overrides[get_ai_voice_broadcast_pipeline] = lambda: FakeAIVoicePipeline()
+    app.dependency_overrides[get_customer_text_suggestion_pipeline] = (
+        lambda: FakeCustomerTextSuggestionPipeline()
+    )
     try:
-        voice_response = client.post("/api/voice/tts/", json={"text": "play this"})
-        assert voice_response.status_code == 200
-        assert {"success", "audio_url", "text"}.issubset(voice_response.json())
-        assert voice_response.json()["audio_url"].startswith("/outputs/audio/")
-
-        ai_response = client.post(
-            "/api/ai-voice/broadcast/",
+        response = client.post(
+            "/api/analysis/customer-suggestions",
             json={
                 "data": {"customer_id": "C002"},
                 "llm_config": {
@@ -158,16 +142,15 @@ def test_voice_and_ai_voice_fields_used_by_frontend(client: TestClient) -> None:
                     "apiKey": "redacted",
                     "modelName": "fake",
                 },
-                "scene_type": "summary",
-                "tts_config": None,
             },
         )
-        assert ai_response.status_code == 200
-        assert ai_response.json() == {
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload == {
             "success": True,
-            "text": "front-end broadcast",
-            "audio_url": "/api/ai-voice/audio/frontend-broadcast.mp3/",
+            "text": "front-end customer suggestion",
+            "metadata": {"provider": "openai", "scene_type": "customer"},
         }
+        assert "audio_url" not in payload
     finally:
-        app.dependency_overrides.pop(get_voice_synthesis_pipeline, None)
-        app.dependency_overrides.pop(get_ai_voice_broadcast_pipeline, None)
+        app.dependency_overrides.pop(get_customer_text_suggestion_pipeline, None)

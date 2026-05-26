@@ -40,37 +40,8 @@ def test_local_generated_asset_adapter_preserves_asset_paths_and_urls(tmp_path) 
     adapter = LocalGeneratedAssetAdapter(
         data_dir=str(tmp_path / "data"),
         outputs_dir=str(tmp_path / "outputs"),
-        ai_audio_dir=str(tmp_path / "backend/data/audio"),
-        temp_dir=str(tmp_path / "tmp"),
     )
 
     report = adapter.save_project_report("project-1", "report_project-1.md", "# report")
     assert report.path == tmp_path / "data/projects/project-1/outputs/reports/report_project-1.md"
     assert adapter.resolve_project_report("project-1") == report
-
-    source_audio = tmp_path / "source.mp3"
-    source_audio.write_bytes(b"audio")
-    project_audio = adapter.save_project_audio("project-1", "report_project-1.mp3", source_audio)
-    assert (
-        project_audio.path
-        == tmp_path / "data/projects/project-1/outputs/audio/report_project-1.mp3"
-    )
-    assert adapter.resolve_project_audio("project-1") == project_audio
-
-    public_audio = adapter.save_public_audio("tts_1.mp3", source_audio)
-    assert public_audio.path == tmp_path / "outputs/audio/tts_1.mp3"
-    assert public_audio.url == "/outputs/audio/tts_1.mp3"
-
-    temp_audio_dir = tmp_path / "tmp"
-    temp_audio_dir.mkdir()
-    temp_audio = temp_audio_dir / "voice.mp3"
-    temp_audio.write_bytes(b"temp")
-    data_audio_dir = tmp_path / "backend/data/audio"
-    data_audio_dir.mkdir(parents=True)
-    data_audio = data_audio_dir / "voice.mp3"
-    data_audio.write_bytes(b"data")
-    assert adapter.resolve_ai_audio("voice.mp3").path == temp_audio
-
-    temp_audio.unlink()
-    assert adapter.resolve_ai_audio("voice.mp3").path == data_audio
-    assert adapter.resolve_ai_audio("missing.mp3") is None

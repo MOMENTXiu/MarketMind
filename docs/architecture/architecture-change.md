@@ -1,6 +1,6 @@
 # Backend Architecture Change Plan
 
-> Status note (2026-05-26): This document is a historical migration record for the pre-Analysis V2 backend architecture refactor. For the current Retail V2 runtime baseline, use `docs/ARCHITECTURE.md` and `docs/architecture/analysis-v2-integration-checklist.md`. The active analysis path is `/api/analysis` -> `RetailAnalysisFlow` -> retail pipelines/abilities -> provider interfaces -> infrastructure adapters; legacy `/api/projects`, `/api/recommend`, `/api/association`, inactive prediction/clustering controllers, and `backend/services/*` are retired.
+> Status note (2026-05-26): This document is a historical migration record for the pre-Analysis V2 backend architecture refactor. For the current Retail V2 runtime baseline, use `docs/ARCHITECTURE.md` and `docs/architecture/analysis-v2-integration-checklist.md`. The active analysis path is `/api/analysis` -> `RetailAnalysisFlow` -> retail pipelines/abilities -> provider interfaces -> infrastructure adapters; legacy `/api/projects`, `/api/recommend`, `/api/association`, Voice/TTS routes (`/api/voice/*`, `/api/ai-voice/*`, `/api/tts/`), inactive prediction/clustering controllers, and `backend/services/*` are retired. Later Voice/TTS references in this file are preserved only as historical migration anchors, not current runtime guidance.
 
 ## 1. Scope
 
@@ -31,7 +31,7 @@ API Controller -> Business Flow -> Business Pipeline -> Ability Atom -> Provider
 - `frontend/`: Vue 3 + Vite 前端。
 - `analysis/`: 数据分析脚本、示例数据、分析报告。
 - `data/`: 项目 JSON 存储与项目级数据目录。
-- `outputs/`: 全局生成物目录，包含 `audio/`、`charts/`、`reports/`。
+- `outputs/`: 全局生成物目录；当前 active 生成物为 charts/reports 等非音频输出，历史 TTS audio 输出已废除。
 - `docs/`: 现有项目文档。
 - `scripts/`: 启动脚本。
 - `pyproject.toml`: 根 Python 项目配置、依赖、pytest/black/ruff 配置。
@@ -105,7 +105,7 @@ frontend/
 
 ## 3. Current Backend Entry Points
 
-后端技术栈：Python 3.13、FastAPI、Uvicorn、Pydantic Settings、pandas、scikit-learn、mlxtend、edge-tts、httpx。
+后端技术栈：Python 3.13、FastAPI、Uvicorn、Pydantic Settings、pandas、scikit-learn、mlxtend、httpx。历史 `edge-tts` 依赖已随 Voice/TTS abolish 移除。
 
 ### API Controller / Route
 
@@ -115,12 +115,9 @@ frontend/
 - CORS 使用 `settings.CORS_ORIGINS`
 - 挂载 `/outputs` 静态目录
 - 注册 routers：
-  - `/api/projects` -> `backend/api/projects.py`
-  - `/api/association` -> `backend/api/association.py`
-  - `/api/voice` -> `backend/api/voice.py`
-  - `/api/recommend/*` -> `backend/api/recommend.py`
-  - `/api/ai-voice/*` and `/api/tts/` -> `backend/api/ai_voice.py`
-- `prediction` 与 `clustering` router 在 `main.py` 中被注释，当前未注册。
+  - `/api/health` -> `backend/api/health.py`
+  - `/api/analysis` -> `backend/api/analysis.py`
+- 历史 `/api/projects`、`/api/association`、`/api/recommend/*`、`/api/voice/*`、`/api/ai-voice/*`、`/api/tts/`、`prediction`、`clustering` router 均不再是 active runtime surface。
 
 ### CLI
 

@@ -57,7 +57,7 @@ Before commit:
 - Treat echo-only Makefile targets as placeholders, not proof that verification passed.
 - Use package managers detected by repo setup unless project files change.
 - Current `make check` includes backend Ruff lint, backend Ruff format check, backend pytest, and frontend `npm run build`.
-- Current backend test baseline is 188 pytest tests across API contracts (Retail V2 + data-processing chain-native), controller thinness, Retail V2 flows/pipelines, data-processing regularization/universal analysis abilities, provider adapters, runtime checks, and architecture import rules.
+- Current backend test baseline is 181 pytest tests across API contracts (Retail V2 + data-processing chain-native + text-only customer suggestions), controller thinness, Retail V2 flows/pipelines, data-processing regularization/universal analysis abilities, provider adapters, runtime checks, and architecture import rules.
 - Current implemented backend architecture baseline is `API Controller -> Business Pipeline/Flow -> Ability Atom -> Provider Interface -> Infrastructure Adapter`.
 - Key architecture paths: `backend/business/pipelines/`, `backend/business/flows/`, `backend/abilities/`, `backend/providers/`, `backend/infrastructure/`, and `backend/core/runtime_checks.py`.
 - Analysis V2 / Retail V2 implemented work is tracked in `docs/architecture/analysis-v2-integration-design.md` and `docs/architecture/analysis-v2-integration-checklist.md`; `analysis/` is an algorithm blueprint/reference directory, not a backend runtime entry.

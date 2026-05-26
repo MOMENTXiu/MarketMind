@@ -3,7 +3,7 @@ import { ref, onMounted, watch } from 'vue'
 import http from '@/utils/http'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import { Search, ArrowLeft, Refresh, VideoPlay } from '@element-plus/icons-vue'
+import { Search, ArrowLeft, Refresh } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
@@ -30,9 +30,6 @@ const insightText = ref('')
 const displayedText = ref('')
 const insightLoading = ref(false)
 const typewriterActive = ref(false)
-const voiceLoading = ref(false)
-const audioRef = ref<HTMLAudioElement | null>(null)
-const audioUrl = ref('')
 
 // UI Refs for SVG drawing
 const centerNodeRef = ref<HTMLElement | null>(null)
@@ -131,32 +128,6 @@ const generateLLMInsight = async () => {
     console.error('LLM error', e)
   } finally {
     insightLoading.value = false
-  }
-}
-
-const playInsightVoice = async () => {
-  if (!insightText.value) return
-  voiceLoading.value = true
-  try {
-    const savedTTS = JSON.parse(localStorage.getItem('tts_config') || '{}')
-    const { data: ttsData } = await http.post('/api/voice/tts/', {
-      text: insightText.value,
-      voice: savedTTS.voice || 'zh-CN-YunxiNeural',
-      rate: savedTTS.rate || '+0%',
-      volume: savedTTS.volume || '+0%'
-    })
-
-    if (ttsData.success) {
-      audioUrl.value = ttsData.audio_url
-
-      setTimeout(() => {
-        audioRef.value?.play()
-      }, 100)
-    }
-  } catch (error: any) {
-    ElMessage.error('语音播报失败')
-  } finally {
-    voiceLoading.value = false
   }
 }
 
@@ -344,16 +315,6 @@ watch(data, () => {
                 <span>AI 商业洞察建议</span>
               </div>
 
-              <el-button
-                v-if="insightText && !typewriterActive"
-                round
-                size="small"
-                @click="playInsightVoice"
-                :loading="voiceLoading"
-                class="btn-voice-glass"
-              >
-                <el-icon style="margin-right: 4px"><VideoPlay /></el-icon> 语音播报
-              </el-button>
             </div>
 
             <div class="insight-text-flow">
@@ -373,7 +334,6 @@ watch(data, () => {
         </div>
       </main>
     </div>
-    <audio ref="audioRef" :src="audioUrl" class="hidden-audio"></audio>
   </div>
 </template>
 
@@ -692,19 +652,6 @@ html.dark .insight-section-glass {
   100% { opacity: 0.6; }
 }
 
-.btn-voice-glass {
-  background: var(--color-bg-base) !important;
-  border: 1px solid var(--border-subtle) !important;
-  color: var(--text-primary) !important;
-  font-weight: 700 !important;
-  padding: 8px 20px !important;
-}
-
-.btn-voice-glass:hover {
-  background: var(--color-accent) !important;
-  color: white !important;
-}
-
 .empty-state-canvas {
   flex: 1;
   display: flex;
@@ -724,5 +671,4 @@ html.dark .insight-section-glass {
   color: var(--text-primary) !important;
 }
 
-.hidden-audio { display: none; }
 </style>

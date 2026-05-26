@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import http from '@/utils/http'
-import { ArrowLeft, User, ShoppingCart, MagicStick, VideoPlay } from '@element-plus/icons-vue'
+import { ArrowLeft, User, ShoppingCart, MagicStick } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,9 +17,6 @@ const recommendations = ref<any[]>([])
 const purchasedItems = ref<any[]>([])
 const aiAnalyzing = ref(false)
 const aiSuggestion = ref('')
-const voiceLoading = ref(false)
-const audioRef = ref<HTMLAudioElement>()
-const audioUrl = ref('')
 const projectInfo = ref<any>(null)
 
 const fetchCustomerDetail = async () => {
@@ -57,7 +54,6 @@ const fetchCustomerDetail = async () => {
   }
 }
 
-// 生成AI建议文本（不播放语音）
 const generateAISuggestion = async () => {
   if (aiAnalyzing.value) return
   aiAnalyzing.value = true
@@ -71,8 +67,7 @@ const generateAISuggestion = async () => {
 
     const llmConfig = JSON.parse(savedLLM)
 
-    // 使用后端的 AI Voice API，只要文本，不要语音
-    const { data: voiceData } = await http.post('/api/ai-voice/broadcast/', {
+    const { data: suggestionData } = await http.post('/api/analysis/customer-suggestions', {
       data: {
         customer_name: customer.value.name,
         customer_id: customer.value.id,
@@ -87,13 +82,11 @@ const generateAISuggestion = async () => {
           reason: r.reason
         }))
       },
-      llm_config: llmConfig,
-      tts_config: null,
-      scene_type: 'summary'
+      llm_config: llmConfig
     })
 
-    if (voiceData.success) {
-      aiSuggestion.value = voiceData.text
+    if (suggestionData.success) {
+      aiSuggestion.value = suggestionData.text
     }
   } catch (error: any) {
     console.error('AI analysis error:', error)
@@ -104,43 +97,8 @@ const generateAISuggestion = async () => {
   }
 }
 
-// 语音播报（可选功能）
-const playVoice = async () => {
-  if (!aiSuggestion.value) {
-    ElMessage.warning('请先生成 AI 建议')
-    return
-  }
-  if (voiceLoading.value) return
-
-  voiceLoading.value = true
-  try {
-    const savedTTS = localStorage.getItem('tts_config')
-    const ttsConfig = savedTTS ? JSON.parse(savedTTS) : {}
-
-    const { data: ttsData } = await http.post('/api/voice/tts/', {
-      text: aiSuggestion.value,
-      voice: ttsConfig.voice,
-      rate: ttsConfig.rate,
-      volume: ttsConfig.volume
-    })
-
-    if (ttsData.success) {
-      audioUrl.value = ttsData.audio_url
-
-      setTimeout(() => {
-        audioRef.value?.play()
-      }, 100)
-    }
-  } catch (error: any) {
-    ElMessage.error('语音播报失败')
-  } finally {
-    voiceLoading.value = false
-  }
-}
-
 onMounted(async () => {
   await fetchCustomerDetail()
-  // 自动触发AI分析（只生成文本，不播放语音）
   await generateAISuggestion()
 })
 </script>
@@ -191,17 +149,6 @@ onMounted(async () => {
                 :disabled="aiAnalyzing"
               >
                 重新生成
-              </el-button>
-              <el-button
-                type="primary"
-                round
-                size="small"
-                @click="playVoice"
-                :loading="voiceLoading"
-                :disabled="!aiSuggestion || voiceLoading"
-              >
-                <el-icon style="margin-right: 4px"><VideoPlay /></el-icon>
-                语音播报
               </el-button>
             </div>
           </div>
@@ -258,9 +205,6 @@ onMounted(async () => {
         </div>
       </main>
     </div>
-
-    <!-- Hidden Audio Element -->
-    <audio ref="audioRef" :src="audioUrl" class="hidden-audio"></audio>
   </div>
 </template>
 
@@ -367,5 +311,4 @@ html.dark .skeleton-line {
 .prob-badge { background: var(--color-accent); color: white; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 0.8rem; }
 
 .num-font { font-family: 'JetBrains Mono', monospace; }
-.hidden-audio { display: none; }
 </style>

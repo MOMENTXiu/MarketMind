@@ -103,22 +103,6 @@ class AnalysisModelReferenceDTO:
 
 
 @dataclass(frozen=True)
-class SpeechSynthesisRequestDTO:
-    text: str
-    output_path: Path
-    voice: str | None = None
-    rate: str | None = None
-    volume: str | None = None
-
-
-@dataclass(frozen=True)
-class SpeechSynthesisResultDTO:
-    audio_path: Path
-    audio_url: str | None = None
-    duration_seconds: float | None = None
-
-
-@dataclass(frozen=True)
 class LLMMessageDTO:
     role: str
     content: str

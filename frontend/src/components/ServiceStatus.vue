@@ -50,7 +50,6 @@ const fetchStatus = async () => {
     const mockData: ServiceNode[] = [
       { id: 'core', name: 'Core API', status: 'healthy', latency: 45 },
       { id: 'analysis', name: '数据分析引擎', status: 'healthy', latency: 120 },
-      { id: 'tts', name: 'Edge TTS', status: 'healthy', latency: 300 }, // 模拟正常
       { id: 'llm', name: 'LLM 服务', status: 'degraded', latency: 1500 } // 模拟延迟高
     ]
 
@@ -60,7 +59,6 @@ const fetchStatus = async () => {
     services.value = [
       { id: 'core', name: 'Core API', status: 'down' },
       { id: 'analysis', name: '数据分析引擎', status: 'down' },
-      { id: 'tts', name: 'Edge TTS', status: 'down' },
       { id: 'llm', name: 'LLM 服务', status: 'down' }
     ]
   } finally {
