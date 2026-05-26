@@ -196,6 +196,9 @@ def _sandbox_provider_container(tmp: str) -> ProvidersContainer:
     from backend.infrastructure.adapters.local_recommendation_model_store_adapter import (
         LocalRecommendationModelStoreAdapter,
     )
+    from backend.infrastructure.adapters.local_regularized_dataset_adapter import (
+        LocalRegularizedDatasetAdapter,
+    )
 
     root = Path(tmp)
     return ProvidersContainer(
@@ -217,6 +220,7 @@ def _sandbox_provider_container(tmp: str) -> ProvidersContainer:
         llm=_RuntimeCheckLLMProvider(),
         analysis_jobs=FastApiBackgroundAnalysisJobAdapter(),
         telemetry=ConsoleTelemetryAdapter(writer=lambda _line: None),
+        regularized_dataset=LocalRegularizedDatasetAdapter(tmp),
     )
 
 
@@ -510,6 +514,88 @@ def cmd_inspect_trace(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_check_data_processing(args: argparse.Namespace) -> int:
+    if not getattr(args, "sample", False):
+        _emit("check-data-processing: refusing to run without --sample")
+        return 1
+
+    from backend.business.flows.data_processing_analysis_flow import DataProcessingAnalysisFlow
+
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            flow = DataProcessingAnalysisFlow(_sandbox_provider_container(tmp))
+            job = flow.create_job("test-project", "Runtime Check")
+            job_id = job["job_id"]
+
+            sample = (
+                "顾客编号,大类编码,大类名称,中类编码,中类名称,小类编码,小类名称,销售日期,"
+                "销售月份,商品编码,规格型号,商品类型,单位,销售数量,销售金额,商品单价,是否促销\n"
+                "1,10,食品,101,饮品,10101,茶饮,20240102,202401,SKU-1,500ml,标准,瓶,2,20,10,否\n"
+            ).encode("utf-8")
+            flow.upload_raw_dataset("test-project", job_id, "runtime.csv", sample)
+            reg = flow.regularize("test-project", job_id)
+            if reg["status"] not in {"queued", "completed", "needs_review"}:
+                _emit("check-data-processing: unexpected regularization status")
+                return 1
+            if not reg.get("quality"):
+                _emit("check-data-processing: missing quality summary")
+                return 1
+            if not reg.get("capability"):
+                _emit("check-data-processing: missing capability summary")
+                return 1
+        except Exception as exc:
+            _emit(f"check-data-processing: failed: {exc}")
+            return 1
+
+    _emit("check-data-processing: ok sample=tmp")
+    return 0
+
+
+def cmd_check_regularization(args: argparse.Namespace) -> int:
+    if not getattr(args, "sandbox", False):
+        _emit("check-regularization: refusing to run without --sandbox")
+        return 1
+
+    from backend.abilities.regularization.check_analysis_capability import check_analysis_capability
+    from backend.abilities.regularization.check_data_quality import check_data_quality
+    from backend.abilities.regularization.infer_schema_mapping import infer_schema_mapping
+    from backend.abilities.regularization.normalize_business_fields import normalize_business_fields
+    from backend.abilities.regularization.normalize_field_types import normalize_field_types
+    from backend.abilities.regularization.profile_source_schema import profile_source_schema
+    from backend.abilities.regularization.read_source_table import read_source_table
+
+    with tempfile.TemporaryDirectory():
+        try:
+            sample = (
+                "顾客编号,大类编码,大类名称,中类编码,中类名称,小类编码,小类名称,销售日期,"
+                "销售月份,商品编码,规格型号,商品类型,单位,销售数量,销售金额,商品单价,是否促销\n"
+                "1,10,食品,101,饮品,10101,茶饮,20240102,202401,SKU-1,500ml,标准,瓶,2,20,10,否\n"
+            ).encode("utf-8")
+            df, meta = read_source_table(sample, "test.csv")
+            profile = profile_source_schema(df)
+            mapping, detail = infer_schema_mapping(list(df.columns), profile)
+            norm_df, _ = normalize_field_types(df, mapping)
+            biz_df, rules = normalize_business_fields(norm_df)
+            quality = check_data_quality(df, biz_df, mapping, 0)
+            capability = check_analysis_capability(biz_df)
+
+            if not mapping:
+                _emit("check-regularization: empty mapping")
+                return 1
+            if quality["analysis_ready_score"] <= 0:
+                _emit("check-regularization: invalid quality score")
+                return 1
+            if capability["runnable_count"] <= 0:
+                _emit("check-regularization: no capabilities detected")
+                return 1
+        except Exception as exc:
+            _emit(f"check-regularization: failed: {exc}")
+            return 1
+
+    _emit("check-regularization: ok sandbox=tmp")
+    return 0
+
+
 COMMANDS = {
     "check-config": cmd_check_config,
     "check-providers": cmd_check_providers,
@@ -525,6 +611,8 @@ COMMANDS = {
     "validate-log-schema": cmd_validate_log_schema,
     "validate-audit-schema": cmd_validate_audit_schema,
     "inspect-trace": cmd_inspect_trace,
+    "check-data-processing": cmd_check_data_processing,
+    "check-regularization": cmd_check_regularization,
 }
 
 
@@ -564,6 +652,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_trace = sub.add_parser("inspect-trace")
     p_trace.add_argument("--trace-id", dest="trace_id", default=None)
+
+    p_dp = sub.add_parser("check-data-processing")
+    p_dp.add_argument("--sample", action="store_true")
+
+    p_reg = sub.add_parser("check-regularization")
+    p_reg.add_argument("--sandbox", action="store_true")
 
     return parser
 

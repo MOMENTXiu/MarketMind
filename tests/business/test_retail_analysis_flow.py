@@ -23,6 +23,7 @@ from tests.fakes.providers import (
     FakeProjectFileStorageProvider,
     FakeProjectRepositoryProvider,
     FakeRecommendationModelStoreProvider,
+    FakeRegularizedDatasetProvider,
     FakeRetailDatasetProvider,
     FakeSpeechSynthesisProvider,
     FakeTelemetryProvider,
@@ -60,6 +61,7 @@ def _make_container(tmp_path: Path) -> tuple[ProvidersContainer, FakeAnalysisJob
         llm=FakeLLMProvider(),
         analysis_jobs=jobs,
         telemetry=FakeTelemetryProvider(),
+        regularized_dataset=FakeRegularizedDatasetProvider(),
     )
     return container, jobs
 

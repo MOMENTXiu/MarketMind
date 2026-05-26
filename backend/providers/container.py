@@ -12,6 +12,7 @@ from backend.providers.llm_provider import LLMProvider
 from backend.providers.project_file_storage_provider import ProjectFileStorageProvider
 from backend.providers.project_repository_provider import ProjectRepositoryProvider
 from backend.providers.recommendation_model_store_provider import RecommendationModelStoreProvider
+from backend.providers.regularized_dataset_provider import RegularizedDatasetProvider
 from backend.providers.retail_dataset_provider import RetailDatasetProvider
 from backend.providers.speech_synthesis_provider import SpeechSynthesisProvider
 from backend.providers.telemetry_provider import TelemetryProvider
@@ -24,6 +25,7 @@ class ProvidersContainer:
     assets: GeneratedAssetProvider
     dataset: DatasetProvider
     retail_dataset: RetailDatasetProvider
+    regularized_dataset: RegularizedDatasetProvider
     association_rules: AssociationRuleStoreProvider
     recommendation_models: RecommendationModelStoreProvider
     analysis_artifacts: AnalysisArtifactProvider

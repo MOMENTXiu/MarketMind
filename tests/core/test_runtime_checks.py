@@ -44,6 +44,8 @@ HAPPY_PATH_COMMANDS: list[tuple[str, list[str], str]] = [
     ("validate-log-schema", [], "validate-log-schema: ok"),
     ("validate-audit-schema", [], "validate-audit-schema: ok"),
     ("inspect-trace", ["--trace-id", "test"], "inspect-trace: skipped"),
+    ("check-data-processing", ["--sample"], "check-data-processing: ok"),
+    ("check-regularization", ["--sandbox"], "check-regularization: ok"),
 ]
 
 
@@ -84,6 +86,18 @@ def test_check_speech_requires_mock_flag() -> None:
     result = _run(["check-speech"])
     assert result.returncode == 1
     assert "refusing to run without --mock" in result.stdout
+
+
+def test_check_data_processing_requires_sample_flag() -> None:
+    result = _run(["check-data-processing"])
+    assert result.returncode == 1
+    assert "refusing to run without --sample" in result.stdout
+
+
+def test_check_regularization_requires_sandbox_flag() -> None:
+    result = _run(["check-regularization"])
+    assert result.returncode == 1
+    assert "refusing to run without --sandbox" in result.stdout
 
 
 def test_validate_log_schema_missing_fixture_fails(tmp_path: Path) -> None:

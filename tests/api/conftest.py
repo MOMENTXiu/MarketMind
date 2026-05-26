@@ -30,12 +30,16 @@ from backend.infrastructure.adapters.local_generated_asset_adapter import LocalG
 from backend.infrastructure.adapters.local_project_file_storage_adapter import (
     LocalProjectFileStorageAdapter,
 )
+from backend.infrastructure.adapters.local_regularized_dataset_adapter import (
+    LocalRegularizedDatasetAdapter,
+)
 from backend.main import app
 from backend.providers.container import ProvidersContainer
 from backend.providers.dtos import AnalysisJobDTO
 from tests.fakes.providers import (
     FakeLLMProvider,
     FakeRecommendationModelStoreProvider,
+    FakeRegularizedDatasetProvider,
     FakeSpeechSynthesisProvider,
 )
 
@@ -46,6 +50,14 @@ class RecordingAnalysisJobs:
 
     def submit_project_analysis(self, job: AnalysisJobDTO, handler: Any | None = None) -> None:
         self.jobs.append(job)
+
+
+class SynchronousAnalysisJobs:
+    """Executes the submitted handler synchronously for testing."""
+
+    def submit_project_analysis(self, job: AnalysisJobDTO, handler: Any | None = None) -> None:
+        if handler is not None:
+            handler(job.project_id)
 
 
 @dataclass
@@ -96,6 +108,62 @@ def isolated_env(tmp_path: Path) -> Iterator[IsolatedEnv]:
         llm=llm,
         analysis_jobs=jobs,
         telemetry=ConsoleTelemetryAdapter(),
+        regularized_dataset=FakeRegularizedDatasetProvider(),
+    )
+
+    app.dependency_overrides[get_providers] = lambda: container
+    try:
+        yield IsolatedEnv(
+            storage=storage,
+            container=container,
+            jobs=jobs,
+            speech=speech,
+            llm=llm,
+            models=models,
+            data_dir=data_dir,
+            outputs_dir=outputs_dir,
+            ai_audio_dir=ai_audio_dir,
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def isolated_env_real_adapter(tmp_path: Path) -> Iterator[IsolatedEnv]:
+    """Variant using LocalRegularizedDatasetAdapter instead of Fake."""
+
+    data_dir = tmp_path / "data"
+    outputs_dir = tmp_path / "outputs"
+    ai_audio_dir = tmp_path / "ai_audio"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    outputs_dir.mkdir(parents=True, exist_ok=True)
+    ai_audio_dir.mkdir(parents=True, exist_ok=True)
+
+    storage = ProjectStorage(str(data_dir))
+    jobs = SynchronousAnalysisJobs()
+    speech = FakeSpeechSynthesisProvider()
+    llm = FakeLLMProvider(text="generated broadcast")
+    models = FakeRecommendationModelStoreProvider()
+    container = ProvidersContainer(
+        repository=JsonProjectRepositoryAdapter(str(data_dir)),
+        storage=LocalProjectFileStorageAdapter(str(data_dir)),
+        assets=LocalGeneratedAssetAdapter(
+            data_dir=str(data_dir),
+            outputs_dir=str(outputs_dir),
+            ai_audio_dir=str(ai_audio_dir),
+            temp_dir="/tmp",
+        ),
+        dataset=CsvDatasetAdapter(str(data_dir)),
+        retail_dataset=CsvRetailDatasetAdapter(str(data_dir)),
+        association_rules=LocalAssociationRuleStoreAdapter(),
+        recommendation_models=models,
+        analysis_artifacts=LocalAnalysisArtifactAdapter(str(data_dir)),
+        analysis_models=LocalAnalysisModelStoreAdapter(str(data_dir)),
+        speech=speech,
+        llm=llm,
+        analysis_jobs=jobs,
+        telemetry=ConsoleTelemetryAdapter(),
+        regularized_dataset=LocalRegularizedDatasetAdapter(str(data_dir)),
     )
 
     app.dependency_overrides[get_providers] = lambda: container

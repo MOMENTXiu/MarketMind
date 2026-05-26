@@ -121,6 +121,33 @@ def test_no_new_generic_fallback_modules() -> None:
     assert offenders == []
 
 
+def test_backend_runtime_does_not_import_data_processing_archive() -> None:
+    violations: list[str] = []
+    for path in iter_python_files():
+        rel = path.relative_to(BACKEND).as_posix()
+        for module in imported_modules(path):
+            if module == "analysis.data_processing_pipeline" or module.startswith(
+                "analysis.data_processing_pipeline."
+            ):
+                violations.append(f"{rel} imports forbidden archive {module}")
+    assert violations == []
+
+
+def test_abilities_do_not_import_infrastructure_or_fastapi() -> None:
+    abilities_dir = BACKEND / "abilities"
+    violations: list[str] = []
+    for path in abilities_dir.rglob("*.py"):
+        rel = path.relative_to(BACKEND).as_posix()
+        for module in imported_modules(path):
+            if module.startswith("fastapi"):
+                violations.append(f"{rel} imports fastapi")
+            if module.startswith("backend.infrastructure"):
+                violations.append(f"{rel} imports backend.infrastructure")
+            if module in ("os", "pathlib") and "regularization" in rel:
+                violations.append(f"{rel} imports filesystem module {module}")
+    assert violations == []
+
+
 def test_existing_utils_package_stays_empty() -> None:
     utils_dir = BACKEND / "utils"
     if not utils_dir.exists():

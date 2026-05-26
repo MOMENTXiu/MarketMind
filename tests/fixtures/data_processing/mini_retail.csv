@@ -1,0 +1,6 @@
+user_id,item_id,order_id,sale_date,cat_l1_name,cat_l3_name,amount,quantity,unit_price,is_promo,discount,profit
+U001,SKU001,ORD001,2024-01-01,食品,茶饮,20,2,10,1,0,5
+U001,SKU002,ORD001,2024-01-01,食品,零食,15,1,15,0,0,3
+U002,SKU001,ORD002,2024-01-02,食品,茶饮,20,2,10,1,0.1,4
+U002,SKU003,ORD002,2024-01-02,日用品,纸品,10,1,10,0,0,2
+U003,SKU002,ORD003,2024-01-03,食品,零食,15,1,15,0,0,3

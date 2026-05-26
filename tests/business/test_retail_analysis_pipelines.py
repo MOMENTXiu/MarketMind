@@ -31,6 +31,7 @@ from tests.fakes.providers import (
     FakeProjectFileStorageProvider,
     FakeProjectRepositoryProvider,
     FakeRecommendationModelStoreProvider,
+    FakeRegularizedDatasetProvider,
     FakeRetailDatasetProvider,
     FakeSpeechSynthesisProvider,
     FakeTelemetryProvider,
@@ -65,6 +66,7 @@ def _make_container(
         llm=FakeLLMProvider(),
         analysis_jobs=FakeAnalysisJobProvider(),
         telemetry=FakeTelemetryProvider(),
+        regularized_dataset=FakeRegularizedDatasetProvider(),
     )
     return container, retail_dataset, analysis_artifacts, analysis_models
 

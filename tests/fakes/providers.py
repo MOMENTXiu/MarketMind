@@ -16,6 +16,8 @@ from backend.providers.dtos import (
     LLMRequestDTO,
     LLMResponseDTO,
     ModelArtifactDTO,
+    RegularizationSidecarReferenceDTO,
+    RegularizedDatasetReferenceDTO,
     RetailDatasetReferenceDTO,
     SpeechSynthesisRequestDTO,
     SpeechSynthesisResultDTO,
@@ -489,3 +491,139 @@ class FakeGeneratedAssetProvider:
 
     def resolve_ai_audio(self, filename: str) -> AssetReferenceDTO | None:
         return None
+
+
+class FakeRegularizedDatasetProvider:
+    def __init__(self) -> None:
+        self.raw_uploads: dict[tuple[str, str], tuple[str, bytes]] = {}
+        self.normalized: dict[tuple[str, str], pd.DataFrame] = {}
+        self.sidecars: dict[tuple[str, str, str], dict[str, Any]] = {}
+
+    def save_raw_upload(
+        self,
+        project_id: str,
+        job_id: str,
+        filename: str,
+        content: bytes,
+    ) -> RegularizedDatasetReferenceDTO:
+        self.raw_uploads[(project_id, job_id)] = (filename, content)
+        return self._dataset_ref(project_id, job_id, "raw_upload", filename)
+
+    def load_raw_upload(
+        self,
+        project_id: str,
+        job_id: str,
+        ref: RegularizedDatasetReferenceDTO,
+    ) -> bytes:
+        return self.raw_uploads.get((project_id, job_id), ("", b""))[1]
+
+    def save_normalized_dataset(
+        self,
+        project_id: str,
+        job_id: str,
+        dataframe: Any,
+    ) -> RegularizedDatasetReferenceDTO:
+        self.normalized[(project_id, job_id)] = (
+            dataframe.copy() if hasattr(dataframe, "copy") else dataframe
+        )
+        return self._dataset_ref(project_id, job_id, "normalized_dataset", "dataset.csv")
+
+    def load_normalized_dataset(
+        self,
+        project_id: str,
+        job_id: str,
+        ref: RegularizedDatasetReferenceDTO,
+    ) -> Any:
+        return self.normalized.get((project_id, job_id))
+
+    def save_sidecar(
+        self,
+        project_id: str,
+        job_id: str,
+        sidecar_type: str,
+        payload: dict[str, Any],
+    ) -> RegularizationSidecarReferenceDTO:
+        import copy
+
+        self.sidecars[(project_id, job_id, sidecar_type)] = copy.deepcopy(payload)
+        return self._sidecar_ref(project_id, job_id, sidecar_type)
+
+    def load_sidecar(
+        self,
+        project_id: str,
+        job_id: str,
+        ref: RegularizationSidecarReferenceDTO,
+    ) -> dict[str, Any]:
+        import copy
+
+        return copy.deepcopy(self.sidecars.get((project_id, job_id, ref.sidecar_type), {}))
+
+    def resolve_dataset_ref(
+        self,
+        project_id: str,
+        job_id: str,
+        ref_id: str,
+    ) -> RegularizedDatasetReferenceDTO | None:
+        if ref_id == "raw-upload" and (project_id, job_id) in self.raw_uploads:
+            return self._dataset_ref(
+                project_id, job_id, "raw_upload", self.raw_uploads[(project_id, job_id)][0]
+            )
+        if ref_id == "normalized-dataset" and (project_id, job_id) in self.normalized:
+            return self._dataset_ref(project_id, job_id, "normalized_dataset", "dataset.csv")
+        return None
+
+    def resolve_sidecar_ref(
+        self,
+        project_id: str,
+        job_id: str,
+        ref_id: str,
+    ) -> RegularizationSidecarReferenceDTO | None:
+        prefix = "sidecar:"
+        if not ref_id.startswith(prefix):
+            return None
+        sidecar_type = ref_id[len(prefix) :]
+        if (project_id, job_id, sidecar_type) in self.sidecars:
+            return self._sidecar_ref(project_id, job_id, sidecar_type)
+        return None
+
+    def list_sidecars(
+        self,
+        project_id: str,
+        job_id: str,
+    ) -> list[RegularizationSidecarReferenceDTO]:
+        refs: list[RegularizationSidecarReferenceDTO] = []
+        for key in sorted(self.sidecars):
+            if key[:2] == (project_id, job_id):
+                refs.append(self._sidecar_ref(project_id, job_id, key[2]))
+        return refs
+
+    @staticmethod
+    def _dataset_ref(
+        project_id: str, job_id: str, ds_type: str, name: str
+    ) -> RegularizedDatasetReferenceDTO:
+        ref_id = "raw-upload" if ds_type == "raw_upload" else "normalized-dataset"
+        return RegularizedDatasetReferenceDTO(
+            id=ref_id,
+            project_id=project_id,
+            job_id=job_id,
+            type=ds_type,
+            name=name,
+            storage_key=f"analysis/regularization/{job_id}/{name}",
+            url=f"/api/analysis/jobs/{job_id}/datasets/{ref_id}?project_id={project_id}",
+            metadata={},
+        )
+
+    @staticmethod
+    def _sidecar_ref(
+        project_id: str, job_id: str, sidecar_type: str
+    ) -> RegularizationSidecarReferenceDTO:
+        return RegularizationSidecarReferenceDTO(
+            id=f"sidecar:{sidecar_type}",
+            project_id=project_id,
+            job_id=job_id,
+            sidecar_type=sidecar_type,
+            name=f"{sidecar_type}.json",
+            storage_key=f"analysis/regularization/{job_id}/{sidecar_type}.json",
+            url=f"/api/analysis/jobs/{job_id}/sidecars/sidecar:{sidecar_type}?project_id={project_id}",
+            metadata={},
+        )

@@ -154,3 +154,78 @@ class AnalysisJobDTO:
     project_id: str
     trigger: str
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class RegularizedDatasetReferenceDTO:
+    id: str
+    project_id: str
+    job_id: str
+    type: str
+    name: str
+    storage_key: str
+    url: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: str | None = None
+
+
+@dataclass(frozen=True)
+class RegularizationSidecarReferenceDTO:
+    id: str
+    project_id: str
+    job_id: str
+    sidecar_type: str
+    name: str
+    storage_key: str
+    url: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: str | None = None
+
+
+@dataclass(frozen=True)
+class RegularizationCapabilityDTO:
+    can_run_sales_stats: bool
+    can_run_time_trend: bool
+    can_run_customer_profile: bool
+    can_run_association: bool
+    can_run_recommendation: bool
+    can_run_forecast: bool
+    can_run_promotion_analysis: bool
+    can_run_profit_analysis: bool
+    can_run_price_sensitivity: bool
+    can_run_discount_analysis: bool
+    degraded_fields: dict[str, str] = field(default_factory=dict)
+    capability_zh: dict[str, bool] = field(default_factory=dict)
+    runnable_count: int = 0
+
+
+@dataclass(frozen=True)
+class RegularizationQualityDTO:
+    raw_rows: int
+    normalized_rows: int
+    duplicate_rows_removed: int
+    mapped_field_count: int
+    available_standard_fields: list[str] = field(default_factory=list)
+    missing_rates: dict[str, float | None] = field(default_factory=dict)
+    invalid_date_count: int | None = None
+    invalid_amount_count: int | None = None
+    invalid_user_id_count: int | None = None
+    return_rows: int = 0
+    scores: dict[str, float] = field(default_factory=dict)
+    analysis_ready_score: float = 0.0
+    grade: str = ""
+
+
+@dataclass(frozen=True)
+class DataProcessingJobStateDTO:
+    job_id: str
+    project_id: str
+    status: str
+    stages: list[dict[str, Any]] = field(default_factory=list)
+    quality: dict[str, Any] | None = None
+    capability: dict[str, Any] | None = None
+    output_refs: list[dict[str, Any]] = field(default_factory=list)
+    skipped_reasons: dict[str, str] = field(default_factory=dict)
+    error: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None

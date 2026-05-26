@@ -62,10 +62,15 @@ exclude = ["analysis/code_files", "analysis/data-processing-pipeline"]
 select = ["E", "F", "I", "N", "W"]
 ignore = ["E501"]
 
-# Retail signal math uses uppercase matrix symbols consistent with statistical notation.
+# Retail signal math and DML/ML code uses uppercase matrix symbols consistent with statistical notation.
 [tool.ruff.lint.per-file-ignores]
 "backend/abilities/retail/build_retail_recommendation_signals.py" = ["N806"]
 "backend/abilities/retail/rank_retail_recommendations.py" = ["N806"]
+"backend/abilities/universal_analysis/common.py" = ["N803", "N806"]
+"backend/abilities/universal_analysis/build_profile_segments.py" = ["N803", "N806"]
+"backend/abilities/universal_analysis/estimate_universal_promotion_effect.py" = ["N803", "N806"]
+"backend/abilities/universal_analysis/mine_universal_associations.py" = ["N803", "N806"]
+"backend/abilities/universal_analysis/rank_universal_recommendations.py" = ["N803", "N806"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

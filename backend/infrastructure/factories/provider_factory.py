@@ -32,6 +32,9 @@ from backend.infrastructure.adapters.local_project_file_storage_adapter import (
 from backend.infrastructure.adapters.local_recommendation_model_store_adapter import (
     LocalRecommendationModelStoreAdapter,
 )
+from backend.infrastructure.adapters.local_regularized_dataset_adapter import (
+    LocalRegularizedDatasetAdapter,
+)
 from backend.infrastructure.adapters.openai_compatible_llm_adapter import (
     OpenAICompatibleLLMAdapter,
 )
@@ -58,6 +61,7 @@ def create_providers(
         ),
         dataset=CsvDatasetAdapter("data"),
         retail_dataset=CsvRetailDatasetAdapter("data"),
+        regularized_dataset=LocalRegularizedDatasetAdapter("data"),
         association_rules=LocalAssociationRuleStoreAdapter(),
         recommendation_models=LocalRecommendationModelStoreAdapter("backend/data/model_data.pkl"),
         analysis_artifacts=LocalAnalysisArtifactAdapter("data"),

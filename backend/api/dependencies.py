@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import BackgroundTasks, Depends
 
+from backend.business.flows.data_processing_analysis_flow import DataProcessingAnalysisFlow
 from backend.business.flows.retail_analysis_flow import RetailAnalysisFlow
 from backend.business.pipelines.ai_voice_broadcast_pipeline import AIVoiceBroadcastPipeline
 from backend.business.pipelines.voice_synthesis_pipeline import VoiceSynthesisPipeline
@@ -34,3 +35,9 @@ def get_retail_analysis_flow(
     providers: ProvidersContainer = Depends(get_providers),
 ) -> RetailAnalysisFlow:
     return RetailAnalysisFlow(providers)
+
+
+def get_data_processing_analysis_flow(
+    providers: ProvidersContainer = Depends(get_providers),
+) -> DataProcessingAnalysisFlow:
+    return DataProcessingAnalysisFlow(providers)
