@@ -2,7 +2,7 @@
 应用配置
 """
 
-from typing import List
+from typing import List, Literal
 
 from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
@@ -46,6 +46,20 @@ class Settings(BaseSettings):
 
     # 算法参数 - 聚类
     CLUSTER_N_CLUSTERS: int = 4
+
+    # PostgreSQL 开发基础设施
+    DATABASE_URL: str = (
+        "postgresql+psycopg://marketmind:marketmind_dev_password@localhost:5432/marketmind"
+    )
+    TEST_DATABASE_URL: str | None = None
+    DB_ECHO: bool = False
+    DB_POOL_SIZE: int = 5
+    DB_POOL_MAX_OVERFLOW: int = 10
+
+    # Redis / queue 预配置；Phase 6 前默认禁用
+    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_ENABLED: bool = False
+    TASK_QUEUE_BACKEND: Literal["none"] = "none"
 
     model_config = ConfigDict(env_file=".env", case_sensitive=True)
 

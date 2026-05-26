@@ -26,10 +26,10 @@ Current configured checks:
 - Backend tests: `uv run pytest`
 - Frontend build/type validation: `cd frontend && npm run build`
 
-Current backend test baseline is 188 pytest tests covering API contracts
-(Retail V2 + data-processing chain-native), controller thinness, Retail V2
-flows/pipelines, data-processing regularization/universal analysis abilities,
-provider adapters, runtime checks, and architecture import rules.
+Current backend test baseline covers API contracts (Retail V2 + data-processing
+chain-native), controller thinness, Retail V2 flows/pipelines, data-processing
+regularization/universal analysis abilities, provider adapters, DB
+infrastructure smoke tests, runtime checks, and architecture import rules.
 
 The backend runtime now has two analysis chains:
 1. Retail V2 — the existing project-scoped retail pipeline.
@@ -40,6 +40,25 @@ The backend runtime now has two analysis chains:
    reference; backend runtime code must not import from it directly.
 
 `make check` is the canonical local gate because it combines backend lint, backend format check, backend tests, and frontend build/type validation.
+
+## Local Infrastructure
+
+The PostgreSQL and Redis development services are available through Docker Compose, but the backend still runs on the host in this phase.
+
+- Start services: `make infra-up`
+- Stop services: `make infra-down`
+- Reset named volumes and restart services: `make infra-reset`
+- Follow service logs: `make infra-logs`
+- Apply migrations: `make db-migrate`
+- Downgrade migrations to base: `make db-downgrade`
+- Create an Alembic revision: `make db-revision DB_REVISION_MESSAGE="describe change"`
+
+`DATABASE_URL` points at the local development database. `TEST_DATABASE_URL` must point at an isolated database because DB integration tests and migration roundtrips may drop and recreate tables.
+On a fresh named volume, `docker-compose.dev.yml` runs `scripts/postgres-init/01-create-test-db.sql` to create `marketmind_test`; use `make infra-reset` if an older local volume was initialized before that script existed.
+
+## Worker Limitation Before Phase 6
+
+Until the Redis-backed queue phase is implemented, analysis jobs still use FastAPI in-process background tasks and filesystem-backed state. Run the backend with a single worker only; multi-worker or multi-replica deployment can make submitted jobs invisible to other processes and can overwrite local JSON or pickle state.
 
 ## Commit Convention
 

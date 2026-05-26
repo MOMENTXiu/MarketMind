@@ -33,6 +33,10 @@ dependencies = [
     "python-multipart>=0.0.20",
     "aiofiles>=25.1.0",
     "pydantic-settings>=2.12.0",
+    # 数据库基础设施
+    "sqlalchemy>=2.0.31",
+    "psycopg[binary]>=3.2.4",
+    "alembic>=1.13.2",
 ]
 
 [dependency-groups]

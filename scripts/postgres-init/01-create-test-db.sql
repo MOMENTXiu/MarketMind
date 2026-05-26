@@ -1,0 +1,1 @@
+CREATE DATABASE marketmind_test;

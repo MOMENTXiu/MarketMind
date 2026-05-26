@@ -17,10 +17,13 @@ FORBIDDEN_PREFIXES: tuple[str, ...] = (
     "backend.core.storage",
     "backend.core.recommend",
     "backend.infrastructure",
+    "backend.infrastructure.db",
     "edge_tts",
     "httpx",
     "pandas",
+    "psycopg",
     "sklearn",
+    "sqlalchemy",
     "mlxtend",
     "shutil",
 )

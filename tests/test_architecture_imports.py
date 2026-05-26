@@ -15,6 +15,9 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
         "pandas",
         "sklearn",
         "mlxtend",
+        "psycopg",
+        "sqlalchemy",
+        "backend.infrastructure.db",
         "backend.infrastructure",
     ),
     "business": (
@@ -23,6 +26,9 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
         "pandas",
         "sklearn",
         "mlxtend",
+        "psycopg",
+        "sqlalchemy",
+        "backend.infrastructure.db",
         "fastapi",
         "backend.api",
         "backend.infrastructure",
@@ -30,6 +36,9 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
     "abilities": (
         "edge_tts",
         "httpx",
+        "psycopg",
+        "sqlalchemy",
+        "backend.infrastructure.db",
         "fastapi",
         "backend.api",
         "backend.business",
@@ -41,6 +50,9 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
         "pandas",
         "sklearn",
         "mlxtend",
+        "psycopg",
+        "sqlalchemy",
+        "backend.infrastructure.db",
         "fastapi",
         "backend.api",
         "backend.business",
@@ -54,7 +66,12 @@ LEGACY_IMPORT_ALLOWLIST = {
     ("api/dependencies.py", "backend.infrastructure.factories.provider_factory"),
 }
 
+CONFIG_ACCESS_ALLOWLIST = {
+    "api/dependencies.py",
+}
+
 GENERIC_FALLBACK_NAMES = {"helpers", "common", "misc"}
+CONFIG_GUARDED_LAYERS = {"api", "business", "abilities", "providers"}
 
 
 def iter_python_files() -> list[Path]:
@@ -75,6 +92,10 @@ def imported_modules(path: Path) -> list[str]:
         elif isinstance(node, ast.ImportFrom) and node.module:
             modules.append(node.module)
     return modules
+
+
+def parsed_tree(path: Path) -> ast.AST:
+    return ast.parse(path.read_text(encoding="utf-8"))
 
 
 def is_forbidden(module: str, prefixes: tuple[str, ...]) -> bool:
@@ -98,6 +119,32 @@ def test_no_new_layer_import_violations() -> None:
             violations.append(f"{rel} imports forbidden module {module}")
 
     assert violations == []
+
+
+def test_no_direct_environment_or_settings_access_in_guarded_layers() -> None:
+    violations: list[str] = []
+    for path in iter_python_files():
+        layer = layer_for(path)
+        if layer not in CONFIG_GUARDED_LAYERS:
+            continue
+
+        rel = path.relative_to(BACKEND).as_posix()
+        if rel in CONFIG_ACCESS_ALLOWLIST:
+            continue
+
+        for node in ast.walk(parsed_tree(path)):
+            if _is_os_environ_access(node):
+                violations.append(f"{rel} reads os.environ directly")
+            if _is_os_getenv_call(node):
+                violations.append(f"{rel} calls os.getenv directly")
+            if _is_settings_instantiation(node):
+                violations.append(f"{rel} instantiates Settings directly")
+
+    assert violations == []
+
+
+def test_backend_repositories_layer_is_not_created() -> None:
+    assert not (BACKEND / "repositories").exists()
 
 
 def test_backend_runtime_does_not_import_analysis_code_files() -> None:
@@ -166,3 +213,30 @@ def test_existing_utils_package_stays_empty() -> None:
 
     files = [path.name for path in utils_dir.iterdir() if path.is_file()]
     assert files in ([], ["__init__.py"])
+
+
+def _is_os_environ_access(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Attribute)
+        and node.attr == "environ"
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "os"
+    )
+
+
+def _is_os_getenv_call(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "getenv"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "os"
+    )
+
+
+def _is_settings_instantiation(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "Settings"
+    )
