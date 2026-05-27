@@ -11,7 +11,7 @@
 | [USAGE_GUIDE.md](USAGE_GUIDE.md) | 使用 Retail V2 与 Data Processing 前端流程。 |
 | [commands.md](commands.md) | 查询 Makefile 命令契约。 |
 | [env.md](env.md) | 配置后端、前端、PostgreSQL、Redis 环境变量。 |
-| [development.md](development.md) | 开发流程、质量门、worker 限制、commit 前检查。 |
+| [development.md](development.md) | 开发流程、质量门、Retail worker runtime、commit 前检查。 |
 
 ## 架构与迁移记录
 

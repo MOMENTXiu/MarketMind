@@ -56,7 +56,7 @@ npm run dev
 
 ## Optional Local Infrastructure
 
-PostgreSQL/Redis 用于当前基础设施切片和 DB smoke tests。业务 runtime 尚未切换到 DB 真相源。
+PostgreSQL/Redis 用于 Retail V2 state、Redis/RQ worker queue、SSE event pub/sub 和 DB smoke tests。大文件与模型 artifact 仍保留在文件系统。
 
 ```bash
 make infra-up
@@ -95,7 +95,7 @@ make build
 
 当前基线：
 
-- Backend tests: `188 passed, 5 skipped`。
+- Backend tests: `217 passed, 5 skipped`。
 - Backend lint/format: Ruff。
 - Frontend build/type validation: `cd frontend && npm run build`。
 - `make typecheck` 和 `make clean` 是占位目标，不能作为验证证据。
@@ -131,7 +131,8 @@ uv run python -m backend.core.runtime_checks validate-api-schemas
 uv run python -m backend.core.runtime_checks check-telemetry
 uv run python -m backend.core.runtime_checks check-analysis-artifacts --sandbox
 uv run python -m backend.core.runtime_checks check-retail-analysis --sample
-uv run python -m backend.core.runtime_checks check-data-processing --sample --sandbox
+uv run python -m backend.core.runtime_checks check-retail-runtime --dry-run
+uv run python -m backend.core.runtime_checks check-data-processing --sample
 uv run python -m backend.core.runtime_checks check-regularization --sandbox
 uv run python -m backend.core.runtime_checks check-analysis-optional-runtime
 ```

@@ -57,7 +57,7 @@ Before commit:
 - Treat echo-only Makefile targets as placeholders, not proof that verification passed.
 - Use package managers detected by repo setup unless project files change.
 - Current `make check` includes backend Ruff lint, backend Ruff format check, backend pytest, and frontend `npm run build`.
-- Current backend test baseline is 188 passing pytest tests plus 5 skipped optional/live-infra tests across API contracts (Retail V2 + data-processing chain-native + text-only customer suggestions), controller thinness, Retail V2 flows/pipelines, data-processing regularization/universal analysis abilities, provider adapters, DB infrastructure smoke tests, runtime checks, and architecture import rules.
+- Current backend test baseline is 217 passing pytest tests plus 5 skipped optional/live-infra tests across API contracts (Retail V2 + data-processing chain-native + text-only customer suggestions), controller thinness, Retail V2 flows/pipelines, data-processing regularization/universal analysis abilities, provider adapters, DB infrastructure smoke tests, runtime checks, and architecture import rules.
 - Current implemented backend architecture baseline is `API Controller -> Business Pipeline/Flow -> Ability Atom -> Provider Interface -> Infrastructure Adapter`.
 - Key architecture paths: `backend/business/pipelines/`, `backend/business/flows/`, `backend/abilities/`, `backend/providers/`, `backend/infrastructure/`, and `backend/core/runtime_checks.py`.
 - Analysis V2 / Retail V2 implemented work is tracked in `docs/architecture/analysis-v2-integration-design.md` and `docs/architecture/analysis-v2-integration-checklist.md`; `analysis/` is an algorithm blueprint/reference directory, not a backend runtime entry.
@@ -66,6 +66,8 @@ Before commit:
 - The future data-processing target is allowed to replace the current Retail V2 API/state contract; do not add compatibility wrappers unless the user explicitly asks.
 - Retail V2 API contract anchor is `tests/api/test_retail_analysis_contracts.py`; it guards `/api/analysis` project schema/status/artifact/list/delete behavior plus retired old-route absence.
 - Chain-native data-processing API contract anchor is `tests/api/test_data_processing_analysis_contracts.py`; it guards `/api/analysis/jobs` create/upload/regularize/run/status/outputs behavior plus dataset and sidecar read routes.
+- Retail V2 state runtime is PostgreSQL-backed through `RetailAnalysisStateProvider`; Retail V2 async execution uses Redis/RQ through `AnalysisJobQueueProvider`; Retail/Data Processing status updates use SSE through `AnalysisEventStreamProvider` with REST snapshots as fallback.
+- `AnalysisModelStoreProvider` is for true model artifacts only; do not reintroduce Retail project state, project index, or run state there.
 - `/api/projects`, `/api/recommend`, and `/api/association` are retired; frontend project/recommendation views must use `/api/analysis` endpoints and graceful Retail V2 empty states.
 - Frontend API boundary is `frontend/src/api/`; pages must call typed wrappers there instead of page-local axios calls. Data Processing frontend entry is `frontend/src/views/DataProcessing.vue` on `/data-processing` and `/data-processing/jobs/:jobId`.
 - Frontend business pages must route LLM text generation through `POST /api/analysis/customer-suggestions`; do not reintroduce browser direct `/chat/completions` or `/models` calls.

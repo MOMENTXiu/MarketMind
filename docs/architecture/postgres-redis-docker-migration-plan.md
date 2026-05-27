@@ -1,7 +1,7 @@
 # MarketMind 后端 PostgreSQL + Redis + Docker Compose 迁移设计方案
 
 > 版本：v2，已吸收 Oracle 审查意见，并作为 First PR 基础设施切片的实施依据。
-> 状态：First PR infra slice 已在工作区落地 SQLAlchemy / Alembic / PostgreSQL Adapter 骨架；Redis Queue、业务 read/write switch、历史数据迁移仍未实施。不删除旧逻辑，不替换现有 API，不改分析算法，不改前端契约。
+> 状态：历史迁移计划。Retail V2 的后续 active 迁移已经在 `architecture-change.md` / `construction-checklist.md` 中推进：Retail state 已切到 PostgreSQL Provider，Retail async job 已切到 Redis/RQ worker，前端状态刷新已切到 SSE + REST fallback。本文保留为设计背景和历史分阶段记录，不能作为当前 runtime 真相覆盖代码与 active checklist。
 > 架构约束：遵循 `API Controller -> Business Flow/Pipeline -> Ability Atom -> Provider Interface -> External Adapter`。SQL / ORM / DB session 属于 Infrastructure Layer，业务层只能通过 Provider Boundary 使用。
 
 ---

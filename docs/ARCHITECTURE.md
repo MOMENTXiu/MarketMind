@@ -12,7 +12,7 @@ Browser / Vue 3
   -> Ability Atom
   -> Provider Interface / ProvidersContainer
   -> Infrastructure Adapter
-  -> filesystem / JSON / generated artifacts / LLM HTTP / optional PostgreSQL foundation
+  -> PostgreSQL / Redis / filesystem artifacts / LLM HTTP
 ```
 
 `/api/analysis` 下并存两条分析链路：
@@ -110,13 +110,16 @@ Retired routes `/api/projects`, `/api/recommend`, `/api/association`, `/api/voic
 Create project
   -> upload Retail CSV
   -> RetailDatasetPreparationPipeline
-  -> run RetailAnalysisFlow background task
+  -> run RetailAnalysisFlow
+  -> enqueue Redis/RQ worker payload
+  -> worker invokes RetailAnalysisExecutionPipeline
   -> feature engineering
   -> segmentation
   -> association / HUIM
   -> recommendation
   -> marketer insights
   -> report/artifact refs
+  -> publish Redis pub/sub SSE events
   -> project status completed or failed
 ```
 
@@ -159,30 +162,23 @@ Create job
 - `suggestions.ts`：Customer Suggestions 直返接口。
 - `health.ts`：`GET /api/health/`。
 
+Retail 项目详情页与 Data Processing Job 页使用 REST 做初始加载和兜底刷新，使用 EventSource 订阅 `/api/analysis/projects/{project_id}/events` 与 `/api/analysis/jobs/{job_id}/events` 作为正常状态更新路径。
+
 Vite dev proxy 在 `frontend/vite.config.ts` 中将 `/api` 与 `/outputs` 转发到后端。部署时可用 `VITE_API_BASE_URL` 改写 base URL。
 
 ## Persistence And Infrastructure
 
-当前业务 runtime 仍以本地文件和 JSON 为主要真相源：
-
-- Project metadata：`data/projects.json`
-- Project workspace：`data/projects/{project_id}/`
-- Retail datasets/artifacts/models：`data/projects/{project_id}/analysis/...`
-- Data Processing raw/normalized datasets and sidecars：通过 `RegularizedDatasetProvider` 落地到项目空间。
-- Static generated assets：`outputs/`
-
-PostgreSQL/Redis foundation 已存在：
+Retail V2 runtime 已切到 PostgreSQL state、Redis/RQ queue 和 Redis pub/sub SSE：
 
 - Compose：`docker-compose.dev.yml`
 - Alembic：`alembic/`, `alembic.ini`
 - SQLAlchemy base/session/models：`backend/infrastructure/db/`
-- PostgreSQL project repository adapter：`backend/infrastructure/adapters/postgres_project_repository_adapter.py`
+- Retail state adapter：`backend/infrastructure/adapters/postgres_retail_analysis_state_adapter.py`
+- Redis queue adapter：`backend/infrastructure/adapters/redis_analysis_job_queue_adapter.py`
+- Redis event stream adapter：`backend/infrastructure/adapters/redis_analysis_event_stream_adapter.py`
+- Worker entry：`backend/workers/retail_analysis_worker.py`
 
-尚未完成：业务 read/write switch、历史数据迁移、Redis-backed queue。Redis 不能作为业务真相源，大 CSV/图表/报告/音频不应直接塞进 PostgreSQL。
-
-## Worker Limitation
-
-分析任务当前使用 FastAPI in-process background tasks 和 filesystem-backed state。Redis Queue 实现前，后端应以单 worker 运行；多 worker 或多 replica 可能让任务状态不可见或覆盖本地状态。
+大 CSV、图表、报告、模型 artifact 和 Data Processing raw/normalized datasets/sidecars 仍保留在文件系统，通过 Provider ref 和 API URL 暴露。Redis 只承载队列与事件，不是业务真相源。D5 采用 start blank：历史 Retail pickle state 不迁移。
 
 ## Quality Gate
 
@@ -193,7 +189,7 @@ make check
 make hooks
 ```
 
-`make check` 运行 backend Ruff lint、backend Ruff format check、pytest、frontend `npm run build`。当前测试基线为 `188 passed, 5 skipped`。`make typecheck` 与 `make clean` 是占位目标。
+`make check` 运行 backend Ruff lint、backend Ruff format check、pytest、frontend `npm run build`。当前测试基线为 `217 passed, 5 skipped`。`make typecheck` 与 `make clean` 是占位目标。
 
 Runtime smoke checks：
 
@@ -204,7 +200,8 @@ uv run python -m backend.core.runtime_checks validate-api-schemas
 uv run python -m backend.core.runtime_checks check-telemetry
 uv run python -m backend.core.runtime_checks check-analysis-artifacts --sandbox
 uv run python -m backend.core.runtime_checks check-retail-analysis --sample
-uv run python -m backend.core.runtime_checks check-data-processing --sample --sandbox
+uv run python -m backend.core.runtime_checks check-retail-runtime --dry-run
+uv run python -m backend.core.runtime_checks check-data-processing --sample
 uv run python -m backend.core.runtime_checks check-regularization --sandbox
 uv run python -m backend.core.runtime_checks check-analysis-optional-runtime
 ```

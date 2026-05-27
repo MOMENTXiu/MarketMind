@@ -1,5 +1,337 @@
 # Backend Architecture Change Plan
 
+> Active note (2026-05-27): The active migration is Retail V2 state from local pickle to PostgreSQL, FastAPI BackgroundTasks to Redis Queue, and 2.5s frontend polling to SSE. The historical sections below remain as prior migration records. For this active work, this section is authoritative until the migration is completed and reconciled into the stable architecture docs.
+
+## Active 2026-05-27: Retail V2 PostgreSQL State + Redis Queue + SSE
+
+### Scope And Decisions
+
+本轮迁移的目标是把 Retail V2 项目 state、项目列表和运行状态从本地 pickle 文件迁出，改为通过窄 Provider Interface 写入 PostgreSQL；异步分析任务从 FastAPI `BackgroundTasks` 迁到 Redis-backed queue；前端状态刷新从 2.5 秒轮询迁到 SSE。现有 REST API 路由、状态码和响应 schema 必须保持等价，SSE endpoint 只作为附加能力新增。
+
+已锁定决策：
+
+| Decision | Selection | Result |
+|---|---|---|
+| D1 | A | 复用现有 6 表 schema：`projects`、`uploaded_files`、`datasets`、`processing_runs`、`artifacts`、`analysis_results`；不新增专用 `retail_projects` 表。 |
+| D2 | A | 删除 Retail V2 项目索引 pickle；列表直接从 PostgreSQL 查询。 |
+| D3 | A | 新增窄 Provider Interface 管 Retail V2 state；不复用 V1 `ProjectRepositoryProvider`。 |
+| D4 | B1 | PostgreSQL state 与 Redis Queue 同轮一刀切迁移。 |
+| D5 | A | 无生产数据，start blank；不做历史 pickle 迁移。 |
+| D6 | C | 前端使用 SSE 接收状态变化；Redis pub/sub 用于跨 worker 状态广播。 |
+
+目标调用链：
+
+```text
+API Controller -> Business Flow -> Business Pipeline -> Ability Atom -> Provider Interface -> External Adapter
+```
+
+Retail V2 目标链路：
+
+```text
+GET /api/analysis/projects
+  -> backend/api/analysis.py
+  -> RetailAnalysisFlow.list_projects
+  -> RetailAnalysisStateProvider.list_projects
+  -> PostgresRetailAnalysisStateAdapter
+  -> PostgreSQL projects / processing_runs / artifacts / analysis_results
+
+POST /api/analysis/projects/{project_id}/run
+  -> backend/api/analysis.py
+  -> RetailAnalysisFlow.start_analysis
+  -> AnalysisJobQueueProvider.enqueue_project_analysis
+  -> RedisAnalysisJobQueueAdapter
+  -> Redis Queue worker
+  -> Retail analysis pipeline
+  -> RetailAnalysisStateProvider + AnalysisEventStreamProvider
+  -> PostgreSQL state + Redis pub/sub
+
+GET /api/analysis/projects/{project_id}/events
+  -> backend/api/analysis.py SSE endpoint
+  -> AnalysisEventStreamProvider.subscribe_project_events
+  -> Redis pub/sub
+  -> frontend EventSource
+```
+
+### Current Runtime Chain
+
+当前 `/projects` 页面读到本地文件的原因是 Retail V2 runtime 没有接线 PostgreSQL：
+
+```text
+GET /api/analysis/projects
+  -> backend/api/analysis.py:list_projects
+  -> RetailAnalysisFlow.list_projects
+  -> _load_project_index()
+  -> providers.analysis_models.load_model(
+       project_id="_retail_analysis_index",
+       model_type="retail_analysis_project_index",
+     )
+  -> LocalAnalysisModelStoreAdapter
+  -> data/projects/_retail_analysis_index/analysis/models/retail_analysis_project_index/current.pkl
+```
+
+Retail V2 project state 同样通过 `RetailAnalysisFlow._load_state()` / `_save_state()` 保存到 `AnalysisModelStoreProvider`，最终落在 `data/projects/{project_id}/analysis/models/retail_analysis_project_state/current.pkl`。`backend/infrastructure/factories/provider_factory.py` 当前硬编码注入 `JsonProjectRepositoryAdapter("data")`、`LocalAnalysisModelStoreAdapter("data")` 和 `FastApiBackgroundAnalysisJobAdapter(background_tasks)`。已有 `PostgresProjectRepositoryAdapter`、SQLAlchemy models、Alembic migration 和 DB session factory 只是骨架，没有参与 Retail V2 runtime。
+
+Redis 当前也没有 runtime 代码：`Settings.REDIS_ENABLED=False`、`TASK_QUEUE_BACKEND="none"`，`backend/` 内没有 Redis client callsite。`docker-compose.dev.yml` 已有 Redis 服务，但业务未使用。
+
+前端当前刷新路径是轮询：`frontend/src/views/ProjectDetail.vue` 和 `frontend/src/views/DataProcessing.vue` 使用 `window.setInterval(..., 2500)`；`frontend/src/api/retail.ts` 封装现有 REST 调用。当前没有 `EventSource`、WebSocket、ETag 或 `If-None-Match`。
+
+### Direct Access And Migration Targets
+
+| Current location | Current external access | Problem | Target boundary |
+|---|---|---|---|
+| `backend/business/flows/retail_analysis_flow.py` | `AnalysisModelStoreProvider` stores Retail state/index as pickle | Retail state 被混入模型 artifact store | `RetailAnalysisStateProvider` |
+| `RetailAnalysisFlow._load_project_index` / `_save_project_index` / `_upsert_project_index_entry` / `_remove_project_index_entry` | Local pickle index | 列表是派生缓存，且绕过 PostgreSQL | Delete; use `RetailAnalysisStateProvider.list_projects` |
+| `backend/infrastructure/factories/provider_factory.py` | hard-coded local storage + FastAPI background adapter | Settings 不控制 PG/Redis runtime | Factory creates PostgreSQL state adapter, Redis queue adapter, Redis event stream adapter |
+| `FastApiBackgroundAnalysisJobAdapter` | FastAPI `BackgroundTasks` | 不能跨进程持久排队，不适合 worker | `RedisAnalysisJobQueueAdapter` |
+| `frontend/src/views/ProjectDetail.vue` | 2.5s REST polling | 状态刷新延迟和请求浪费 | `EventSource` SSE subscription + REST fallback |
+| `frontend/src/views/DataProcessing.vue` | 2.5s REST polling | 同上 | `EventSource` SSE subscription + REST fallback |
+
+`LocalAnalysisModelStoreAdapter` 只能继续承担真实模型 artifact 的持久化，不再保存 Retail project state、project index 或 run state。
+
+### Configuration Strategy
+
+配置流向固定为：
+
+```text
+Settings -> Provider Factory -> External Adapter
+```
+
+业务层、Ability、Pipeline、Flow 和 Provider Interface 禁止读取 env、`settings`、`os.environ`、SQLAlchemy engine、Redis client 或 queue client。
+
+需要调整的配置：
+
+| Config | Target behavior |
+|---|---|
+| `DATABASE_URL` | Provider Factory 创建 SQLAlchemy engine/session factory，并注入 `PostgresRetailAnalysisStateAdapter`。 |
+| `REDIS_URL` | Provider Factory 创建 Redis client，并注入 queue/event stream adapters。 |
+| `REDIS_ENABLED` | Target runtime defaults to `true`; Redis backend 启用时必须为 true 或由 backend 启动脚本一致地导出。 |
+| `TASK_QUEUE_BACKEND` | `redis` is the default target runtime; `none` 只保留给显式测试/临时本地模式。 |
+| SSE config | 可新增 channel prefix、heartbeat interval、retry milliseconds；由 adapter/controller 注入，不在业务层读取。 |
+
+### Target Layers
+
+| Layer | Responsibility | Target paths |
+|---|---|---|
+| API Controller | REST request/response schema、状态码、SSE 协议包装、依赖注入 | `backend/api/analysis.py`, `backend/api/dependencies.py` |
+| Business Orchestration Layer | Retail V2 lifecycle、state transition、queue submission、pipeline orchestration | `backend/business/flows/retail_analysis_flow.py`, `backend/business/pipelines/` |
+| Ability Layer | 读取/保存 state、提交任务、发布事件、构造 DTO 等最小业务动作 | `backend/abilities/` |
+| Provider Boundary | 外部能力窄接口、DTO、Providers Container 字段 | `backend/providers/` |
+| Infrastructure Layer | PostgreSQL adapter、Redis queue adapter、Redis event stream adapter、provider factory wiring | `backend/infrastructure/` |
+
+### Provider Boundary
+
+### Retail State Database Projection
+
+D1=A reuses the existing six tables. The PostgreSQL adapter must define one source of truth for every public Retail state field before code migration starts.
+
+Adapter reconstruction rule: REST detail response is assembled from `projects` plus the latest `processing_runs` row for `run_type="retail_analysis"`, then enriched with related `datasets`, `artifacts`, and `analysis_results`. Project list response uses the same projection but returns `project_view()` fields only. List ordering stays compatible with the current pickle index: newest `projects.created_at` first.
+
+| REST state field | PostgreSQL source of truth | Projection rule |
+|---|---|---|
+| `id` | `projects.id` | Application UUID string. |
+| `name` | `projects.name` | Required display name. |
+| `description` | `projects.description` | Nullable display description. |
+| `status` | `projects.status` and latest `processing_runs.status` | Project status mirrors latest visible Retail state; adapter updates both in the same transaction when a latest run exists. |
+| `created_at` / `updated_at` | `projects.created_at` / `projects.updated_at` | UTC datetimes written by application code. |
+| `stage_statuses` | latest `processing_runs.stage_statuses_json["stage_statuses"]` | Stored as the current public stage list. If no latest run exists, adapter returns the default Retail stage list. |
+| `job_id` / `trace_id` | latest `processing_runs.job_id` / `processing_runs.trace_id` | Set by `start_analysis` before enqueue. |
+| `error` | latest `processing_runs.error_json["message"]` or `projects.metadata_json["error"]` | Adapter returns the latest visible business error string or `None`. |
+| `summary` | `projects.metadata_json["summary"]` plus latest `processing_runs.result_summary_json` | Adapter keeps the existing public dict shape; run summary overrides older project summary keys. |
+| `dataset_ref` | latest Retail `datasets` row or `projects.metadata_json["dataset_ref"]` | `DatasetRecord` is preferred after upload; metadata fallback only exists during transitional implementation tests. |
+| `quality_summary` | latest Retail `datasets.quality_summary_json` or `projects.metadata_json["quality_summary"]` | Returned as sanitized public dict. |
+| `artifact_refs` | `artifacts` rows for project/latest run | Ordered by creation time and projected to existing artifact ref dicts. Upsert key remains `(project_id, artifact_type, name)`. |
+| `recommendations` | `analysis_results` row with `result_type="retail_recommendations"` | Stored as JSON payload small enough for DB; large tabular outputs remain artifacts. |
+| `marketer_insights` | `analysis_results` row with `result_type="retail_marketer_insights"` | Stored as JSON payload preserving current public shape. |
+
+Latest-run rule: there must be at most one current row per `(project_id, run_type="retail_analysis")` with `is_latest=true`. Because the existing schema does not declare a partial unique index, `PostgresRetailAnalysisStateAdapter` enforces this in a transaction by marking prior latest rows false before inserting or updating the new latest row. If a future migration adds a DB-level uniqueness constraint, it must be documented separately.
+
+Delete rule: deleting `projects.id` cascades uploaded files, datasets, processing runs, artifacts, and analysis results through existing foreign keys. The adapter still calls artifact/model cleanup providers for files that are outside PostgreSQL.
+
+Transaction rule: state transition, latest-run update, artifact/result summary write, and project `updated_at` update must commit as one unit per visible transition. Event publication happens after commit; failed event publication must not roll back the committed state.
+
+新增或调整 Provider Interface：
+
+| Provider | Purpose | Must not expose |
+|---|---|---|
+| `RetailAnalysisStateProvider` | Retail V2 project state、latest run、stage statuses、artifact refs、recommendations、marketer insights、list/delete/status transition | SQLAlchemy `Session`、query object、DB exception、filesystem path |
+| `AnalysisJobQueueProvider` | Submit project analysis jobs to durable queue and expose internal job metadata | `rq.Job`、Redis client、FastAPI `BackgroundTasks` |
+| `AnalysisEventStreamProvider` | Publish and subscribe project/job status events for SSE | Redis pubsub raw object、FastAPI `StreamingResponse` |
+| `AnalysisModelStoreProvider` | Persist true model artifacts only | Retail state/index/run state |
+
+`ProvidersContainer` 需要增加明确字段：`retail_analysis_state`、`analysis_job_queue`、`analysis_event_stream`。现有 `analysis_models` 保留，但职责收窄为模型 artifact。
+
+External Adapter 目标：
+
+| Adapter | Implements | External dependency |
+|---|---|---|
+| `PostgresRetailAnalysisStateAdapter` | `RetailAnalysisStateProvider` | SQLAlchemy session factory + existing DB models |
+| `RedisAnalysisJobQueueAdapter` | `AnalysisJobQueueProvider` | Redis + RQ |
+| `RedisAnalysisEventStreamAdapter` | `AnalysisEventStreamProvider` | Redis pub/sub |
+| `LocalAnalysisModelStoreAdapter` | `AnalysisModelStoreProvider` | local artifact storage only |
+
+Redis queue implementation uses RQ for this migration. RQ is selected because it has a single Redis dependency, small API surface, simple worker model, and low migration overhead for the current FastAPI project. Dramatiq remains a later option if the project needs richer middleware, broker abstraction, or advanced retry policy; it is intentionally not introduced in this migration to avoid increasing variables.
+
+### Migration Mapping
+
+| Old item | Action | Target |
+|---|---|---|
+| `RetailAnalysisFlow._load_state` | Replace implementation | `RetailAnalysisStateProvider.get_state` |
+| `RetailAnalysisFlow._save_state` | Replace implementation | `RetailAnalysisStateProvider.save_state` or state transition method |
+| `RetailAnalysisFlow._load_project_index` | Delete | `RetailAnalysisStateProvider.list_projects` |
+| `RetailAnalysisFlow._save_project_index` | Delete | no replacement |
+| `RetailAnalysisFlow._upsert_project_index_entry` | Delete | PostgreSQL project/run writes are source of truth |
+| `RetailAnalysisFlow._remove_project_index_entry` | Delete | `RetailAnalysisStateProvider.delete_project` |
+| `AnalysisModelStoreProvider` state/index usage | Remove | Keep provider for model artifact only |
+| `FastApiBackgroundAnalysisJobAdapter` runtime path | Replace | `RedisAnalysisJobQueueAdapter` + worker entry |
+| Frontend 2.5s polling | Replace as primary path | `EventSource` SSE subscription; REST remains initial load/fallback |
+| `provider_factory.py` local hardcoding | Replace | Settings-driven PostgreSQL/Redis adapters |
+
+### RQ Worker Contract
+
+RQ jobs must target a stable module-level function, not a bound `RetailAnalysisFlow` method or request-scoped closure.
+
+Target shape:
+
+```text
+backend/workers/retail_analysis_worker.py::execute_retail_analysis_job(payload: dict[str, str])
+```
+
+Payload is JSON-serializable and must contain only durable identifiers:
+
+| Field | Required | Purpose |
+|---|---|---|
+| `project_id` | yes | Retail project to analyze. |
+| `job_id` | yes | Public job id already written to PostgreSQL. |
+| `trace_id` | yes | Trace id used by logs, state, and SSE events. |
+| `trigger` | yes | Source such as `retail_analysis_api`. |
+| `attempt` | yes | Latest Retail run attempt number. |
+
+Worker assembly rule: the worker function creates `Settings`, calls Provider Factory with no FastAPI `BackgroundTasks`, obtains a full `ProvidersContainer`, validates the queued identifiers against the latest persisted run, and invokes the Retail analysis business pipeline. Queue adapter only enqueues; it must not execute business logic.
+
+Submit rule: `RetailAnalysisFlow.start_analysis` validates state, creates or updates the latest PostgreSQL run with `job_id` and `trace_id`, then enqueues the RQ job. If enqueue fails after state has been written, the Flow marks the latest run failed with an infrastructure error and publishes a failure event after commit; it must not leave a permanently `processing` project without a queue job.
+
+Worker failure rule: pipeline exceptions are converted to internal errors, persisted as failed state, and published as failure events. Stale, replayed, or wrong-payload jobs must fail before mutating state when `project_id`, `job_id`, `trace_id`, or `attempt` no longer matches the latest run. RQ retry policy must be explicit in adapter config; if no retry policy is implemented in this phase, the default is no automatic retry and the failure is visible through state.
+
+### Behavior Anchors
+
+Must preserve:
+
+- Existing `/api/analysis/projects` REST paths and response schema.
+- Existing project state fields: `id`, `name`, `description`, `status`, `stage_statuses`, `summary`, `dataset_ref`, `quality_summary`, `artifact_refs`, `recommendations`, `marketer_insights`, `job_id`, `trace_id`, `error`, `created_at`, `updated_at`.
+- Existing stage status semantics and visible `queued` / `processing` / `completed` / `failed` status behavior.
+- Existing artifact and result read routes.
+- Existing error mapping from internal errors to HTTP responses.
+- REST compatibility for frontend initialization and fallback.
+- No historical pickle migration; empty PostgreSQL state is valid after migration.
+
+Allowed change:
+
+- New SSE endpoint for project/job status events.
+- New Redis worker process and local development command.
+- Removal of Retail V2 pickle index and state as runtime source.
+
+### SSE Event Contract
+
+SSE is an additional transport for state changes. REST remains the authoritative snapshot and fallback path.
+
+Endpoints:
+
+| Endpoint | Resource | Scope |
+|---|---|---|
+| `GET /api/analysis/projects/{project_id}/events` | Retail project | ProjectDetail status, stages, artifact/result readiness. |
+| `GET /api/analysis/jobs/{job_id}/events` | Data Processing job | DataProcessing job status if this view is migrated in D6-C. |
+
+Redis channel names:
+
+| Resource | Channel |
+|---|---|
+| Retail project | `marketmind:analysis:project:{project_id}` |
+| Data Processing job | `marketmind:analysis:job:{job_id}` |
+
+Event payload shape:
+
+```json
+{
+  "event": "state_changed",
+  "resource": "retail_project",
+  "project_id": "...",
+  "job_id": "...",
+  "trace_id": "...",
+  "status": "processing",
+  "stage_statuses": [],
+  "updated_at": "2026-05-27T00:00:00Z",
+  "sequence": 1
+}
+```
+
+Data Processing events use `resource="data_processing_job"` and include `job_id`, `project_id`, `status`, `updated_at`, and optional `stage_statuses` / `outputs_ready` fields. Event type names are stable strings such as `state_changed`, `artifact_ready`, `completed`, `failed`, and `heartbeat`.
+
+SSE framing rule: API Controller converts provider events to SSE frames with `event`, `id`, `retry`, and `data`. `id` uses `{resource}:{id}:{sequence}` when sequence exists; `retry` defaults to 3000 milliseconds. Heartbeat frames are sent at a configured interval and contain no business state mutation.
+
+Reconnect and missed event rule: frontend performs REST initial load before opening EventSource. On reconnect or `visibilitychange` back to visible, frontend fetches the REST snapshot again, then resumes SSE. SSE events may patch the local view optimistically, but REST remains the consistency source if an event is missed. `Last-Event-ID` is best-effort only unless durable event replay is explicitly implemented later.
+
+Provider boundary rule: `AnalysisEventStreamProvider` publishes/subscribes internal event DTOs only. It must not build FastAPI `StreamingResponse` and must not expose Redis pubsub objects.
+
+### Import Rules To Enforce
+
+Architecture lint must mechanically reject these regressions:
+
+- `backend/business/**` and `backend/abilities/**` importing `sqlalchemy`, `redis`, `rq`, FastAPI request/response types, infrastructure adapters, or env readers.
+- `backend/providers/**` importing infrastructure adapters, SQLAlchemy, Redis, RQ, API controllers, Business Flow, Business Pipeline, or Ability implementation.
+- `backend/api/**` importing SQLAlchemy, Redis, RQ, infrastructure adapters, or constructing external clients.
+- `backend/infrastructure/**` importing Business Flow, Business Pipeline, Ability Atom, or API controllers.
+- Any business layer use of `os.environ`, `os.getenv`, or `backend.core.config.settings`.
+
+### Error Strategy
+
+External Adapters convert external errors to internal errors before crossing Provider Boundary:
+
+| External error | Internal expression |
+|---|---|
+| SQLAlchemy connection/session/constraint errors | `InfrastructureError` or `ProviderError` |
+| Redis connection/pubsub errors | `InfrastructureError` |
+| RQ enqueue/job errors | `ProviderError` or `InfrastructureError` |
+| Missing Retail project state | `NotFoundError` |
+| Invalid state transition | `BusinessFlowError` or `ValidationError` |
+| Serialization/deserialization failure | `ProviderError` |
+
+Business Flow handles only internal errors and decides whether to mark state as failed, publish a status event, or return a recoverable error. API Controller maps internal errors to public responses and must not return raw DB/Redis/RQ details.
+
+SSE behavior: initial connection failures return normal HTTP errors; mid-stream disconnects rely on browser `EventSource` reconnect; server sends heartbeat events; Redis subscription failure closes stream and leaves REST fallback available.
+
+### Test, Runtime Check, And Verification Strategy
+
+Before migration, establish behavior anchors for REST contract, Retail lifecycle, Provider contracts, Redis queue, SSE event stream, and frontend build.
+
+Required verification categories:
+
+| Category | Coverage |
+|---|---|
+| API contract | `/api/analysis/projects` create/list/get/delete/upload/run/status/artifacts/results and existing error shape |
+| Flow lifecycle | create -> upload -> run -> processing -> completed/failed -> delete without pickle index |
+| Provider contract | `RetailAnalysisStateProvider`, `AnalysisJobQueueProvider`, `AnalysisEventStreamProvider` with fake or isolated adapters |
+| Adapter contract | PostgreSQL state mapping to existing 6 tables, Redis queue enqueue, Redis pub/sub publish/subscribe |
+| Architecture lint | import rules above |
+| Runtime check | Settings consistency, Provider Factory assembly, DB connection probe, Redis queue/pubsub probe, worker dry run, SSE heartbeat |
+| Frontend | Vite build plus EventSource fallback behavior |
+
+Project command loop remains the repo baseline: `make lint`, fix minimal issues, `make format`, `make lint`, then affected `make typecheck`, `make test`, `make build`, and final `make check` / `make verify` when configured. Placeholder Make targets must be reported as placeholders, not as proof of verification.
+
+### Rollback
+
+D5=A means there is no production data migration and no historical pickle import. Rollback is stage-scoped:
+
+| Stage | Rollback |
+|---|---|
+| Provider Interface | Remove or stop wiring new interfaces before business code depends on them. |
+| PostgreSQL state adapter | Switch Provider Factory back only for development rollback; do not preserve long-term compatibility wrappers. |
+| Redis queue adapter | Set `TASK_QUEUE_BACKEND=none` for local rollback or use fake provider in tests; queued Redis jobs can be discarded in this start-blank migration. |
+| SSE | Disable new SSE route and keep REST fallback; frontend can temporarily return to manual refresh if needed. |
+| Pickle index removal | No historical restore is required; old pickle state is not migrated. |
+| Architecture lint/runtime | Revert the specific rule/check if it blocks incorrectly; do not remove rules to hide true boundary violations. |
+
+Any temporary debug fallback to pickle must include a removal task in `docs/architecture/construction-checklist.md` and must not become a supported runtime path.
+
 > Status note (2026-05-26): This document is a historical migration record for the pre-Analysis V2 backend architecture refactor. For the current Retail V2 runtime baseline, use `docs/ARCHITECTURE.md` and `docs/architecture/analysis-v2-integration-checklist.md`. The active analysis path is `/api/analysis` -> `RetailAnalysisFlow` -> retail pipelines/abilities -> provider interfaces -> infrastructure adapters; legacy `/api/projects`, `/api/recommend`, `/api/association`, Voice/TTS routes (`/api/voice/*`, `/api/ai-voice/*`, `/api/tts/`), inactive prediction/clustering controllers, and `backend/services/*` are retired. Later Voice/TTS references in this file are preserved only as historical migration anchors, not current runtime guidance.
 
 ## 1. Scope
