@@ -37,6 +37,8 @@ dependencies = [
     "sqlalchemy>=2.0.31",
     "psycopg[binary]>=3.2.4",
     "alembic>=1.13.2",
+    "redis>=7.4.0",
+    "rq>=2.9.0",
 ]
 
 [dependency-groups]

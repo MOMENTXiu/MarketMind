@@ -1,6 +1,4 @@
-"""
-应用配置
-"""
+"""Application settings."""
 
 from typing import List, Literal
 
@@ -56,10 +54,13 @@ class Settings(BaseSettings):
     DB_POOL_SIZE: int = 5
     DB_POOL_MAX_OVERFLOW: int = 10
 
-    # Redis / queue 预配置；Phase 6 前默认禁用
+    # Redis / queue runtime for Retail V2 analysis jobs and status events.
     REDIS_URL: str = "redis://localhost:6379/0"
-    REDIS_ENABLED: bool = False
-    TASK_QUEUE_BACKEND: Literal["none"] = "none"
+    REDIS_ENABLED: bool = True
+    TASK_QUEUE_BACKEND: Literal["none", "redis"] = "redis"
+    ANALYSIS_QUEUE_NAME: str = "retail-analysis"
+    ANALYSIS_EVENT_HEARTBEAT_MS: int = 15000
+    ANALYSIS_EVENT_RETRY_MS: int = 3000
 
     model_config = ConfigDict(env_file=".env", case_sensitive=True)
 
