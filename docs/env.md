@@ -19,11 +19,11 @@ The root `.env.example` mirrors backend `Settings` fields in `backend/core/confi
 | `APP_NAME`, `APP_VERSION`, `DEBUG`, `API_PREFIX` | FastAPI app metadata and API prefix | Safe local values are committed in `.env.example`. |
 | `CORS_ORIGINS` | Allowed browser origins | Includes Vite dev ports. |
 | `OUTPUT_DIR`, `CHARTS_DIR`, `REPORTS_DIR` | Static/generated output directories | Runtime generated assets stay on filesystem. |
-| `DATABASE_URL` | PostgreSQL development database | Used by DB infrastructure and migrations; not yet the business truth source. |
+| `DATABASE_URL` | PostgreSQL development database | Retail V2 state is PostgreSQL-backed; used by DB infrastructure and migrations. |
 | `TEST_DATABASE_URL` | Isolated PostgreSQL test database | Required for live DB adapter and Alembic roundtrip tests. |
-| `REDIS_URL`, `REDIS_ENABLED`, `TASK_QUEUE_BACKEND` | Redis/queue configuration | Redis Queue is not implemented; keep `TASK_QUEUE_BACKEND=none` unless the queue phase lands. |
+| `REDIS_URL`, `REDIS_ENABLED`, `TASK_QUEUE_BACKEND` | Redis/queue configuration | Redis/RQ worker is the default async backend; `TASK_QUEUE_BACKEND=redis`, `REDIS_ENABLED=true`. |
 
-Large CSV files, charts, reports, audio, and model artifacts should remain as filesystem/object references. Do not store them directly in PostgreSQL.
+Large CSV files, charts, reports, and model artifacts should remain as filesystem/object references. Do not store them directly in PostgreSQL.
 
 ## Frontend
 

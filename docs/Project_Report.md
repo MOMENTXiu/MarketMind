@@ -14,7 +14,7 @@
 | Data Processing | 面向通用 CSV/Excel，先做 regularization，再运行 `analysis2` 通用分析，输出 quality、capability、outputs 和 sidecars。 |
 | AI 文本建议 | 通过后端 LLM Provider 生成客户营销建议和商品洞察，前端不直接请求第三方 LLM。 |
 | 前端工作台 | Vue 3 页面覆盖 Retail 项目管理、Data Processing Job、产物查看、服务状态与设置。 |
-| 基础设施迁移 | PostgreSQL/Redis/Docker Compose/Alembic 已作为迁移基础，业务 runtime 仍以 filesystem/JSON 为真相源。 |
+| 基础设施 | PostgreSQL 承载 Retail V2 state；Redis/RQ 承载异步任务队列；Redis pub/sub 驱动 SSE 状态推送；大文件/图表/报告/model artifact 仍保留在文件系统。 |
 
 ## 架构
 
@@ -49,13 +49,12 @@ Base URL：`http://localhost:8000`
 ## 当前验证
 
 - `make check` 通过：backend lint、backend format check、pytest、frontend build。
-- pytest 基线：`188 passed, 5 skipped`。
+- pytest 基线：`217 passed, 5 skipped`。
 - `make hooks` 通过。
 - 前端源码没有旧 API 路由、旧 `@/utils/http` 或浏览器直连 LLM endpoint 残留。
 
 ## 后续重点
 
-1. PostgreSQL read/write switch 和历史数据迁移。
-2. Redis-backed queue 与独立 worker。
-3. 服务端 LLM 密钥管理、鉴权与审计。
-4. 前端 API client 单测、polling composable 和大 JSON/图表性能优化。
+1. 服务端 LLM 密钥管理、鉴权与审计。
+2. 前端 API client 单测、SSE composable 和大 JSON/图表性能优化。
+3. 产物存储治理：大文件/图表/报告对象引用策略与清理策略。

@@ -80,7 +80,7 @@ make check
 
 - Frontend build passed。
 - `make hooks` passed。
-- `make check` passed：`188 passed, 5 skipped, 240 warnings`。
+- `make check` passed：`217 passed, 5 skipped`。
 - grep 确认无旧 API/旧 HTTP/直连 LLM 残留。
 
 ## 剩余建议

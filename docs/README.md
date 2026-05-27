@@ -21,9 +21,10 @@
 | [architecture/analysis-v2-integration-checklist.md](architecture/analysis-v2-integration-checklist.md) | Retail/Analysis V2 集成检查清单。 |
 | [architecture/data-processing-pipeline-integration-design.md](architecture/data-processing-pipeline-integration-design.md) | Data Processing 链路设计记录。 |
 | [architecture/data-processing-pipeline-integration-checklist.md](architecture/data-processing-pipeline-integration-checklist.md) | Data Processing 链路迁移检查清单。 |
-| [architecture/postgres-redis-docker-migration-plan.md](architecture/postgres-redis-docker-migration-plan.md) | PostgreSQL/Redis/Docker Compose 分阶段迁移计划。 |
 | [architecture/construction-checklist.md](architecture/construction-checklist.md) | 架构施工清单与历史验证记录。 |
 | [architecture/architecture-change.md](architecture/architecture-change.md) | 架构变更记录。 |
+| [architecture/frontend-backend-lack-port-design.md](architecture/frontend-backend-lack-port-design.md) | 前后端接口缺失设计方案。 |
+| [architecture/frontend-backend-lack-port-checklist.md](architecture/frontend-backend-lack-port-checklist.md) | 前后端接口缺失施工清单。 |
 
 ## 历史与归档
 
@@ -31,9 +32,8 @@
 | --- | --- |
 | [PROJECT_PLAN.md](PROJECT_PLAN.md) | 当前路线图与下一阶段计划。 |
 | [Project_Report.md](Project_Report.md) | 面向汇报的系统说明，已按当前 API 和架构更新。 |
-| [TTS_VOICE_INVENTORY.md](TTS_VOICE_INVENTORY.md) | TTS/Voice 退役前盘点记录。 |
-| [abolish-tts-plan.md](abolish-tts-plan.md) | TTS/Voice 退役计划记录。 |
 | [requirements/](requirements/) | 课程/需求规格材料，作为产品背景参考。 |
+| [archive/](archive/) | 已完成的迁移计划、TTS 废除记录、数据处理调查报告等历史文档。 |
 
 ## 代码外归档
 
