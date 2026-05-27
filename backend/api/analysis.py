@@ -269,9 +269,7 @@ async def upload_dataset(
 
                 summary = dict(state.summary or {})
                 summary["job_id"] = job_id
-                flow.providers.retail_analysis_state.save_state(
-                    _replace(state, summary=summary)
-                )
+                flow.providers.retail_analysis_state.save_state(_replace(state, summary=summary))
             result = dp_flow.upload_raw_dataset(
                 project_id, job_id, file.filename or "", await file.read()
             )
@@ -297,7 +295,9 @@ async def regularize_project_dataset(
 ) -> dict:
     project = flow.get_project(project_id)
     if not _is_dp_project(project):
-        raise map_internal_error(ValidationError("Regularization is only available for Data Processing projects"))
+        raise map_internal_error(
+            ValidationError("Regularization is only available for Data Processing projects")
+        )
     job_id = project.get("job_id")
     if not job_id:
         raise map_internal_error(ValidationError("No linked Data Processing job found"))
