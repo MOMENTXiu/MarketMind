@@ -51,14 +51,20 @@ if [ ! -f "$SCRIPT_DIR/start-frontend.sh" ]; then
     exit 1
 fi
 
+if [ ! -f "$SCRIPT_DIR/start-worker.sh" ]; then
+    echo -e "${RED}Error: start-worker.sh not found${NC}"
+    exit 1
+fi
+
 # Make sure scripts are executable
 chmod +x "$SCRIPT_DIR/start-backend.sh"
 chmod +x "$SCRIPT_DIR/start-frontend.sh"
+chmod +x "$SCRIPT_DIR/start-worker.sh"
 echo -e "${GREEN}✓ Startup scripts ready${NC}"
 echo ""
 
 # Check system requirements
-echo -e "${YELLOW}[2/4] Checking system requirements...${NC}"
+echo -e "${YELLOW}[2/5] Checking system requirements...${NC}"
 
 # Check Python
 if ! command -v python3 &> /dev/null; then
@@ -91,10 +97,46 @@ if ! command -v npm &> /dev/null; then
 fi
 NPM_VERSION=$(npm --version)
 echo -e "${GREEN}✓ npm ${NPM_VERSION} found${NC}"
+
+# Check Docker
+if ! command -v docker &> /dev/null; then
+    echo -e "${RED}Error: Docker is not installed or not in PATH${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Docker found${NC}"
+echo ""
+
+# Start infrastructure
+echo -e "${YELLOW}[3/5] Starting Docker infrastructure...${NC}"
+docker compose -f docker-compose.dev.yml up -d postgres redis
+
+wait_for_service() {
+    local service_name="$1"
+    local max_attempts="${2:-30}"
+    local attempt=1
+
+    while [ "$attempt" -le "$max_attempts" ]; do
+        status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "marketmind-${service_name}-dev" 2>/dev/null || true)"
+        if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+            echo -e "${GREEN}✓ ${service_name} is ${status}${NC}"
+            return 0
+        fi
+        echo -e "${YELLOW}Waiting for ${service_name} (${attempt}/${max_attempts})...${NC}"
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+
+    echo -e "${RED}Error: ${service_name} did not become healthy${NC}"
+    docker compose -f docker-compose.dev.yml ps
+    exit 1
+}
+
+wait_for_service "postgres"
+wait_for_service "redis"
 echo ""
 
 # Pre-install dependencies
-echo -e "${YELLOW}[3/4] Installing dependencies...${NC}"
+echo -e "${YELLOW}[4/5] Installing dependencies...${NC}"
 
 # Backend dependencies
 echo -e "${BLUE}Installing backend dependencies...${NC}"
@@ -116,19 +158,34 @@ cd ..
 echo -e "${GREEN}✓ Frontend dependencies installed${NC}"
 echo ""
 
+# Apply database migrations after dependencies are ready
+echo -e "${BLUE}Applying database migrations...${NC}"
+uv run alembic upgrade head
+echo -e "${GREEN}✓ Database schema is ready${NC}"
+echo ""
+
 # Create log directory
 mkdir -p logs
+export REDIS_ENABLED="${REDIS_ENABLED:-true}"
+export TASK_QUEUE_BACKEND="${TASK_QUEUE_BACKEND:-redis}"
 
 # Start servers
-echo -e "${YELLOW}[4/4] Starting servers...${NC}"
+echo -e "${YELLOW}[5/5] Starting servers...${NC}"
 echo ""
 
 # Start backend in background
 echo -e "${BLUE}Starting backend server...${NC}"
-"$SCRIPT_DIR/start-backend.sh" > logs/backend.log 2>&1 &
+MARKETMIND_SKIP_INFRA=1 "$SCRIPT_DIR/start-backend.sh" > logs/backend.log 2>&1 &
 BACKEND_PID=$!
 echo -e "${GREEN}✓ Backend server started (PID: $BACKEND_PID)${NC}"
 echo -e "${CYAN}  Backend logs: logs/backend.log${NC}"
+
+# Start Retail analysis worker in background
+echo -e "${BLUE}Starting Retail analysis worker...${NC}"
+MARKETMIND_SKIP_DEP_SYNC=1 "$SCRIPT_DIR/start-worker.sh" > logs/worker.log 2>&1 &
+WORKER_PID=$!
+echo -e "${GREEN}✓ Retail analysis worker started (PID: $WORKER_PID)${NC}"
+echo -e "${CYAN}  Worker logs: logs/worker.log${NC}"
 
 # Wait a bit for backend to start
 sleep 3
@@ -149,13 +206,17 @@ echo -e "${GREEN}Access Points:${NC}"
 echo -e "  Frontend:    ${BLUE}http://localhost:5173${NC}"
 echo -e "  Backend API: ${BLUE}http://localhost:8000/api${NC}"
 echo -e "  API Docs:    ${BLUE}http://localhost:8000/api/docs${NC}"
+echo -e "  Postgres:    ${BLUE}localhost:5432${NC}"
+echo -e "  Redis:       ${BLUE}localhost:6379${NC}"
 echo ""
 echo -e "${GREEN}Log Files:${NC}"
 echo -e "  Backend:  ${CYAN}logs/backend.log${NC}"
+echo -e "  Worker:   ${CYAN}logs/worker.log${NC}"
 echo -e "  Frontend: ${CYAN}logs/frontend.log${NC}"
 echo ""
 echo -e "${YELLOW}Useful commands:${NC}"
 echo -e "  View backend logs:  ${CYAN}tail -f logs/backend.log${NC}"
+echo -e "  View worker logs:   ${CYAN}tail -f logs/worker.log${NC}"
 echo -e "  View frontend logs: ${CYAN}tail -f logs/frontend.log${NC}"
 echo -e "  Stop all servers:   ${CYAN}Press Ctrl+C${NC}"
 echo ""

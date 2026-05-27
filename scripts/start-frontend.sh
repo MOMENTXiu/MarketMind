@@ -70,14 +70,14 @@ if [ ! -d "node_modules" ]; then
         # Create .env.development
         cat > .env.development << EOF
 # Development Environment Configuration
-VITE_API_BASE_URL=http://localhost:8000/api
+VITE_API_BASE_URL=
 VITE_API_TIMEOUT=30000
 EOF
 
         # Create .env.production
         cat > .env.production << EOF
 # Production Environment Configuration
-VITE_API_BASE_URL=/api
+VITE_API_BASE_URL=
 VITE_API_TIMEOUT=30000
 EOF
 
@@ -94,7 +94,7 @@ if [ ! -f ".env.development" ]; then
     echo -e "${YELLOW}Creating .env.development...${NC}"
     cat > .env.development << EOF
 # Development Environment Configuration
-VITE_API_BASE_URL=http://localhost:8000/api
+VITE_API_BASE_URL=
 VITE_API_TIMEOUT=30000
 EOF
 fi
@@ -103,7 +103,7 @@ if [ ! -f ".env.production" ]; then
     echo -e "${YELLOW}Creating .env.production...${NC}"
     cat > .env.production << EOF
 # Production Environment Configuration
-VITE_API_BASE_URL=/api
+VITE_API_BASE_URL=
 VITE_API_TIMEOUT=30000
 EOF
 fi

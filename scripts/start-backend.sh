@@ -46,6 +46,42 @@ fi
 echo -e "${GREEN}✓ uv is installed${NC}"
 echo ""
 
+# Start Docker infrastructure when running the backend directly
+if [ "${MARKETMIND_SKIP_INFRA:-0}" != "1" ]; then
+    echo -e "${YELLOW}[infra] Ensuring Docker infrastructure is running...${NC}"
+    if ! command -v docker &> /dev/null; then
+        echo -e "${RED}Error: Docker is not installed or not in PATH${NC}"
+        exit 1
+    fi
+
+    docker compose -f docker-compose.dev.yml up -d postgres redis
+
+    wait_for_service() {
+        local service_name="$1"
+        local max_attempts="${2:-30}"
+        local attempt=1
+
+        while [ "$attempt" -le "$max_attempts" ]; do
+            status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "marketmind-${service_name}-dev" 2>/dev/null || true)"
+            if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+                echo -e "${GREEN}✓ ${service_name} is ${status}${NC}"
+                return 0
+            fi
+            echo -e "${YELLOW}Waiting for ${service_name} (${attempt}/${max_attempts})...${NC}"
+            sleep 2
+            attempt=$((attempt + 1))
+        done
+
+        echo -e "${RED}Error: ${service_name} did not become healthy${NC}"
+        docker compose -f docker-compose.dev.yml ps
+        exit 1
+    }
+
+    wait_for_service "postgres"
+    wait_for_service "redis"
+    echo ""
+fi
+
 # Install/sync Python dependencies
 echo -e "${YELLOW}[3/6] Installing Python dependencies...${NC}"
 if ! uv sync; then
@@ -74,6 +110,14 @@ if [ ! -f ".env" ]; then
 else
     echo -e "${GREEN}✓ .env file found${NC}"
 fi
+export REDIS_ENABLED="${REDIS_ENABLED:-true}"
+export TASK_QUEUE_BACKEND="${TASK_QUEUE_BACKEND:-redis}"
+echo ""
+
+# Apply database migrations
+echo -e "${YELLOW}[db] Applying database migrations...${NC}"
+uv run alembic upgrade head
+echo -e "${GREEN}✓ Database schema is ready${NC}"
 echo ""
 
 # Start the backend server
