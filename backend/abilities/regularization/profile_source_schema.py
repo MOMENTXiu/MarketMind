@@ -81,7 +81,7 @@ def _date_rate(vals: list[Any]) -> tuple[float, str | None]:
                 pat = pat or name
                 break
     try:
-        parsed = pd.to_datetime(pd.Series(vals[:200]), errors="coerce")
+        parsed = pd.to_datetime(pd.Series(vals[:200]), errors="coerce", format="mixed")
         pr = parsed.notna().mean()
         if pr > hit / min(len(vals), 200):
             return float(pr), pat or "parsable"

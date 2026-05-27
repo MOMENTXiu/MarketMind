@@ -41,7 +41,8 @@ def build_profile_segments(df: pd.DataFrame, _cap: dict[str, Any]) -> dict[str, 
             index="user_id", columns="cat_l1_name", values="amount", aggfunc="sum", fill_value=0
         )
         p = piv.div(piv.sum(axis=1) + 1e-9, axis=0).values
-        prof["类目熵"] = -np.nansum(np.where(p > 0, p * np.log(p), 0), axis=1)
+        positive_p = np.where(p > 0, p, 1)
+        prof["类目熵"] = -np.nansum(np.where(p > 0, p * np.log(positive_p), 0), axis=1)
     if _has("is_promo") and _has("amount"):
         pa = pos[pos["is_promo"] == 1].groupby("user_id")["amount"].sum()
         prof["促销金额占比"] = (pa / prof["M_金额"]).reindex(prof.index).fillna(0)
