@@ -2,59 +2,39 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
 from backend.business.flows.retail_analysis_state import (
-    collect_result_refs,
+    PROJECT_STATUSES,
+    STAGE_NAMES,
+    STAGE_STATUSES,
+    build_analysis_state_event,
     empty_marketer_insights,
-    format_marketer_insights,
-    format_recommendations,
     new_stage,
     project_view,
+    project_view_from_summary,
     public_ref,
     sanitize,
+    state_from_provider_dto,
+    state_to_provider_dto,
 )
-from backend.business.pipelines.retail_association_pipeline import RetailAssociationPipeline
+from backend.business.pipelines.retail_analysis_execution_pipeline import (
+    RetailAnalysisExecutionPipeline,
+)
 from backend.business.pipelines.retail_dataset_preparation_pipeline import (
     RetailDatasetPreparationPipeline,
 )
-from backend.business.pipelines.retail_feature_engineering_pipeline import (
-    RetailFeatureEngineeringPipeline,
+from backend.core.errors import (
+    BusinessFlowError,
+    InfrastructureError,
+    MarketMindError,
+    NotFoundError,
+    ValidationError,
 )
-from backend.business.pipelines.retail_marketer_insight_pipeline import (
-    RetailMarketerInsightPipeline,
-)
-from backend.business.pipelines.retail_recommendation_pipeline import RetailRecommendationPipeline
-from backend.business.pipelines.retail_report_pipeline import RetailReportPipeline
-from backend.business.pipelines.retail_segmentation_pipeline import RetailSegmentationPipeline
-from backend.core.errors import BusinessFlowError, MarketMindError, NotFoundError, ValidationError
 from backend.providers.container import ProvidersContainer
-from backend.providers.dtos import AnalysisJobDTO
-
-PROJECT_INDEX_ID = "_retail_analysis_index"
-PROJECT_INDEX_MODEL_TYPE = "retail_analysis_project_index"
-PROJECT_STATE_MODEL_TYPE = "retail_analysis_project_state"
-PROJECT_STATUSES = {"queued", "processing", "completed", "failed"}
-STAGE_STATUSES = {"queued", "processing", "completed", "failed", "skipped"}
-STAGE_NAMES = (
-    "dataset_preparation",
-    "feature_engineering",
-    "segmentation",
-    "association",
-    "recommendation",
-    "marketer_insights",
-    "report",
-)
-
-
-class _StageExecutionError(Exception):
-    def __init__(self, stage: str, original: Exception) -> None:
-        super().__init__(str(original))
-        self.stage = stage
-        self.original = original
+from backend.providers.dtos import AnalysisQueueJobPayloadDTO
 
 
 class RetailAnalysisFlow:
@@ -82,6 +62,7 @@ class RetailAnalysisFlow:
             "artifact_refs": [],
             "recommendations": [],
             "marketer_insights": empty_marketer_insights(),
+            "run_info": None,
             "job_id": None,
             "trace_id": None,
             "error": None,
@@ -92,29 +73,34 @@ class RetailAnalysisFlow:
         return project_view(state)
 
     def list_projects(self) -> dict[str, Any]:
-        index = self._load_project_index()
-        projects = [dict(project) for project in index.get("projects", [])]
+        projects = [
+            project_view_from_summary(project)
+            for project in self.providers.retail_analysis_state.list_projects()
+        ]
         projects.sort(key=lambda project: str(project.get("created_at") or ""), reverse=True)
         return {"projects": projects, "total": len(projects)}
 
     def delete_project(self, project_id: str) -> dict[str, Any]:
         self._load_state(project_id)
-        model_refs = self.providers.analysis_models.list_models(project_id)
         deleted_models = 0
-        for ref in model_refs:
+        legacy_model_types = {"retail_analysis_project_state"}
+        for ref in self.providers.analysis_models.list_models(project_id):
+            is_legacy_index = ref.model_type.startswith(
+                "retail_analysis_project"
+            ) and ref.model_type.endswith("index")
+            if ref.model_type in legacy_model_types or is_legacy_index:
+                continue
             if self.providers.analysis_models.delete_model(project_id, ref.model_type, ref.version):
                 deleted_models += 1
-        if not any(ref.model_type == PROJECT_STATE_MODEL_TYPE for ref in model_refs):
-            self.providers.analysis_models.delete_model(project_id, PROJECT_STATE_MODEL_TYPE)
 
-        self._remove_project_index_entry(project_id)
-        return {"project_id": project_id, "deleted": True, "deleted_models": deleted_models}
+        deleted = self.providers.retail_analysis_state.delete_project(project_id)
+        return {"project_id": project_id, "deleted": deleted, "deleted_models": deleted_models}
 
     def upload_dataset(self, project_id: str, filename: str, content: bytes) -> dict[str, Any]:
         self._validate_csv_upload(filename, content)
         state = self._load_state(project_id)
         self._prepare_for_dataset_upload(state)
-        self._save_state(state)
+        self._save_state(state, "state_changed")
 
         try:
             result = RetailDatasetPreparationPipeline(self.providers).run(
@@ -148,7 +134,7 @@ class RetailAnalysisFlow:
         )
         state["status"] = "queued"
         state["error"] = None
-        self._save_state(state)
+        self._save_state(state, "artifact_ready")
         return {
             "project_id": project_id,
             "status": state["status"],
@@ -165,21 +151,43 @@ class RetailAnalysisFlow:
 
         job_id = uuid4().hex
         trace_id = uuid4().hex
+        attempt = self._next_attempt(state)
+        now = _now()
         state["status"] = "processing"
-        state["job_id"] = job_id
-        state["trace_id"] = trace_id
         state["error"] = None
+        state["run_info"] = {
+            "job_id": job_id,
+            "trace_id": trace_id,
+            "trigger": "retail_analysis_api",
+            "attempt": attempt,
+            "status": "processing",
+            "error": None,
+            "created_at": now,
+            "updated_at": now,
+            "metadata": {"submitted_via": "retail_analysis_flow"},
+        }
+        self._sync_run_identifiers(state)
         self._reset_downstream_outputs(state, preserve_dataset_artifacts=True)
-        self._save_state(state)
+        self._save_state(state, "state_changed")
 
-        self.providers.analysis_jobs.submit_project_analysis(
-            AnalysisJobDTO(
-                project_id=project_id,
-                trigger="retail_analysis_api",
-                metadata={"job_id": job_id, "trace_id": trace_id},
-            ),
-            handler=self.execute_scheduled_analysis,
+        payload = AnalysisQueueJobPayloadDTO(
+            project_id=project_id,
+            job_id=job_id,
+            trace_id=trace_id,
+            trigger="retail_analysis_api",
+            attempt=attempt,
+            submitted_at=state.get("updated_at"),
+            metadata={"submitted_via": "retail_analysis_flow"},
         )
+        try:
+            self.providers.analysis_job_queue.enqueue_project_analysis(payload)
+        except Exception as exc:
+            self._record_queue_submission_failure(state, exc)
+            self._save_state(state)
+            raise InfrastructureError(
+                str(state.get("error") or "Retail Analysis queue submission failed")
+            ) from exc
+
         return {
             "project_id": project_id,
             "status": "processing",
@@ -187,92 +195,29 @@ class RetailAnalysisFlow:
             "trace_id": trace_id,
         }
 
-    def execute_scheduled_analysis(self, project_id: str) -> None:
+    def execute_scheduled_analysis(
+        self,
+        project_id: str,
+        *,
+        job_id: str | None = None,
+        trace_id: str | None = None,
+        attempt: int | None = None,
+    ) -> None:
         try:
             state = self._load_state(project_id)
         except NotFoundError:
             return
+        self._validate_scheduled_run(state, job_id=job_id, trace_id=trace_id, attempt=attempt)
 
-        try:
-            clean_sales = self.providers.retail_dataset.load_clean_sales(project_id)
-            feature_result = self._run_stage(
-                state,
-                "feature_engineering",
-                lambda: RetailFeatureEngineeringPipeline(self.providers).run(
-                    project_id, clean_sales
-                ),
-            )
-            segmentation_result = self._run_stage(
-                state,
-                "segmentation",
-                lambda: RetailSegmentationPipeline(self.providers).run(
-                    project_id,
-                    feature_result.customer_profile,
-                ),
-            )
-            association_result = self._run_stage(
-                state,
-                "association",
-                lambda: RetailAssociationPipeline(self.providers).run(project_id, clean_sales),
-            )
-            recommendation_result = self._run_stage(
-                state,
-                "recommendation",
-                lambda: RetailRecommendationPipeline(self.providers).run(project_id, clean_sales),
-            )
-            marketer_result = self._run_stage(
-                state,
-                "marketer_insights",
-                lambda: RetailMarketerInsightPipeline(self.providers).run(
-                    project_id,
-                    clean_sales,
-                    feature_result.customer_profile,
-                    segmentation_result.customer_segments,
-                    high_utility_itemsets=association_result.high_utility_itemsets,
-                    association_rules=association_result.category_rules,
-                ),
-            )
-            self._run_stage(
-                state,
-                "report",
-                lambda: RetailReportPipeline(self.providers).run(
-                    project_id,
-                    feature_result=feature_result,
-                    segmentation_result=segmentation_result,
-                    association_result=association_result,
-                    recommendation_result=recommendation_result,
-                    marketer_result=marketer_result,
-                ),
-            )
-        except _StageExecutionError as exc:
-            self._record_failure(state, exc.stage, exc.original)
-            self._skip_stages_after(state, exc.stage)
-            self._save_state(state)
-            return
-        except Exception as exc:
-            self._record_unhandled_execution_failure(state, exc)
-            return
-
-        try:
-            recommendations = format_recommendations(recommendation_result.recommendations)
-            marketer_insights = format_marketer_insights(marketer_result)
-        except Exception as exc:
-            self._record_unhandled_execution_failure(state, exc)
-            return
-
-        state["status"] = "completed"
-        state["error"] = None
-        state["recommendations"] = recommendations
-        state["marketer_insights"] = marketer_insights
-        state["summary"] = {
-            **dict(state.get("summary", {})),
-            "completed_stages": len(
-                [stage for stage in state["stage_statuses"] if stage["status"] == "completed"]
-            ),
-            "artifact_count": len(state["artifact_refs"]),
-            "recommendation_count": len(state["recommendations"]),
-        }
-        self._save_state(state)
+        RetailAnalysisExecutionPipeline(
+            self.providers,
+            save_state=self._save_state,
+            set_stage=self._set_stage,
+            append_artifact_refs=self._append_artifact_refs,
+            record_failure=self._record_failure,
+            record_unhandled_execution_failure=self._record_unhandled_execution_failure,
+            skip_stages_after=self._skip_stages_after,
+        ).run(state)
 
     def get_project(self, project_id: str) -> dict[str, Any]:
         return project_view(self._load_state(project_id))
@@ -294,6 +239,25 @@ class RetailAnalysisFlow:
         if ref is None or ref.get("type") == "model":
             raise NotFoundError(f"Retail Analysis artifact not found: {artifact_id}")
         return ref
+
+    def get_artifact_payload(self, project_id: str, artifact_id: str) -> dict[str, Any]:
+        state = self._load_state(project_id)
+        ref = self._find_artifact_ref(state, artifact_id)
+        if ref is None or ref.get("type") == "model":
+            raise NotFoundError(f"Retail Analysis artifact not found: {artifact_id}")
+
+        payload = self.providers.analysis_artifacts.load_payload(project_id, artifact_id)
+        if payload is None:
+            raise NotFoundError(f"Retail Analysis artifact not found: {artifact_id}")
+
+        return {
+            "project_id": project_id,
+            "artifact": public_ref(payload.ref),
+            "payload_type": payload.payload_type,
+            "rows": sanitize(payload.rows or []),
+            "payload": sanitize(payload.payload),
+            "content": sanitize(payload.content),
+        }
 
     def get_model_ref(self, project_id: str, model_type: str, version: str) -> dict[str, Any]:
         state = self._load_state(project_id)
@@ -323,84 +287,26 @@ class RetailAnalysisFlow:
         insights = dict(state.get("marketer_insights") or empty_marketer_insights())
         return {"project_id": project_id, **insights}
 
-    def _run_stage(
-        self,
-        state: dict[str, Any],
-        stage: str,
-        runner: Callable[[], Any],
-    ) -> Any:
-        self._set_stage(state, stage, "processing")
-        self._save_state(state)
-        try:
-            result = runner()
-        except MarketMindError as exc:
-            self._set_stage(state, stage, "failed", error=str(exc))
-            self._save_state(state)
-            raise _StageExecutionError(stage, exc) from exc
-        except Exception as exc:
-            wrapped = BusinessFlowError(f"Retail Analysis stage {stage} failed: {exc}")
-            self._set_stage(state, stage, "failed", error=str(wrapped))
-            self._save_state(state)
-            raise _StageExecutionError(stage, wrapped) from exc
-
-        refs = collect_result_refs(result)
-        self._append_artifact_refs(state, refs)
-        self._set_stage(state, stage, "completed", error=None, artifact_refs=refs)
-        self._save_state(state)
-        return result
-
     def _load_state(self, project_id: str) -> dict[str, Any]:
-        payload = self.providers.analysis_models.load_model(project_id, PROJECT_STATE_MODEL_TYPE)
+        payload = self.providers.retail_analysis_state.get_state(project_id)
         if payload is None:
             raise NotFoundError(f"Retail Analysis project not found: {project_id}")
-        if not isinstance(payload, dict):
-            raise BusinessFlowError(f"Retail Analysis project state is invalid: {project_id}")
-        return dict(payload)
+        return state_from_provider_dto(payload)
 
-    def _save_state(self, state: dict[str, Any]) -> None:
+    def _save_state(self, state: dict[str, Any], event_name: str | None = None) -> None:
         status = str(state.get("status", "queued"))
         if status not in PROJECT_STATUSES:
             raise BusinessFlowError(f"Invalid Retail Analysis project status: {status}")
         state["updated_at"] = _now()
-        self.providers.analysis_models.save_model(
-            str(state["id"]),
-            PROJECT_STATE_MODEL_TYPE,
-            state,
-            metadata={"status": status},
-        )
-        self._upsert_project_index_entry(state)
-
-    def _load_project_index(self) -> dict[str, Any]:
-        payload = self.providers.analysis_models.load_model(
-            PROJECT_INDEX_ID,
-            PROJECT_INDEX_MODEL_TYPE,
-        )
-        if payload is None:
-            return {"projects": []}
-        if not isinstance(payload, dict) or not isinstance(payload.get("projects"), list):
-            raise BusinessFlowError("Retail Analysis project index is invalid")
-        return {"projects": [dict(project) for project in payload["projects"]]}
-
-    def _save_project_index(self, projects: list[dict[str, Any]]) -> None:
-        self.providers.analysis_models.save_model(
-            PROJECT_INDEX_ID,
-            PROJECT_INDEX_MODEL_TYPE,
-            {"projects": projects},
-            metadata={"project_count": len(projects)},
-        )
-
-    def _upsert_project_index_entry(self, state: dict[str, Any]) -> None:
-        entry = project_view(state)
-        index = self._load_project_index()
-        projects = [project for project in index["projects"] if project.get("id") != entry["id"]]
-        projects.append(entry)
-        projects.sort(key=lambda project: str(project.get("created_at") or ""), reverse=True)
-        self._save_project_index(projects)
-
-    def _remove_project_index_entry(self, project_id: str) -> None:
-        index = self._load_project_index()
-        projects = [project for project in index["projects"] if project.get("id") != project_id]
-        self._save_project_index(projects)
+        saved_state = self.providers.retail_analysis_state.save_state(state_to_provider_dto(state))
+        normalized = state_from_provider_dto(saved_state)
+        state.clear()
+        state.update(normalized)
+        try:
+            event = build_analysis_state_event(state, event=event_name)
+            self.providers.analysis_event_stream.publish_event(event)
+        except Exception:
+            pass
 
     def _set_stage(
         self,
@@ -436,6 +342,12 @@ class RetailAnalysisFlow:
         message = str(exc) or exc.__class__.__name__
         state["status"] = "failed"
         state["error"] = message
+        run_info = state.get("run_info")
+        if isinstance(run_info, dict):
+            run_info["status"] = "failed"
+            run_info["error"] = message
+            run_info["updated_at"] = _now()
+        self._sync_run_identifiers(state)
         self._set_stage(state, stage_name, "failed", error=message)
         state["summary"] = {**dict(state.get("summary", {})), "error": message}
 
@@ -450,8 +362,8 @@ class RetailAnalysisFlow:
         self._reset_downstream_outputs(state, preserve_dataset_artifacts=False)
         state["dataset_ref"] = None
         state["quality_summary"] = {}
-        state["job_id"] = None
-        state["trace_id"] = None
+        state["run_info"] = None
+        self._sync_run_identifiers(state)
         state["error"] = None
         state["status"] = "queued"
         self._set_stage(
@@ -496,6 +408,37 @@ class RetailAnalysisFlow:
         if not preserve_dataset_artifacts:
             summary.pop("quality_summary", None)
         state["summary"] = summary
+
+    def _record_queue_submission_failure(self, state: dict[str, Any], exc: Exception) -> None:
+        message = f"Retail Analysis queue submission failed: {exc}"
+        state["status"] = "failed"
+        state["error"] = message
+        run_info = state.get("run_info")
+        if isinstance(run_info, dict):
+            run_info["status"] = "failed"
+            run_info["error"] = message
+            run_info["updated_at"] = _now()
+        self._sync_run_identifiers(state)
+        state["summary"] = {**dict(state.get("summary", {})), "error": message}
+
+    def _next_attempt(self, state: dict[str, Any]) -> int:
+        run_info = state.get("run_info")
+        if not isinstance(run_info, dict):
+            return 1
+        try:
+            return max(int(run_info.get("attempt") or 0), 0) + 1
+        except (TypeError, ValueError):
+            return 1
+
+    @staticmethod
+    def _sync_run_identifiers(state: dict[str, Any]) -> None:
+        run_info = state.get("run_info")
+        if isinstance(run_info, dict):
+            state["job_id"] = str(run_info.get("job_id")) if run_info.get("job_id") else None
+            state["trace_id"] = str(run_info.get("trace_id")) if run_info.get("trace_id") else None
+            return
+        state["job_id"] = None
+        state["trace_id"] = None
 
     def _reset_downstream_stages(self, state: dict[str, Any]) -> None:
         for stage in state["stage_statuses"]:
@@ -563,6 +506,38 @@ class RetailAnalysisFlow:
         if not content:
             raise ValidationError("Retail Analysis dataset upload is empty")
 
+    @staticmethod
+    def _validate_scheduled_run(
+        state: dict[str, Any],
+        *,
+        job_id: str | None,
+        trace_id: str | None,
+        attempt: int | None,
+    ) -> None:
+        if job_id is None and trace_id is None and attempt is None:
+            return
+        if state.get("status") != "processing":
+            raise ValidationError("Retail Analysis scheduled execution requires processing state")
+
+        run_info = state.get("run_info")
+        if not isinstance(run_info, dict):
+            raise ValidationError("Retail Analysis scheduled execution has no run metadata")
+        expected_attempt = _optional_int(run_info.get("attempt"))
+        actual_attempt = _optional_int(attempt)
+        if (
+            (job_id is not None and str(run_info.get("job_id") or "") != job_id)
+            or (trace_id is not None and str(run_info.get("trace_id") or "") != trace_id)
+            or (attempt is not None and expected_attempt != actual_attempt)
+        ):
+            raise ValidationError("Retail Analysis worker payload does not match latest run")
+
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _optional_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

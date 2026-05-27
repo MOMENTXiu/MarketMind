@@ -10,11 +10,16 @@ import pytest
 
 from backend.business.flows.retail_analysis_flow import RetailAnalysisFlow
 from backend.business.flows.retail_analysis_state import empty_marketer_insights
-from backend.core.errors import NotFoundError
+from backend.business.pipelines.retail_analysis_execution_pipeline import (
+    RetailAnalysisExecutionPipeline,
+)
+from backend.core.errors import InfrastructureError, NotFoundError
 from backend.providers.container import ProvidersContainer
 from tests.fakes.providers import (
     FakeAnalysisArtifactProvider,
+    FakeAnalysisEventStreamProvider,
     FakeAnalysisJobProvider,
+    FakeAnalysisJobQueueProvider,
     FakeAnalysisModelStoreProvider,
     FakeAssociationRuleStoreProvider,
     FakeDatasetProvider,
@@ -24,6 +29,7 @@ from tests.fakes.providers import (
     FakeProjectRepositoryProvider,
     FakeRecommendationModelStoreProvider,
     FakeRegularizedDatasetProvider,
+    FakeRetailAnalysisStateProvider,
     FakeRetailDatasetProvider,
     FakeTelemetryProvider,
 )
@@ -44,8 +50,17 @@ DOWNSTREAM_STAGE_NAMES = tuple(
 )
 
 
-def _make_container(tmp_path: Path) -> tuple[ProvidersContainer, FakeAnalysisJobProvider]:
+def _make_container(
+    tmp_path: Path,
+    *,
+    retail_analysis_state: Any | None = None,
+    analysis_job_queue: Any | None = None,
+    analysis_event_stream: Any | None = None,
+) -> tuple[ProvidersContainer, Any, Any]:
     jobs = FakeAnalysisJobProvider()
+    queue = analysis_job_queue or FakeAnalysisJobQueueProvider()
+    events = analysis_event_stream or FakeAnalysisEventStreamProvider()
+    state_provider = retail_analysis_state or FakeRetailAnalysisStateProvider()
     container = ProvidersContainer(
         repository=FakeProjectRepositoryProvider(),
         storage=FakeProjectFileStorageProvider(tmp_path / "projects"),
@@ -60,8 +75,11 @@ def _make_container(tmp_path: Path) -> tuple[ProvidersContainer, FakeAnalysisJob
         analysis_jobs=jobs,
         telemetry=FakeTelemetryProvider(),
         regularized_dataset=FakeRegularizedDatasetProvider(),
+        retail_analysis_state=state_provider,
+        analysis_job_queue=queue,
+        analysis_event_stream=events,
     )
-    return container, jobs
+    return container, queue, events
 
 
 def _stage(state: dict[str, Any], stage_name: str) -> dict[str, Any]:
@@ -114,7 +132,7 @@ def _assert_downstream_outputs_cleared(
 def test_retail_analysis_flow_persists_project_dataset_and_schedules_job(
     tmp_path: Path,
 ) -> None:
-    container, jobs = _make_container(tmp_path)
+    container, queue, events = _make_container(tmp_path)
     flow = RetailAnalysisFlow(container)
 
     project = flow.create_project("Retail Flow", "state contract")
@@ -125,7 +143,7 @@ def test_retail_analysis_flow_persists_project_dataset_and_schedules_job(
     assert upload["status"] == "queued"
     assert upload["dataset_ref"]["url"].startswith("/api/analysis/projects/")
     assert run["status"] == "processing"
-    assert [job.project_id for job in jobs.jobs] == [project["id"]]
+    assert [payload.project_id for payload in queue.payloads] == [project["id"]]
 
     stored = flow.get_project(project["id"])
     assert stored["status"] == "processing"
@@ -135,10 +153,14 @@ def test_retail_analysis_flow_persists_project_dataset_and_schedules_job(
     )
     assert dataset_stage["status"] == "completed"
     assert dataset_stage["artifact_refs"]
+    project_events = list(events.subscribe_project_events(project["id"]))
+    assert [event.event for event in project_events][-1] == "state_changed"
+    assert any(event.event == "artifact_ready" for event in project_events)
+    assert project_events[-1].status == "processing"
 
 
 def test_retail_analysis_flow_lists_and_deletes_projects(tmp_path: Path) -> None:
-    container, _ = _make_container(tmp_path)
+    container, _, _ = _make_container(tmp_path)
     flow = RetailAnalysisFlow(container)
 
     first = flow.create_project("First Retail Project")
@@ -156,7 +178,7 @@ def test_retail_analysis_flow_lists_and_deletes_projects(tmp_path: Path) -> None
 
 
 def test_retail_analysis_run_is_idempotent_while_processing(tmp_path: Path) -> None:
-    container, jobs = _make_container(tmp_path)
+    container, queue, _ = _make_container(tmp_path)
     flow = RetailAnalysisFlow(container)
     project = flow.create_project("Retail Flow", "idempotent run")
     flow.upload_dataset(project["id"], RAW_FIXTURE.name, RAW_FIXTURE.read_bytes())
@@ -167,11 +189,53 @@ def test_retail_analysis_run_is_idempotent_while_processing(tmp_path: Path) -> N
     assert second["status"] == "processing"
     assert second["job_id"] == first["job_id"]
     assert second["trace_id"] == first["trace_id"]
-    assert [job.project_id for job in jobs.jobs] == [project["id"]]
+    assert [payload.project_id for payload in queue.payloads] == [project["id"]]
+
+
+def test_start_analysis_marks_project_failed_when_queue_submission_fails(
+    tmp_path: Path,
+) -> None:
+    class _FailingAnalysisJobQueueProvider(FakeAnalysisJobQueueProvider):
+        def enqueue_project_analysis(self, payload: Any) -> Any:
+            raise RuntimeError("queue offline")
+
+    container, _, _ = _make_container(
+        tmp_path,
+        analysis_job_queue=_FailingAnalysisJobQueueProvider(),
+    )
+    flow = RetailAnalysisFlow(container)
+    project = flow.create_project("Retail Flow", "queue failure")
+    flow.upload_dataset(project["id"], RAW_FIXTURE.name, RAW_FIXTURE.read_bytes())
+
+    with pytest.raises(InfrastructureError):
+        flow.start_analysis(project["id"])
+
+    stored = flow.get_project(project["id"])
+    assert stored["status"] == "failed"
+    assert "queue submission failed" in str(stored["error"])
+
+
+def test_state_save_does_not_roll_back_when_event_publish_fails(tmp_path: Path) -> None:
+    class _FailingAnalysisEventStreamProvider(FakeAnalysisEventStreamProvider):
+        def publish_event(self, event: Any) -> Any:
+            raise RuntimeError("event stream offline")
+
+    state_provider = FakeRetailAnalysisStateProvider()
+    container, _, _ = _make_container(
+        tmp_path,
+        retail_analysis_state=state_provider,
+        analysis_event_stream=_FailingAnalysisEventStreamProvider(),
+    )
+    flow = RetailAnalysisFlow(container)
+
+    project = flow.create_project("Retail Flow", "event stream failure")
+
+    assert project["id"]
+    assert state_provider.get_state(project["id"]) is not None
 
 
 def test_scheduled_analysis_records_missing_clean_dataset_failure(tmp_path: Path) -> None:
-    container, _ = _make_container(tmp_path)
+    container, _, _ = _make_container(tmp_path)
     flow = RetailAnalysisFlow(container)
     project = flow.create_project("Retail Flow", "missing clean dataset")
     flow.upload_dataset(project["id"], RAW_FIXTURE.name, RAW_FIXTURE.read_bytes())
@@ -191,7 +255,7 @@ def test_scheduled_analysis_records_final_formatting_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    container, _ = _make_container(tmp_path)
+    container, _, _ = _make_container(tmp_path)
     flow = RetailAnalysisFlow(container)
     project = flow.create_project("Retail Flow", "format failure")
     flow.upload_dataset(project["id"], RAW_FIXTURE.name, RAW_FIXTURE.read_bytes())
@@ -219,9 +283,9 @@ def test_scheduled_analysis_records_final_formatting_failure(
     def fail_format_recommendations(table: Any) -> list[dict[str, Any]]:
         raise RuntimeError("format failed")
 
-    monkeypatch.setattr(RetailAnalysisFlow, "_run_stage", complete_stage)
+    monkeypatch.setattr(RetailAnalysisExecutionPipeline, "_run_stage", complete_stage)
     monkeypatch.setattr(
-        "backend.business.flows.retail_analysis_flow.format_recommendations",
+        "backend.business.pipelines.retail_analysis_execution_pipeline.format_recommendations",
         fail_format_recommendations,
     )
 
@@ -234,7 +298,7 @@ def test_scheduled_analysis_records_final_formatting_failure(
 
 
 def test_new_upload_and_rerun_clear_stale_downstream_outputs(tmp_path: Path) -> None:
-    container, jobs = _make_container(tmp_path)
+    container, queue, _ = _make_container(tmp_path)
     flow = RetailAnalysisFlow(container)
 
     rerun_project = flow.create_project("Retail Flow", "rerun stale cleanup")
@@ -243,7 +307,7 @@ def test_new_upload_and_rerun_clear_stale_downstream_outputs(tmp_path: Path) -> 
 
     flow.start_analysis(rerun_project["id"])
 
-    assert [job.project_id for job in jobs.jobs] == [rerun_project["id"]]
+    assert [payload.project_id for payload in queue.payloads] == [rerun_project["id"]]
     _assert_downstream_outputs_cleared(flow, rerun_project["id"], rerun_stale_ids)
 
     upload_project = flow.create_project("Retail Flow", "upload stale cleanup")
@@ -258,7 +322,7 @@ def test_new_upload_and_rerun_clear_stale_downstream_outputs(tmp_path: Path) -> 
 def test_retail_analysis_flow_records_small_dataset_failure_without_raising(
     tmp_path: Path,
 ) -> None:
-    container, _ = _make_container(tmp_path)
+    container, _, _ = _make_container(tmp_path)
     flow = RetailAnalysisFlow(container)
     project = flow.create_project("Small Retail Flow")
     flow.upload_dataset(project["id"], RAW_FIXTURE.name, RAW_FIXTURE.read_bytes())
