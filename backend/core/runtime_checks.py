@@ -14,12 +14,20 @@ import io
 import json
 import tempfile
 from dataclasses import fields
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from backend.core.config import Settings
 from backend.core.errors import MarketMindError
+from backend.providers.analysis_event_stream_provider import project_channel
 from backend.providers.container import ProvidersContainer
-from backend.providers.dtos import LLMRequestDTO, LLMResponseDTO
+from backend.providers.dtos import (
+    AnalysisQueueJobPayloadDTO,
+    AnalysisStateEventDTO,
+    LLMRequestDTO,
+    LLMResponseDTO,
+)
 from backend.providers.telemetry_dtos import AuditEvent, DebugEvent, ErrorEvent
 
 
@@ -288,6 +296,159 @@ def cmd_check_analysis_optional_runtime(_args: argparse.Namespace) -> int:
             return 1
 
     _emit("check-analysis-optional-runtime: ok interfaces present")
+    return 0
+
+
+class _RuntimeCheckQueueJob:
+    id = "runtime-job"
+    enqueued_at = datetime(2026, 1, 1, 0, 0, 0)
+
+
+class _RuntimeCheckQueue:
+    name = "runtime-check"
+
+    def __init__(self) -> None:
+        self.enqueued: list[tuple[Any, tuple[Any, ...], dict[str, Any]]] = []
+
+    def enqueue(self, func: Any, *args: Any, **kwargs: Any) -> _RuntimeCheckQueueJob:
+        self.enqueued.append((func, args, kwargs))
+        return _RuntimeCheckQueueJob()
+
+
+class _RuntimeCheckPubSub:
+    def __init__(self, messages: list[dict[str, Any]]) -> None:
+        self._messages = messages
+        self.subscribed: list[str] = []
+        self.closed = False
+
+    def subscribe(self, *channels: str) -> None:
+        self.subscribed.extend(channels)
+
+    def listen(self):
+        yield from self._messages
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _RuntimeCheckRedis:
+    def __init__(self) -> None:
+        self.published: dict[str, list[str]] = {}
+
+    def publish(self, channel: str, message: str) -> int:
+        self.published.setdefault(channel, []).append(message)
+        return 1
+
+    def pubsub(self, ignore_subscribe_messages: bool = True) -> _RuntimeCheckPubSub:
+        messages = [
+            {"type": "message", "data": message}
+            for channel_messages in self.published.values()
+            for message in channel_messages
+        ]
+        return _RuntimeCheckPubSub(messages)
+
+
+def cmd_check_retail_runtime(args: argparse.Namespace) -> int:
+    if not getattr(args, "dry_run", False):
+        _emit("check-retail-runtime: refusing to run without --dry-run")
+        return 1
+
+    from backend.infrastructure.adapters.postgres_retail_analysis_state_adapter import (
+        PostgresRetailAnalysisStateAdapter,
+    )
+    from backend.infrastructure.adapters.redis_analysis_event_stream_adapter import (
+        RedisAnalysisEventStreamAdapter,
+    )
+    from backend.infrastructure.adapters.redis_analysis_job_queue_adapter import (
+        RedisAnalysisJobQueueAdapter,
+    )
+    from backend.infrastructure.db.session import create_db_engine, create_session_factory
+    from backend.infrastructure.factories.provider_factory import create_providers
+    from backend.workers.retail_analysis_worker import execute_retail_analysis_job
+
+    settings = Settings(_env_file=None)
+    if settings.TASK_QUEUE_BACKEND != "redis":
+        _emit(
+            "check-retail-runtime: TASK_QUEUE_BACKEND must default to redis "
+            f"(got {settings.TASK_QUEUE_BACKEND})"
+        )
+        return 1
+    if not settings.REDIS_ENABLED or not settings.REDIS_URL:
+        _emit("check-retail-runtime: REDIS_ENABLED/REDIS_URL are not configured")
+        return 1
+
+    try:
+        providers = create_providers(settings)
+        if not isinstance(providers.retail_analysis_state, PostgresRetailAnalysisStateAdapter):
+            _emit("check-retail-runtime: retail state provider is not PostgreSQL-backed")
+            return 1
+        if not isinstance(providers.analysis_job_queue, RedisAnalysisJobQueueAdapter):
+            _emit("check-retail-runtime: analysis queue provider is not Redis/RQ-backed")
+            return 1
+        if not isinstance(providers.analysis_event_stream, RedisAnalysisEventStreamAdapter):
+            _emit("check-retail-runtime: event stream provider is not Redis-backed")
+            return 1
+
+        sqlite_settings = Settings(_env_file=None, DATABASE_URL="sqlite+pysqlite:///:memory:")
+        engine = create_db_engine(sqlite_settings)
+        session_factory = create_session_factory(engine)
+        with session_factory() as session:
+            session.close()
+
+        queue = _RuntimeCheckQueue()
+        queue_adapter = RedisAnalysisJobQueueAdapter(queue)
+        payload = AnalysisQueueJobPayloadDTO(
+            project_id="runtime-project",
+            job_id="runtime-job",
+            trace_id="runtime-trace",
+            trigger="runtime_check",
+            attempt=1,
+            submitted_at="2026-01-01T00:00:00Z",
+        )
+        handle = queue_adapter.enqueue_project_analysis(payload)
+        if handle.status != "queued" or len(queue.enqueued) != 1:
+            _emit("check-retail-runtime: queue dry-run enqueue failed")
+            return 1
+
+        redis = _RuntimeCheckRedis()
+        event_adapter = RedisAnalysisEventStreamAdapter(redis, heartbeat_interval_ms=15000)
+        item = event_adapter.publish_event(
+            AnalysisStateEventDTO(
+                event="heartbeat",
+                resource="retail_project",
+                channel=project_channel("runtime-project"),
+                resource_id="runtime-project",
+                project_id="runtime-project",
+                status="processing",
+                payload={"project_id": "runtime-project"},
+                fallback_url="/api/analysis/projects/runtime-project",
+                retry_ms=3000,
+            )
+        )
+        replayed = list(event_adapter.subscribe_project_events("runtime-project"))
+        if item.event != "heartbeat" or not replayed or not replayed[0].heartbeat:
+            _emit("check-retail-runtime: SSE heartbeat serialization/subscription failed")
+            return 1
+
+        worker_result = execute_retail_analysis_job(
+            {
+                "project_id": "runtime-project",
+                "job_id": "runtime-job",
+                "trace_id": "runtime-trace",
+                "trigger": "runtime_check",
+                "attempt": 1,
+            },
+            dry_run=True,
+            settings=settings,
+        )
+        if worker_result.get("status") != "dry_run":
+            _emit(f"check-retail-runtime: worker dry-run failed: {worker_result}")
+            return 1
+    except (MarketMindError, OSError, ValueError, RuntimeError, TypeError) as exc:
+        _emit(f"check-retail-runtime: failed: {exc}")
+        return 1
+
+    _emit("check-retail-runtime: ok pg_redis_sse_worker=dry-run")
     return 0
 
 
@@ -573,6 +734,7 @@ COMMANDS = {
     "check-analysis-artifacts": cmd_check_analysis_artifacts,
     "check-retail-analysis": cmd_check_retail_analysis,
     "check-analysis-optional-runtime": cmd_check_analysis_optional_runtime,
+    "check-retail-runtime": cmd_check_retail_runtime,
     "check-llm": cmd_check_llm,
     "validate-api-schemas": cmd_validate_api_schemas,
     "check-telemetry": cmd_check_telemetry,
@@ -602,6 +764,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_retail.add_argument("--sample", action="store_true")
 
     sub.add_parser("check-analysis-optional-runtime")
+
+    p_retail_runtime = sub.add_parser("check-retail-runtime")
+    p_retail_runtime.add_argument("--dry-run", action="store_true", dest="dry_run")
 
     p_llm = sub.add_parser("check-llm")
     p_llm.add_argument("--dry-run", action="store_true", dest="dry_run")

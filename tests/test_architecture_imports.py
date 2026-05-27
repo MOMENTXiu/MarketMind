@@ -16,7 +16,10 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
         "sklearn",
         "mlxtend",
         "psycopg",
+        "redis",
+        "rq",
         "sqlalchemy",
+        "backend.core.config",
         "backend.infrastructure.db",
         "backend.infrastructure",
     ),
@@ -27,7 +30,14 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
         "sklearn",
         "mlxtend",
         "psycopg",
+        "redis",
+        "rq",
         "sqlalchemy",
+        "fastapi.responses",
+        "fastapi.requests",
+        "starlette.responses",
+        "starlette.requests",
+        "backend.core.config",
         "backend.infrastructure.db",
         "fastapi",
         "backend.api",
@@ -37,7 +47,14 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
         "edge_tts",
         "httpx",
         "psycopg",
+        "redis",
+        "rq",
         "sqlalchemy",
+        "fastapi.responses",
+        "fastapi.requests",
+        "starlette.responses",
+        "starlette.requests",
+        "backend.core.config",
         "backend.infrastructure.db",
         "fastapi",
         "backend.api",
@@ -51,7 +68,13 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
         "sklearn",
         "mlxtend",
         "psycopg",
+        "redis",
+        "rq",
         "sqlalchemy",
+        "fastapi.responses",
+        "fastapi.requests",
+        "starlette.responses",
+        "starlette.requests",
         "backend.infrastructure.db",
         "fastapi",
         "backend.api",
@@ -63,6 +86,7 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
 }
 
 LEGACY_IMPORT_ALLOWLIST = {
+    ("api/dependencies.py", "backend.core.config"),
     ("api/dependencies.py", "backend.infrastructure.factories.provider_factory"),
 }
 
@@ -70,8 +94,20 @@ CONFIG_ACCESS_ALLOWLIST = {
     "api/dependencies.py",
 }
 
+REQUEST_RESPONSE_SYMBOLS = {
+    "Request",
+    "Response",
+    "StreamingResponse",
+    "JSONResponse",
+    "FileResponse",
+    "RedirectResponse",
+    "PlainTextResponse",
+    "HTMLResponse",
+}
+
 GENERIC_FALLBACK_NAMES = {"helpers", "common", "misc"}
 CONFIG_GUARDED_LAYERS = {"api", "business", "abilities", "providers"}
+REQUEST_RESPONSE_GUARDED_LAYERS = {"business", "abilities", "providers"}
 
 
 def iter_python_files() -> list[Path]:
@@ -137,8 +173,28 @@ def test_no_direct_environment_or_settings_access_in_guarded_layers() -> None:
                 violations.append(f"{rel} reads os.environ directly")
             if _is_os_getenv_call(node):
                 violations.append(f"{rel} calls os.getenv directly")
+            if _is_os_config_import(node):
+                violations.append(f"{rel} imports os getenv/environ directly")
             if _is_settings_instantiation(node):
                 violations.append(f"{rel} instantiates Settings directly")
+
+    assert violations == []
+
+
+def test_no_fastapi_request_response_imports_in_guarded_layers() -> None:
+    violations: list[str] = []
+    for path in iter_python_files():
+        layer = layer_for(path)
+        if layer not in REQUEST_RESPONSE_GUARDED_LAYERS:
+            continue
+
+        rel = path.relative_to(BACKEND).as_posix()
+        for node in ast.walk(parsed_tree(path)):
+            forbidden = _fastapi_request_response_symbols(node)
+            for symbol in forbidden:
+                violations.append(
+                    f"{rel} imports forbidden FastAPI request/response symbol {symbol}"
+                )
 
     assert violations == []
 
@@ -234,9 +290,23 @@ def _is_os_getenv_call(node: ast.AST) -> bool:
     )
 
 
+def _is_os_config_import(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.ImportFrom)
+        and node.module == "os"
+        and any(alias.name in {"getenv", "environ"} for alias in node.names)
+    )
+
+
 def _is_settings_instantiation(node: ast.AST) -> bool:
     return (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
         and node.func.id == "Settings"
     )
+
+
+def _fastapi_request_response_symbols(node: ast.AST) -> list[str]:
+    if not isinstance(node, ast.ImportFrom) or node.module != "fastapi":
+        return []
+    return [alias.name for alias in node.names if alias.name in REQUEST_RESPONSE_SYMBOLS]

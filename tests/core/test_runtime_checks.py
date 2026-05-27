@@ -36,6 +36,11 @@ HAPPY_PATH_COMMANDS: list[tuple[str, list[str], str]] = [
         [],
         "check-analysis-optional-runtime: ok",
     ),
+    (
+        "check-retail-runtime",
+        ["--dry-run"],
+        "check-retail-runtime: ok",
+    ),
     ("check-llm", ["--dry-run"], "check-llm: dry-run skipped"),
     ("validate-api-schemas", [], "validate-api-schemas: ok"),
     ("check-telemetry", [], "check-telemetry: ok"),
@@ -77,6 +82,12 @@ def test_check_retail_analysis_requires_sample_flag() -> None:
 
 def test_check_llm_requires_dry_run_flag() -> None:
     result = _run(["check-llm"])
+    assert result.returncode == 1
+    assert "refusing to run without --dry-run" in result.stdout
+
+
+def test_check_retail_runtime_requires_dry_run_flag() -> None:
+    result = _run(["check-retail-runtime"])
     assert result.returncode == 1
     assert "refusing to run without --dry-run" in result.stdout
 
