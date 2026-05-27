@@ -1,8 +1,14 @@
 """Shared DTOs for provider boundary contracts."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeAlias
+
+JSONPrimitive: TypeAlias = str | int | float | bool | None
+JSONValue: TypeAlias = JSONPrimitive | list["JSONValue"] | dict[str, "JSONValue"]
+JSONObject: TypeAlias = dict[str, JSONValue]
 
 
 @dataclass(frozen=True)
@@ -89,6 +95,15 @@ class AnalysisArtifactReferenceDTO:
 
 
 @dataclass(frozen=True)
+class AnalysisArtifactPayloadDTO:
+    ref: AnalysisArtifactReferenceDTO
+    payload_type: str
+    rows: list[dict[str, Any]] | None = None
+    payload: Any | None = None
+    content: str | None = None
+
+
+@dataclass(frozen=True)
 class AnalysisModelReferenceDTO:
     id: str
     project_id: str
@@ -138,6 +153,123 @@ class AnalysisJobDTO:
     project_id: str
     trigger: str
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class RetailAnalysisRunInfoDTO:
+    job_id: str
+    trace_id: str
+    trigger: str
+    attempt: int
+    status: str
+    error: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    metadata: JSONObject = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class RetailAnalysisProjectSummaryDTO:
+    id: str
+    name: str
+    description: str
+    status: str
+    dataset_ref: JSONObject | None = None
+    dataset_filename: str | None = None
+    quality_summary: JSONObject = field(default_factory=dict)
+    artifact_refs: list[JSONObject] = field(default_factory=list)
+    recommendations: list[JSONObject] = field(default_factory=list)
+    marketer_insights: JSONObject = field(default_factory=dict)
+    stage_statuses: list[JSONObject] = field(default_factory=list)
+    summary: JSONObject = field(default_factory=dict)
+    job_id: str | None = None
+    trace_id: str | None = None
+    run_info: RetailAnalysisRunInfoDTO | None = None
+    error: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class RetailAnalysisProjectStateDTO:
+    id: str
+    name: str
+    description: str
+    status: str
+    stage_statuses: list[JSONObject] = field(default_factory=list)
+    summary: JSONObject = field(default_factory=dict)
+    dataset_ref: JSONObject | None = None
+    quality_summary: JSONObject = field(default_factory=dict)
+    artifact_refs: list[JSONObject] = field(default_factory=list)
+    recommendations: list[JSONObject] = field(default_factory=list)
+    marketer_insights: JSONObject = field(default_factory=dict)
+    run_info: RetailAnalysisRunInfoDTO | None = None
+    error: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class AnalysisQueueJobPayloadDTO:
+    project_id: str
+    job_id: str
+    trace_id: str
+    trigger: str
+    attempt: int
+    resource: str = "retail_project"
+    submitted_at: str | None = None
+    metadata: JSONObject = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class AnalysisQueueJobHandleDTO:
+    job_id: str
+    queue_name: str
+    status: str
+    enqueued_at: str | None = None
+    metadata: JSONObject = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class AnalysisStateEventDTO:
+    event: str
+    resource: str
+    channel: str
+    resource_id: str
+    project_id: str | None = None
+    job_id: str | None = None
+    trace_id: str | None = None
+    status: str | None = None
+    stage: str | None = None
+    payload: JSONObject = field(default_factory=dict)
+    fallback_url: str | None = None
+    occurred_at: str | None = None
+    heartbeat_interval_ms: int | None = None
+    retry_ms: int | None = None
+    terminal: bool = False
+    metadata: JSONObject = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class AnalysisEventSubscriptionItemDTO:
+    event_id: str | None
+    event: str
+    resource: str
+    channel: str
+    resource_id: str
+    project_id: str | None = None
+    job_id: str | None = None
+    trace_id: str | None = None
+    status: str | None = None
+    stage: str | None = None
+    payload: JSONObject = field(default_factory=dict)
+    fallback_url: str | None = None
+    occurred_at: str | None = None
+    heartbeat: bool = False
+    retry_ms: int | None = None
+    reconnect_ms: int | None = None
+    terminal: bool = False
+    metadata: JSONObject = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

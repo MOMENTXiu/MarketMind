@@ -1,9 +1,17 @@
 """Typed provider container used by future business layers."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from backend.providers.analysis_artifact_provider import AnalysisArtifactProvider
+from backend.providers.analysis_event_stream_provider import (
+    AnalysisEventStreamProvider,
+    InMemoryAnalysisEventStreamProvider,
+)
 from backend.providers.analysis_job_provider import AnalysisJobProvider
+from backend.providers.analysis_job_queue_provider import (
+    AnalysisJobQueueProvider,
+    InMemoryAnalysisJobQueueProvider,
+)
 from backend.providers.analysis_model_store_provider import AnalysisModelStoreProvider
 from backend.providers.association_rule_store_provider import AssociationRuleStoreProvider
 from backend.providers.dataset_provider import DatasetProvider
@@ -13,6 +21,10 @@ from backend.providers.project_file_storage_provider import ProjectFileStoragePr
 from backend.providers.project_repository_provider import ProjectRepositoryProvider
 from backend.providers.recommendation_model_store_provider import RecommendationModelStoreProvider
 from backend.providers.regularized_dataset_provider import RegularizedDatasetProvider
+from backend.providers.retail_analysis_state_provider import (
+    InMemoryRetailAnalysisStateProvider,
+    RetailAnalysisStateProvider,
+)
 from backend.providers.retail_dataset_provider import RetailDatasetProvider
 from backend.providers.telemetry_provider import TelemetryProvider
 
@@ -32,3 +44,12 @@ class ProvidersContainer:
     llm: LLMProvider
     analysis_jobs: AnalysisJobProvider
     telemetry: TelemetryProvider
+    retail_analysis_state: RetailAnalysisStateProvider = field(
+        default_factory=InMemoryRetailAnalysisStateProvider
+    )
+    analysis_job_queue: AnalysisJobQueueProvider = field(
+        default_factory=InMemoryAnalysisJobQueueProvider
+    )
+    analysis_event_stream: AnalysisEventStreamProvider = field(
+        default_factory=InMemoryAnalysisEventStreamProvider
+    )
