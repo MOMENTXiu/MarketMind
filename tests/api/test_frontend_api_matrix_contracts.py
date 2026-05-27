@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -9,13 +10,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.api.dependencies import get_customer_text_suggestion_pipeline
-from backend.business.flows.retail_analysis_flow import PROJECT_STATE_MODEL_TYPE
 from backend.main import app
 from tests.api.conftest import IsolatedEnv
 
 
 @pytest.fixture()
-def client() -> TestClient:
+def client(isolated_env: IsolatedEnv) -> TestClient:
     return TestClient(app)
 
 
@@ -53,10 +53,13 @@ def test_analysis_project_create_list_detail_delete_fields_used_by_frontend(
     delete_response = client.delete(f"/api/analysis/projects/{project_id}")
     assert delete_response.status_code == 200
     assert delete_response.json()["data"]["deleted"] is True
-    assert (
-        isolated_env.container.analysis_models.load_model(project_id, PROJECT_STATE_MODEL_TYPE)
-        is None
-    )
+    assert isolated_env.container.retail_analysis_state.get_state(project_id) is None
+
+
+def test_analysis_event_endpoints_are_frontend_reachable(client: TestClient) -> None:
+    schema_paths = set(app.openapi()["paths"])
+    assert "/api/analysis/projects/{project_id}/events" in schema_paths
+    assert "/api/analysis/jobs/{job_id}/events" in schema_paths
 
 
 def test_analysis_dataset_result_fields_used_by_frontend(client: TestClient) -> None:
@@ -79,24 +82,28 @@ def test_analysis_recommendation_and_insight_fields_used_by_frontend(
     isolated_env: IsolatedEnv,
 ) -> None:
     project_id = _create_analysis_project(client)
-    state = isolated_env.container.analysis_models.load_model(project_id, PROJECT_STATE_MODEL_TYPE)
-    assert isinstance(state, dict)
-    state["recommendations"] = [
-        {
-            "customer_id": "C002",
-            "item": "Milk",
-            "score": 0.8,
-            "reason": "repeat purchase",
-            "score_breakdown": {"source": "runtime"},
-        }
-    ]
-    state["marketer_insights"] = {
-        "segment_value": [{"cluster_id": 1, "cluster_name": "高价值客户"}],
-        "promotion_effect": [],
-        "bundle_strategy": [],
-        "category_strategy": [],
-    }
-    isolated_env.container.analysis_models.save_model(project_id, PROJECT_STATE_MODEL_TYPE, state)
+    state = isolated_env.container.retail_analysis_state.get_state(project_id)
+    assert state is not None
+    isolated_env.container.retail_analysis_state.save_state(
+        replace(
+            state,
+            recommendations=[
+                {
+                    "customer_id": "C002",
+                    "item": "Milk",
+                    "score": 0.8,
+                    "reason": "repeat purchase",
+                    "score_breakdown": {"source": "runtime"},
+                }
+            ],
+            marketer_insights={
+                "segment_value": [{"cluster_id": 1, "cluster_name": "高价值客户"}],
+                "promotion_effect": [],
+                "bundle_strategy": [],
+                "category_strategy": [],
+            },
+        )
+    )
 
     recommendations_response = client.get(
         f"/api/analysis/projects/{project_id}/recommendations",

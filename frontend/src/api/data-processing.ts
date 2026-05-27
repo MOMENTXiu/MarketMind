@@ -1,4 +1,4 @@
-import { apiClient, unwrapApiEnvelope } from './client'
+import { apiClient, createApiEventSource, unwrapApiEnvelope } from './client'
 import type {
   ApiRef,
   DataProcessingJob,
@@ -39,6 +39,12 @@ export function runDataProcessingJob(projectId: string, jobId: string): Promise<
       params: { project_id: projectId }
     })
   )
+}
+
+export function openDataProcessingJobEvents(projectId: string, jobId: string): EventSource {
+  return createApiEventSource(`/api/analysis/jobs/${encodeURIComponent(jobId)}/events`, {
+    project_id: projectId
+  })
 }
 
 export function getDataProcessingJob(projectId: string, jobId: string): Promise<DataProcessingJob> {

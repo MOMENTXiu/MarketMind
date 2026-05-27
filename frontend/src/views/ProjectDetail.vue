@@ -10,13 +10,16 @@ import VChart from 'vue-echarts'
 import { ArrowLeft, User, ShoppingCart, TrendCharts, Search, MagicStick, Folder } from '@element-plus/icons-vue'
 import {
   getApiErrorMessage,
+  getRetailArtifactPayload,
   getRetailProject,
   getRetailProjectStatusConfig,
   isActiveRetailProjectStatus,
   listRetailArtifacts,
   listRetailRecommendations,
   normalizeRetailProjectStatus,
+  openRetailProjectEvents,
   runRetailAnalysis,
+  type AnalysisSseEvent,
   type ApiRef
 } from '../api'
 
@@ -36,7 +39,11 @@ interface Project { id: string; name: string; description?: string; dataset_file
 const project = ref<Project | null>(null)
 const loading = ref(false)
 const artifacts = ref<ApiRef[]>([])
+const associationRuleRows = ref<Array<Record<string, unknown>>>([])
+const customerSegmentRows = ref<Array<Record<string, unknown>>>([])
+const customerProfileRows = ref<Array<Record<string, unknown>>>([])
 let pollingTimer: number | undefined
+let projectEventSource: EventSource | undefined
 
 // Drill-down State
 const selectedClusterId = ref<number | null>(null)
@@ -54,7 +61,31 @@ const recLoading = ref(false)
 const calcLoading = ref(false)
 
 // --- Computed ---
-const associationRules = computed(() => project.value?.results?.association_rules || [])
+const toNumber = (value: unknown, fallback = 0) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+const associationRules = computed(() => {
+  if (associationRuleRows.value.length) {
+    return associationRuleRows.value
+      .map((row) => {
+        const antecedentText = String(row['前项'] ?? row.antecedents ?? '')
+        const antecedents = antecedentText
+          .split('+')
+          .map(item => item.trim())
+          .filter(Boolean)
+        return {
+          antecedents,
+          consequent: String(row['后项'] ?? row.consequent ?? ''),
+          confidence: toNumber(row['置信度'] ?? row.confidence),
+          lift: toNumber(row['提升度'] ?? row.lift, 1)
+        }
+      })
+      .filter(rule => rule.antecedents.length > 0 && rule.consequent)
+  }
+  return project.value?.results?.association_rules || []
+})
 const clusteringData = computed(() => project.value?.results?.clustering_data || null)
 const clusterProfiles = computed(() => {
   const legacyProfiles = clusteringData.value?.cluster_profiles || []
@@ -117,6 +148,29 @@ const normalizeArtifacts = (payload: { artifacts?: ApiRef[] } | ApiRef[]) => {
   return Array.isArray(payload) ? payload : (payload.artifacts || [])
 }
 
+const findArtifactId = (name: string) => {
+  const refs = artifacts.value.length ? artifacts.value : (project.value?.artifact_refs || [])
+  return refs.find(ref => ref.id === `table:${name}` || ref.name === name)?.id
+}
+
+const loadArtifactRows = async (name: string) => {
+  const artifactId = findArtifactId(name)
+  if (!artifactId) return []
+  const payload = await getRetailArtifactPayload(projectId.value, artifactId)
+  return payload.rows || []
+}
+
+const loadDetailPayloads = async () => {
+  const [rules, segments, profiles] = await Promise.all([
+    loadArtifactRows('retail_item_association_rules.csv').catch(() => []),
+    loadArtifactRows('retail_customer_segments.csv').catch(() => []),
+    loadArtifactRows('retail_customer_profile.csv').catch(() => [])
+  ])
+  associationRuleRows.value = rules
+  customerSegmentRows.value = segments
+  customerProfileRows.value = profiles
+}
+
 const loadArtifacts = async () => {
   try {
     const payload = await listRetailArtifacts(projectId.value)
@@ -131,6 +185,7 @@ const refreshProject = async () => {
   project.value = data as Project
   if (!isActiveRetailProjectStatus(data.status)) {
     await loadArtifacts()
+    await loadDetailPayloads()
   }
 }
 
@@ -141,19 +196,48 @@ const stopProjectPolling = () => {
   }
 }
 
-const pollProject = async () => {
-  try {
-    await refreshProject()
-    if (!isProjectRunning.value) stopProjectPolling()
-  } catch (error) {
-    stopProjectPolling()
-    ElMessage.error(`刷新项目状态失败: ${getApiErrorMessage(error)}`)
+const stopProjectEvents = () => {
+  if (projectEventSource) {
+    projectEventSource.close()
+    projectEventSource = undefined
   }
 }
 
-const startProjectPolling = () => {
+const parseAnalysisEvent = (event: MessageEvent<string>): AnalysisSseEvent | null => {
+  try {
+    return JSON.parse(event.data) as AnalysisSseEvent
+  } catch {
+    return null
+  }
+}
+
+const startProjectEvents = () => {
   stopProjectPolling()
-  pollingTimer = window.setInterval(pollProject, 2500)
+  stopProjectEvents()
+  projectEventSource = openRetailProjectEvents(projectId.value)
+  projectEventSource.onmessage = async (event) => {
+    const payload = parseAnalysisEvent(event)
+    if (payload?.heartbeat) return
+    await refreshProject()
+    if (payload?.terminal || !isProjectRunning.value) stopProjectEvents()
+  }
+  projectEventSource.addEventListener('state_changed', async (event) => {
+    const payload = parseAnalysisEvent(event as MessageEvent<string>)
+    await refreshProject()
+    if (payload?.terminal || !isProjectRunning.value) stopProjectEvents()
+  })
+  projectEventSource.addEventListener('artifact_ready', async () => {
+    await loadArtifacts()
+    await refreshProject()
+  })
+  projectEventSource.onerror = async () => {
+    stopProjectEvents()
+    try {
+      await refreshProject()
+    } catch (error) {
+      ElMessage.error(`刷新项目状态失败: ${getApiErrorMessage(error)}`)
+    }
+  }
 }
 
 // --- Methods ---
@@ -161,7 +245,7 @@ const loadProject = async () => {
   loading.value = true
   try {
     await refreshProject()
-    if (isProjectRunning.value) startProjectPolling()
+    if (isProjectRunning.value) startProjectEvents()
   } catch (error) {
     ElMessage.error(`加载项目失败: ${getApiErrorMessage(error)}`)
     router.push('/projects')
@@ -177,7 +261,7 @@ const reanalyze = async () => {
     )
     project.value = await runRetailAnalysis(projectId.value) as Project
     ElMessage.success('重新分析任务已启动')
-    startProjectPolling()
+    startProjectEvents()
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
       ElMessage.error(`启动失败: ${getApiErrorMessage(error)}`)
@@ -189,6 +273,29 @@ const fetchClusterCustomers = async (clusterId: number) => {
   selectedClusterId.value = clusterId
   customersLoading.value = true
   try {
+    const profileByUser = new Map(
+      customerProfileRows.value.map(row => [String(row.user_id ?? ''), row])
+    )
+    const segmentRows = customerSegmentRows.value.filter(row => {
+      return toNumber(row.segment_id ?? row.cluster_id ?? row.cluster, -1) === clusterId
+    })
+
+    if (segmentRows.length) {
+      clusterCustomers.value = segmentRows.map((row) => {
+        const userId = String(row.user_id ?? row.customer_id ?? '')
+        const profile = profileByUser.get(userId) || {}
+        return {
+          id: userId,
+          name: userId,
+          recency: toNumber(profile['R_最近购买间隔'] ?? profile.recency),
+          frequency: toNumber(profile['F_购买频次'] ?? profile.frequency),
+          monetary: toNumber(profile['M_消费金额'] ?? profile.monetary),
+          cluster_id: clusterId
+        }
+      }).filter(row => row.id)
+      return
+    }
+
     const recommendations = project.value?.recommendations || []
     const seen = new Set<string>()
     clusterCustomers.value = recommendations
@@ -257,7 +364,10 @@ const extractName = (fullName: string) => {
 const fmtCurrency = (val?: number) => (val === undefined || val === null || Number.isNaN(val)) ? '-' : `${val.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`
 
 onMounted(() => { loadProject() })
-onUnmounted(() => { stopProjectPolling() })
+onUnmounted(() => {
+  stopProjectPolling()
+  stopProjectEvents()
+})
 </script>
 
 <template>

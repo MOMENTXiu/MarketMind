@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +77,13 @@ def create_job(client: TestClient, project_id: str = "test-project") -> str:
     return data["job_id"]
 
 
+def parse_sse_data(response_text: str) -> dict[str, Any]:
+    data_line = next(line for line in response_text.splitlines() if line.startswith("data: "))
+    payload = json.loads(data_line.removeprefix("data: "))
+    assert isinstance(payload, dict)
+    return payload
+
+
 def upload_raw_dataset(client: TestClient, project_id: str, job_id: str) -> dict[str, Any]:
     fixture_path = Path("tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv")
     with fixture_path.open("rb") as dataset_file:
@@ -98,6 +106,28 @@ def test_create_data_processing_job_contract(client: TestClient) -> None:
     assert get_response.status_code == 200
     data = assert_success_payload(get_response.json())
     assert data["job_id"] == job_id
+
+
+def test_data_processing_job_events_endpoint_streams_sse_contract(client: TestClient) -> None:
+    project_id = "test-project"
+    job_id = create_job(client, project_id=project_id)
+
+    response = client.get(f"/api/analysis/jobs/{job_id}/events?project_id={project_id}")
+
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers["content-type"]
+    assert "id:" in response.text
+    assert "event:" in response.text
+    assert "retry:" in response.text
+    assert "data:" in response.text
+
+    event = parse_sse_data(response.text)
+    assert event["resource"] == "data_processing_job"
+    assert event["project_id"] == project_id
+    assert event["job_id"] == job_id
+    assert event["fallback_url"] == f"/api/analysis/jobs/{job_id}?project_id={project_id}"
+    assert event["payload"]["job_id"] == job_id
+    assert event["payload"]["fallback_url"] == event["fallback_url"]
 
 
 def test_upload_raw_dataset_contract(client: TestClient) -> None:

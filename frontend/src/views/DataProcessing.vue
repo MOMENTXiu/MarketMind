@@ -11,9 +11,11 @@ import {
   getDataProcessingJob,
   isTerminalDataProcessingStatus,
   listDataProcessingOutputs,
+  openDataProcessingJobEvents,
   regularizeDataProcessingJob,
   runDataProcessingJob,
   uploadRawDataset,
+  type AnalysisSseEvent,
   type ApiRef,
   type DataProcessingJob,
   type DataProcessingSidecarId
@@ -60,6 +62,7 @@ const regularizing = ref(false)
 const running = ref(false)
 const loadingJob = ref(false)
 let pollingTimer: number | undefined
+let jobEventSource: EventSource | undefined
 
 const routeJobId = computed(() => typeof route.params.jobId === 'string' ? route.params.jobId : '')
 const routeProjectId = computed(() => typeof route.query.project_id === 'string' ? route.query.project_id : '')
@@ -136,11 +139,56 @@ const stopPolling = () => {
   }
 }
 
+const stopJobEvents = () => {
+  if (jobEventSource) {
+    jobEventSource.close()
+    jobEventSource = undefined
+  }
+}
+
+const parseAnalysisEvent = (event: MessageEvent<string>): AnalysisSseEvent | null => {
+  try {
+    return JSON.parse(event.data) as AnalysisSseEvent
+  } catch {
+    return null
+  }
+}
+
+const startJobEvents = () => {
+  if (!job.value) return
+  stopPolling()
+  stopJobEvents()
+  const projectId = job.value.project_id
+  const jobId = job.value.job_id
+  jobEventSource = openDataProcessingJobEvents(projectId, jobId)
+  jobEventSource.addEventListener('state_changed', async (event) => {
+    const payload = parseAnalysisEvent(event as MessageEvent<string>)
+    await loadJob(jobId, projectId, true)
+    if (payload?.terminal || isTerminalDataProcessingStatus(job.value?.status)) stopJobEvents()
+  })
+  jobEventSource.addEventListener('artifact_ready', async () => {
+    await loadJob(jobId, projectId, true)
+  })
+  jobEventSource.onerror = async () => {
+    stopJobEvents()
+    await loadJob(jobId, projectId, true)
+  }
+}
+
 const loadSidecars = async () => {
   if (!job.value) return
   const projectId = job.value.project_id
   const jobId = job.value.job_id
+  const availableSidecarIds = new Set(
+    (job.value.output_refs || [])
+      .map(ref => ref.id)
+      .filter((id): id is DataProcessingSidecarId => sidecarIds.includes(id as DataProcessingSidecarId))
+  )
   await Promise.all(sidecarIds.map(async (sidecarId) => {
+    if (!availableSidecarIds.has(sidecarId)) {
+      sidecars.value[sidecarId] = null
+      return
+    }
     try {
       sidecars.value[sidecarId] = await getDataProcessingSidecar(projectId, jobId, sidecarId)
     } catch {
@@ -169,7 +217,10 @@ const loadJob = async (jobId: string, projectId: string, silent = false) => {
     await loadOutputs()
     await loadSidecars()
     if (isTerminalDataProcessingStatus(job.value.status) || job.value.status !== 'processing') {
+      stopJobEvents()
       stopPolling()
+    } else if (!jobEventSource) {
+      startJobEvents()
     }
   } catch (error) {
     if (!silent) ElMessage.error(`加载 Job 失败: ${getApiErrorMessage(error)}`)
@@ -179,14 +230,9 @@ const loadJob = async (jobId: string, projectId: string, silent = false) => {
   }
 }
 
-const pollJob = async () => {
-  if (!job.value) return
-  await loadJob(job.value.job_id, job.value.project_id, true)
-}
-
 const startPolling = () => {
   stopPolling()
-  pollingTimer = window.setInterval(pollJob, 2500)
+  startJobEvents()
 }
 
 const createJob = async () => {
@@ -273,6 +319,7 @@ const refreshJob = async () => {
 watch([routeJobId, routeProjectId], async ([jobId, projectId]) => {
   if (!jobId) {
     stopPolling()
+    stopJobEvents()
     job.value = null
     outputs.value = []
     sidecars.value = emptySidecars()
@@ -287,6 +334,7 @@ watch([routeJobId, routeProjectId], async ([jobId, projectId]) => {
 
 onUnmounted(() => {
   stopPolling()
+  stopJobEvents()
 })
 </script>
 

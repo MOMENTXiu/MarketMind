@@ -1,5 +1,6 @@
-import { apiClient, unwrapApiEnvelope } from './client'
+import { apiClient, createApiEventSource, unwrapApiEnvelope } from './client'
 import type {
+  AnalysisArtifactPayload,
   ApiRef,
   RetailMarketerInsights,
   RetailProject,
@@ -43,8 +44,23 @@ export function runRetailAnalysis(projectId: string): Promise<RetailProject> {
   return unwrapApiEnvelope(apiClient.post(`/api/analysis/projects/${encodeURIComponent(projectId)}/run`))
 }
 
+export function openRetailProjectEvents(projectId: string): EventSource {
+  return createApiEventSource(`/api/analysis/projects/${encodeURIComponent(projectId)}/events`)
+}
+
 export function listRetailArtifacts(projectId: string): Promise<{ artifacts: ApiRef[] } | ApiRef[]> {
   return unwrapApiEnvelope(apiClient.get(`/api/analysis/projects/${encodeURIComponent(projectId)}/artifacts`))
+}
+
+export function getRetailArtifactPayload(
+  projectId: string,
+  artifactId: string
+): Promise<AnalysisArtifactPayload> {
+  return unwrapApiEnvelope(
+    apiClient.get(
+      `/api/analysis/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifactId)}/payload`
+    )
+  )
 }
 
 export function listRetailRecommendations(

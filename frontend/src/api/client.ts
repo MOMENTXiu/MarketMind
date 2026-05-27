@@ -17,6 +17,18 @@ export const apiClient = axios.create({
   timeout: readTimeout()
 })
 
+export function createApiEventSource(path: string, params: Record<string, string> = {}): EventSource {
+  const configuredBase = String(apiClient.defaults.baseURL || '')
+  const baseURL = configuredBase.startsWith('http')
+    ? configuredBase
+    : `${window.location.origin}${configuredBase}`
+  const url = new URL(path, baseURL || window.location.origin)
+  Object.entries(params).forEach(([key, value]) => {
+    url.searchParams.set(key, value)
+  })
+  return new EventSource(url.toString())
+}
+
 export async function unwrapApiEnvelope<T>(request: Promise<AxiosResponse<ApiEnvelope<T>>>): Promise<T> {
   try {
     const response = await request

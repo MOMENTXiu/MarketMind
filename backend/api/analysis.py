@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterator
+from dataclasses import asdict
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Header, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from backend.api.dependencies import (
@@ -19,6 +23,8 @@ from backend.business.pipelines.customer_text_suggestion_pipeline import (
     CustomerTextSuggestionPipeline,
 )
 from backend.core.errors import MarketMindError
+from backend.providers.analysis_event_stream_provider import job_channel, project_channel
+from backend.providers.dtos import AnalysisEventSubscriptionItemDTO
 
 router = APIRouter()
 
@@ -56,6 +62,74 @@ class CustomerSuggestionCreate(BaseModel):
 
 def _success(data: dict) -> dict:
     return {"success": True, "data": data}
+
+
+def _sse_frame(item: AnalysisEventSubscriptionItemDTO) -> str:
+    lines: list[str] = []
+    if item.event_id:
+        lines.append(f"id: {item.event_id}")
+    lines.append(f"event: {item.event}")
+    if item.retry_ms is not None:
+        lines.append(f"retry: {item.retry_ms}")
+    payload = json.dumps(asdict(item), ensure_ascii=False, separators=(",", ":"))
+    lines.append(f"data: {payload}")
+    return "\n".join(lines) + "\n\n"
+
+
+def _retail_project_snapshot(project: dict[str, Any]) -> AnalysisEventSubscriptionItemDTO:
+    project_id = str(project["id"])
+    fallback_url = f"/api/analysis/projects/{project_id}"
+    return AnalysisEventSubscriptionItemDTO(
+        event_id="snapshot",
+        event="state_changed",
+        resource="retail_project",
+        channel=project_channel(project_id),
+        resource_id=project_id,
+        project_id=project_id,
+        job_id=project.get("job_id"),
+        trace_id=project.get("trace_id"),
+        status=project.get("status"),
+        payload={
+            "project_id": project_id,
+            "status": project.get("status"),
+            "stage_statuses": project.get("stage_statuses") or [],
+            "fallback_url": fallback_url,
+        },
+        fallback_url=fallback_url,
+        occurred_at=project.get("updated_at"),
+        retry_ms=3000,
+        terminal=project.get("status") in {"completed", "failed", "已完成", "失败"},
+    )
+
+
+def _data_processing_job_snapshot(
+    project_id: str,
+    job_id: str,
+    job: dict[str, Any],
+) -> AnalysisEventSubscriptionItemDTO:
+    fallback_url = f"/api/analysis/jobs/{job_id}?project_id={project_id}"
+    return AnalysisEventSubscriptionItemDTO(
+        event_id="snapshot",
+        event="state_changed",
+        resource="data_processing_job",
+        channel=job_channel(job_id),
+        resource_id=job_id,
+        project_id=project_id,
+        job_id=job_id,
+        status=job.get("status"),
+        payload={
+            "project_id": project_id,
+            "job_id": job_id,
+            "status": job.get("status"),
+            "stage_statuses": job.get("stages") or [],
+            "outputs_ready": bool(job.get("output_refs")),
+            "fallback_url": fallback_url,
+        },
+        fallback_url=fallback_url,
+        occurred_at=job.get("updated_at"),
+        retry_ms=3000,
+        terminal=job.get("status") in {"completed", "failed"},
+    )
 
 
 @router.post("/customer-suggestions")
@@ -148,6 +222,28 @@ async def get_project(
     return _success(project)
 
 
+@router.get("/projects/{project_id}/events")
+async def stream_project_events(
+    project_id: str,
+    flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
+) -> StreamingResponse:
+    try:
+        project = flow.get_project(project_id)
+    except MarketMindError as exc:
+        raise map_internal_error(exc) from exc
+
+    def event_frames() -> Iterator[str]:
+        yield _sse_frame(_retail_project_snapshot(project))
+        for item in flow.providers.analysis_event_stream.subscribe_project_events(
+            project_id,
+            last_event_id,
+        ):
+            yield _sse_frame(item)
+
+    return StreamingResponse(event_frames(), media_type="text/event-stream")
+
+
 @router.get("/projects/{project_id}/artifacts")
 async def list_artifacts(
     project_id: str,
@@ -168,6 +264,19 @@ async def get_dataset_ref(
 ) -> dict:
     try:
         result = flow.get_dataset_ref(project_id, dataset_id)
+    except MarketMindError as exc:
+        raise map_internal_error(exc) from exc
+    return _success(result)
+
+
+@router.get("/projects/{project_id}/artifacts/{artifact_id:path}/payload")
+async def get_artifact_payload(
+    project_id: str,
+    artifact_id: str,
+    flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+) -> dict:
+    try:
+        result = flow.get_artifact_payload(project_id, artifact_id)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -292,6 +401,28 @@ async def get_data_processing_job(
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
+
+
+@router.get("/jobs/{job_id}/events")
+async def stream_data_processing_job_events(
+    job_id: str,
+    project_id: str,
+    flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
+) -> StreamingResponse:
+    try:
+        job = flow.get_job(project_id, job_id)
+    except MarketMindError as exc:
+        raise map_internal_error(exc) from exc
+
+    def event_frames() -> Iterator[str]:
+        yield _sse_frame(_data_processing_job_snapshot(project_id, job_id, job))
+        for item in flow.providers.analysis_event_stream.subscribe_job_events(
+            job_id, last_event_id
+        ):
+            yield _sse_frame(item)
+
+    return StreamingResponse(event_frames(), media_type="text/event-stream")
 
 
 @router.get("/jobs/{job_id}/outputs")

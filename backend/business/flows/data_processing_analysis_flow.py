@@ -8,6 +8,7 @@ from typing import Any
 from backend.business.flows.data_processing_analysis_state import (
     STAGE_NAMES,
     append_output_refs,
+    build_data_processing_state_event,
     job_view,
     new_job_state,
     set_stage,
@@ -350,6 +351,12 @@ class DataProcessingAnalysisFlow:
             state,
             metadata={"status": state.get("status", "queued")},
         )
+        try:
+            self.providers.analysis_event_stream.publish_event(
+                build_data_processing_state_event(state)
+            )
+        except Exception:
+            pass
 
     def _record_failure(self, state: dict[str, Any], stage_name: str, exc: Exception) -> None:
         message = str(exc) or exc.__class__.__name__

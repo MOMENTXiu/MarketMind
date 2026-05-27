@@ -6,6 +6,9 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from backend.providers.analysis_event_stream_provider import job_channel
+from backend.providers.dtos import AnalysisStateEventDTO
+
 PROJECT_STATUSES = {"queued", "processing", "completed", "failed", "needs_review"}
 STAGE_STATUSES = {"queued", "processing", "completed", "skipped", "failed", "needs_review"}
 STAGE_NAMES = (
@@ -67,6 +70,38 @@ def job_view(state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_data_processing_state_event(
+    state: dict[str, Any],
+    event: str | None = None,
+) -> AnalysisStateEventDTO:
+    job_id = str(state["job_id"])
+    project_id = str(state["project_id"])
+    fallback_url = f"/api/analysis/jobs/{job_id}?project_id={project_id}"
+    status = str(state.get("status") or "queued")
+    return AnalysisStateEventDTO(
+        event=event or _default_event_name(status),
+        resource="data_processing_job",
+        channel=job_channel(job_id),
+        resource_id=job_id,
+        project_id=project_id,
+        job_id=job_id,
+        status=status,
+        stage=_event_stage_name(state),
+        payload={
+            "project_id": project_id,
+            "job_id": job_id,
+            "status": status,
+            "stages": state.get("stages", []),
+            "outputs_ready": bool(state.get("output_refs")),
+            "fallback_url": fallback_url,
+        },
+        fallback_url=fallback_url,
+        occurred_at=str(state.get("updated_at") or ""),
+        retry_ms=3000,
+        terminal=status in {"completed", "failed", "needs_review"},
+    )
+
+
 def set_stage(
     state: dict[str, Any],
     stage_name: str,
@@ -96,3 +131,16 @@ def append_output_refs(state: dict[str, Any], refs: list[dict[str, Any]]) -> Non
         outputs.append(ref)
         seen.add(ref.get("id"))
     state["output_refs"] = outputs
+
+
+def _default_event_name(status: str | None) -> str:
+    if status in {"completed", "failed", "needs_review"}:
+        return status
+    return "state_changed"
+
+
+def _event_stage_name(state: dict[str, Any]) -> str | None:
+    for stage in state.get("stages", []):
+        if stage.get("status") == "processing":
+            return str(stage.get("stage"))
+    return None

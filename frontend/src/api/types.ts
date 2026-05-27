@@ -16,6 +16,15 @@ export interface ApiRef {
   created_at?: string | null
 }
 
+export interface AnalysisArtifactPayload {
+  project_id: string
+  artifact: ApiRef
+  payload_type: 'table' | 'json' | 'markdown' | string
+  rows: Array<Record<string, unknown>>
+  payload?: unknown
+  content?: string | null
+}
+
 export type RetailProjectStatus = 'queued' | 'processing' | 'completed' | 'failed'
 export type LegacyRetailProjectStatus = '待处理' | '处理中' | '已完成' | '失败'
 export type RetailStageName =
@@ -76,6 +85,24 @@ export interface RetailLegacyResults {
 
 export interface RetailProjectList {
   projects: RetailProject[]
+}
+
+export interface AnalysisSseEvent {
+  event_id?: string | null
+  event: string
+  resource: 'retail_project' | 'data_processing_job' | string
+  resource_id: string
+  project_id?: string | null
+  job_id?: string | null
+  trace_id?: string | null
+  status?: string | null
+  stage?: string | null
+  payload?: Record<string, unknown>
+  fallback_url?: string | null
+  occurred_at?: string | null
+  heartbeat?: boolean
+  retry_ms?: number | null
+  terminal?: boolean
 }
 
 export interface RetailRecommendationsResponse {
@@ -219,7 +246,7 @@ export function getRetailProjectStatusConfig(status: string | undefined | null):
 
 export function isActiveRetailProjectStatus(status: string | undefined | null): boolean {
   const normalized = normalizeRetailProjectStatus(status)
-  return normalized === 'queued' || normalized === 'processing'
+  return normalized === 'processing'
 }
 
 export function isTerminalDataProcessingStatus(status: string | undefined | null): boolean {
