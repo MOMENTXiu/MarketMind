@@ -40,7 +40,7 @@ ROOT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 cd "$ROOT_DIR"
 
 # Check if startup scripts exist
-echo -e "${YELLOW}[1/4] Checking startup scripts...${NC}"
+echo -e "${YELLOW}[1/5] Checking startup scripts...${NC}"
 if [ ! -f "$SCRIPT_DIR/start-backend.sh" ]; then
     echo -e "${RED}Error: start-backend.sh not found${NC}"
     exit 1

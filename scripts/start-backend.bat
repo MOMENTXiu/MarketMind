@@ -41,6 +41,61 @@ if errorlevel 1 (
 echo + uv is installed
 echo.
 
+REM Start Docker infrastructure when running the backend directly
+if not "%MARKETMIND_SKIP_INFRA%"=="1" (
+    echo [infra] Ensuring Docker infrastructure is running...
+    docker --version >nul 2>&1
+    if errorlevel 1 (
+        echo Error: Docker is not installed or not in PATH
+        pause
+        exit /b 1
+    )
+
+    docker compose -f docker-compose.dev.yml up -d postgres redis
+    if errorlevel 1 (
+        echo Error: Failed to start Docker infrastructure
+        pause
+        exit /b 1
+    )
+
+    REM Wait for postgres
+    echo Waiting for postgres...
+    set ATTEMPT=0
+    :wait_postgres_be
+    set /a ATTEMPT+=1
+    if !ATTEMPT! GTR 30 (
+        echo Error: postgres did not become healthy
+        pause
+        exit /b 1
+    )
+    docker inspect --format="{{.State.Status}}" marketmind-postgres-dev 2>nul | findstr "running" >nul 2>&1
+    if errorlevel 1 (
+        echo   Waiting for postgres (!ATTEMPT!/30)...
+        timeout /t 2 /nobreak >nul
+        goto wait_postgres_be
+    )
+    echo + postgres is running
+
+    REM Wait for redis
+    echo Waiting for redis...
+    set ATTEMPT=0
+    :wait_redis_be
+    set /a ATTEMPT+=1
+    if !ATTEMPT! GTR 30 (
+        echo Error: redis did not become healthy
+        pause
+        exit /b 1
+    )
+    docker inspect --format="{{.State.Status}}" marketmind-redis-dev 2>nul | findstr "running" >nul 2>&1
+    if errorlevel 1 (
+        echo   Waiting for redis (!ATTEMPT!/30)...
+        timeout /t 2 /nobreak >nul
+        goto wait_redis_be
+    )
+    echo + redis is running
+    echo.
+)
+
 REM Install/sync Python dependencies
 echo [3/6] Installing Python dependencies...
 uv sync
@@ -71,6 +126,19 @@ if not exist ".env" (
 ) else (
     echo + .env file found
 )
+if "%REDIS_ENABLED%"=="" set "REDIS_ENABLED=true"
+if "%TASK_QUEUE_BACKEND%"=="" set "TASK_QUEUE_BACKEND=redis"
+echo.
+
+REM Apply database migrations
+echo [db] Applying database migrations...
+uv run alembic upgrade head
+if errorlevel 1 (
+    echo Error: Database migration failed
+    pause
+    exit /b 1
+)
+echo + Database schema is ready
 echo.
 
 REM Start the backend server

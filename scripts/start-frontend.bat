@@ -60,10 +60,10 @@ if not exist "node_modules" (
     REM Create environment files
     echo Creating environment files...
 
-    REM Create .env.development
+    REM Create .env.development (empty base URL to use Vite proxy)
     (
         echo # Development Environment Configuration
-        echo VITE_API_BASE_URL=http://localhost:8000/api
+        echo VITE_API_BASE_URL=
         echo VITE_API_TIMEOUT=30000
     ) > .env.development
 
@@ -86,7 +86,7 @@ if not exist ".env.development" (
     echo Creating .env.development...
     (
         echo # Development Environment Configuration
-        echo VITE_API_BASE_URL=http://localhost:8000/api
+        echo VITE_API_BASE_URL=
         echo VITE_API_TIMEOUT=30000
     ) > .env.development
 )
