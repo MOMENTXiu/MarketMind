@@ -7,7 +7,10 @@ from typing import Any
 import pandas as pd
 
 from backend.models.project import Project, ProjectCreate, ProjectStatus, ProjectUpdate
+from backend.providers.analysis_event_stream_provider import InMemoryAnalysisEventStreamProvider
+from backend.providers.analysis_job_queue_provider import InMemoryAnalysisJobQueueProvider
 from backend.providers.dtos import (
+    AnalysisArtifactPayloadDTO,
     AnalysisArtifactReferenceDTO,
     AnalysisJobDTO,
     AnalysisModelReferenceDTO,
@@ -21,6 +24,7 @@ from backend.providers.dtos import (
     RetailDatasetReferenceDTO,
     UploadedFileDTO,
 )
+from backend.providers.retail_analysis_state_provider import InMemoryRetailAnalysisStateProvider
 from backend.providers.telemetry_dtos import (
     AuditEvent,
     DebugEvent,
@@ -29,6 +33,10 @@ from backend.providers.telemetry_dtos import (
     SpanHandle,
     TelemetryResult,
 )
+
+FakeRetailAnalysisStateProvider = InMemoryRetailAnalysisStateProvider
+FakeAnalysisJobQueueProvider = InMemoryAnalysisJobQueueProvider
+FakeAnalysisEventStreamProvider = InMemoryAnalysisEventStreamProvider
 
 
 class FakeLLMProvider:
@@ -332,6 +340,33 @@ class FakeAnalysisArtifactProvider:
     ) -> AnalysisArtifactReferenceDTO | None:
         return self.refs.get((project_id, artifact_id))
 
+    def load_payload(
+        self,
+        project_id: str,
+        artifact_id: str,
+    ) -> AnalysisArtifactPayloadDTO | None:
+        ref = self.refs.get((project_id, artifact_id))
+        if ref is None:
+            return None
+        if ref.type == "table":
+            rows = ref.metadata.get("rows", [])
+            if hasattr(rows, "to_dict"):
+                rows = rows.to_dict(orient="records")
+            return AnalysisArtifactPayloadDTO(ref=ref, payload_type="table", rows=_jsonable(rows))
+        if ref.type == "json":
+            return AnalysisArtifactPayloadDTO(
+                ref=ref,
+                payload_type="json",
+                payload=_jsonable(ref.metadata.get("payload")),
+            )
+        if ref.type == "markdown":
+            return AnalysisArtifactPayloadDTO(
+                ref=ref,
+                payload_type="markdown",
+                content=str(ref.metadata.get("content", "")),
+            )
+        return AnalysisArtifactPayloadDTO(ref=ref, payload_type=ref.type)
+
     def _save(
         self,
         project_id: str,
@@ -351,6 +386,24 @@ class FakeAnalysisArtifactProvider:
         )
         self.refs[(project_id, artifact_id)] = ref
         return ref
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _jsonable(inner) for key, inner in value.items()}
+    if isinstance(value, list | tuple):
+        return [_jsonable(inner) for inner in value]
+    if isinstance(value, str | int | bool) or value is None:
+        return value
+    if isinstance(value, float):
+        return value if pd.notna(value) else None
+    item = getattr(value, "item", None)
+    if callable(item):
+        try:
+            return _jsonable(item())
+        except (TypeError, ValueError):
+            pass
+    return str(value)
 
 
 class FakeAnalysisModelStoreProvider:

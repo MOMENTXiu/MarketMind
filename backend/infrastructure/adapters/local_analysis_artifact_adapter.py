@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 
 from backend.core.errors import InfrastructureError, ValidationError
-from backend.providers.dtos import AnalysisArtifactReferenceDTO
+from backend.providers.dtos import AnalysisArtifactPayloadDTO, AnalysisArtifactReferenceDTO
 
 
 class LocalAnalysisArtifactAdapter:
@@ -91,6 +91,47 @@ class LocalAnalysisArtifactAdapter:
         if not path.exists():
             return None
         return self._ref(project_id, artifact_type, name, {"media_type": self._media_type(path)})
+
+    def load_payload(
+        self,
+        project_id: str,
+        artifact_id: str,
+    ) -> AnalysisArtifactPayloadDTO | None:
+        self._validate_identifier(project_id, "project_id")
+        artifact_type, name = self._parse_artifact_id(artifact_id)
+        path = self._artifact_dir(project_id, artifact_type) / name
+        if not path.exists():
+            return None
+
+        ref = self._ref(project_id, artifact_type, name, {"media_type": self._media_type(path)})
+        try:
+            if artifact_type == "table":
+                rows = pd.read_csv(path).to_dict(orient="records")
+                return AnalysisArtifactPayloadDTO(
+                    ref=ref,
+                    payload_type="table",
+                    rows=_to_jsonable(rows),
+                )
+            if artifact_type == "json":
+                return AnalysisArtifactPayloadDTO(
+                    ref=ref,
+                    payload_type="json",
+                    payload=_to_jsonable(json.loads(path.read_text(encoding="utf-8"))),
+                )
+            if artifact_type == "markdown":
+                return AnalysisArtifactPayloadDTO(
+                    ref=ref,
+                    payload_type="markdown",
+                    content=path.read_text(encoding="utf-8"),
+                )
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, pd.errors.ParserError) as error:
+            raise InfrastructureError(
+                f"Failed to load analysis artifact payload for {project_id}: {artifact_id}"
+            ) from error
+
+        raise ValidationError(
+            f"Analysis artifact payload is not supported for type: {artifact_type}"
+        )
 
     def _artifact_dir(self, project_id: str, artifact_type: str) -> Path:
         self._validate_identifier(project_id, "project_id")

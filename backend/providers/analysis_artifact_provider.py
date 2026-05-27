@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 from typing import Any, Protocol
 
-from backend.providers.dtos import AnalysisArtifactReferenceDTO
+from backend.providers.dtos import AnalysisArtifactPayloadDTO, AnalysisArtifactReferenceDTO
 
 
 class AnalysisArtifactProvider(Protocol):
@@ -41,3 +41,10 @@ class AnalysisArtifactProvider(Protocol):
         artifact_id: str,
     ) -> AnalysisArtifactReferenceDTO | None:
         """Resolve artifact metadata without exposing local filesystem paths."""
+
+    def load_payload(
+        self,
+        project_id: str,
+        artifact_id: str,
+    ) -> AnalysisArtifactPayloadDTO | None:
+        """Load a public artifact payload without exposing local filesystem paths."""

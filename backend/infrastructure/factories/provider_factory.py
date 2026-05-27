@@ -1,8 +1,11 @@
 """Provider container assembly."""
 
+from functools import lru_cache
+
 from fastapi import BackgroundTasks
 
 from backend.core.config import Settings
+from backend.core.errors import InfrastructureError
 from backend.infrastructure.adapters.anthropic_llm_adapter import AnthropicLLMAdapter
 from backend.infrastructure.adapters.console_telemetry_adapter import ConsoleTelemetryAdapter
 from backend.infrastructure.adapters.csv_dataset_adapter import CsvDatasetAdapter
@@ -35,7 +38,20 @@ from backend.infrastructure.adapters.local_regularized_dataset_adapter import (
 from backend.infrastructure.adapters.openai_compatible_llm_adapter import (
     OpenAICompatibleLLMAdapter,
 )
+from backend.infrastructure.adapters.postgres_retail_analysis_state_adapter import (
+    PostgresRetailAnalysisStateAdapter,
+)
+from backend.infrastructure.adapters.redis_analysis_event_stream_adapter import (
+    RedisAnalysisEventStreamAdapter,
+)
+from backend.infrastructure.adapters.redis_analysis_job_queue_adapter import (
+    RedisAnalysisJobQueueAdapter,
+)
+from backend.infrastructure.db.session import create_db_engine, create_session_factory
+from backend.providers.analysis_event_stream_provider import InMemoryAnalysisEventStreamProvider
+from backend.providers.analysis_job_queue_provider import InMemoryAnalysisJobQueueProvider
 from backend.providers.container import ProvidersContainer
+from backend.providers.retail_analysis_state_provider import InMemoryRetailAnalysisStateProvider
 
 
 def create_providers(
@@ -46,6 +62,14 @@ def create_providers(
     """Create the default local provider container from typed settings."""
 
     llm = AnthropicLLMAdapter() if llm_provider_name == "claude" else OpenAICompatibleLLMAdapter()
+
+    retail_analysis_state = InMemoryRetailAnalysisStateProvider()
+    analysis_job_queue = InMemoryAnalysisJobQueueProvider()
+    analysis_event_stream = InMemoryAnalysisEventStreamProvider()
+    if settings.TASK_QUEUE_BACKEND == "redis":
+        retail_analysis_state, analysis_job_queue, analysis_event_stream = (
+            _build_phase3_redis_providers(settings)
+        )
 
     return ProvidersContainer(
         repository=JsonProjectRepositoryAdapter("data"),
@@ -64,4 +88,77 @@ def create_providers(
         llm=llm,
         analysis_jobs=FastApiBackgroundAnalysisJobAdapter(background_tasks),
         telemetry=ConsoleTelemetryAdapter(),
+        retail_analysis_state=retail_analysis_state,
+        analysis_job_queue=analysis_job_queue,
+        analysis_event_stream=analysis_event_stream,
+    )
+
+
+def _build_phase3_redis_providers(
+    settings: Settings,
+) -> tuple[
+    PostgresRetailAnalysisStateAdapter,
+    RedisAnalysisJobQueueAdapter,
+    RedisAnalysisEventStreamAdapter,
+]:
+    if not settings.REDIS_ENABLED:
+        raise InfrastructureError(
+            "TASK_QUEUE_BACKEND=redis requires REDIS_ENABLED=true for provider assembly"
+        )
+
+    return _build_phase3_redis_providers_cached(
+        settings.DATABASE_URL,
+        settings.DB_ECHO,
+        settings.DB_POOL_SIZE,
+        settings.DB_POOL_MAX_OVERFLOW,
+        settings.REDIS_URL,
+        settings.ANALYSIS_QUEUE_NAME,
+        settings.ANALYSIS_EVENT_HEARTBEAT_MS,
+        settings.ANALYSIS_EVENT_RETRY_MS,
+    )
+
+
+@lru_cache(maxsize=8)
+def _build_phase3_redis_providers_cached(
+    database_url: str,
+    db_echo: bool,
+    db_pool_size: int,
+    db_pool_max_overflow: int,
+    redis_url: str,
+    queue_name: str,
+    heartbeat_ms: int,
+    retry_ms: int,
+) -> tuple[
+    PostgresRetailAnalysisStateAdapter,
+    RedisAnalysisJobQueueAdapter,
+    RedisAnalysisEventStreamAdapter,
+]:
+    from redis import Redis
+    from rq import Queue
+
+    runtime_settings = Settings(
+        _env_file=None,
+        DATABASE_URL=database_url,
+        DB_ECHO=db_echo,
+        DB_POOL_SIZE=db_pool_size,
+        DB_POOL_MAX_OVERFLOW=db_pool_max_overflow,
+        REDIS_URL=redis_url,
+        ANALYSIS_QUEUE_NAME=queue_name,
+        ANALYSIS_EVENT_HEARTBEAT_MS=heartbeat_ms,
+        ANALYSIS_EVENT_RETRY_MS=retry_ms,
+        REDIS_ENABLED=True,
+        TASK_QUEUE_BACKEND="redis",
+    )
+    engine = create_db_engine(runtime_settings)
+    session_factory = create_session_factory(engine)
+    redis_client = Redis.from_url(redis_url, decode_responses=True)
+    queue = Queue(queue_name, connection=redis_client)
+    return (
+        PostgresRetailAnalysisStateAdapter(session_factory),
+        RedisAnalysisJobQueueAdapter(queue),
+        RedisAnalysisEventStreamAdapter(
+            redis_client,
+            heartbeat_interval_ms=heartbeat_ms,
+            retry_ms=retry_ms,
+        ),
     )
