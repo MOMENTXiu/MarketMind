@@ -14,7 +14,7 @@ from backend.providers.dtos import (
     RetailAnalysisRunInfoDTO,
 )
 
-PROJECT_STATUSES = frozenset({"queued", "processing", "completed", "failed"})
+PROJECT_STATUSES = frozenset({"queued", "processing", "completed", "failed", "needs_review"})
 STAGE_STATUSES = frozenset({"queued", "processing", "completed", "failed", "skipped"})
 STAGE_NAMES = (
     "dataset_preparation",
@@ -39,11 +39,16 @@ def new_stage(stage_name: str) -> dict[str, Any]:
 
 
 def project_view(state: dict[str, Any]) -> dict[str, Any]:
+    summary = state.get("summary") or {}
+    analysis_kind = summary.get("analysis_kind") if isinstance(summary, dict) else None
+    dp_job_id = summary.get("job_id") if isinstance(summary, dict) else None
+    effective_job_id = dp_job_id or state.get("job_id")
     return {
         "id": state["id"],
         "name": state["name"],
         "description": state.get("description", ""),
         "status": state["status"],
+        "analysis_kind": analysis_kind,
         "dataset_ref": public_ref(state["dataset_ref"]) if state.get("dataset_ref") else None,
         "dataset_filename": _dataset_filename(state),
         "quality_summary": sanitize(state.get("quality_summary", {})),
@@ -51,8 +56,8 @@ def project_view(state: dict[str, Any]) -> dict[str, Any]:
         "recommendations": sanitize(state.get("recommendations", [])),
         "marketer_insights": sanitize(state.get("marketer_insights", empty_marketer_insights())),
         "stage_statuses": list(state.get("stage_statuses", [])),
-        "summary": dict(state.get("summary", {})),
-        "job_id": state.get("job_id"),
+        "summary": dict(summary) if isinstance(summary, dict) else {},
+        "job_id": effective_job_id,
         "trace_id": state.get("trace_id"),
         "error": state.get("error"),
         "created_at": state.get("created_at"),

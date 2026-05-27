@@ -11,6 +11,7 @@ import type {
 export interface RetailProjectCreatePayload {
   name: string
   description?: string
+  analysis_kind?: string
 }
 
 export interface RetailRecommendationParams {

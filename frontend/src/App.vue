@@ -7,7 +7,6 @@ import ServiceStatus from '@/components/ServiceStatus.vue'
 const route = useRoute()
 const isHome = computed(() => route.path === '/')
 const isProjectsActive = computed(() => route.path.startsWith('/projects') || route.path.startsWith('/me/projects'))
-const isDataProcessingActive = computed(() => route.path.startsWith('/data-processing'))
 
 const isDark = ref(false)
 
@@ -63,7 +62,6 @@ onMounted(() => {
         <div class="nav-links">
           <RouterLink to="/" class="nav-item" :class="{ active: isHome }">主页</RouterLink>
           <RouterLink to="/projects" class="nav-item" :class="{ active: isProjectsActive }">我的项目</RouterLink>
-          <RouterLink to="/data-processing" class="nav-item" :class="{ active: isDataProcessingActive }">数据处理</RouterLink>
           <RouterLink to="/settings" class="nav-item" active-class="active">设置</RouterLink>
         </div>
 

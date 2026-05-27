@@ -43,10 +43,26 @@ class RetailAnalysisFlow:
     def __init__(self, providers: ProvidersContainer) -> None:
         self.providers = providers
 
-    def create_project(self, name: str, description: str | None = None) -> dict[str, Any]:
+    def create_project(
+        self,
+        name: str,
+        description: str | None = None,
+        analysis_kind: str | None = None,
+    ) -> dict[str, Any]:
         clean_name = name.strip()
         if not clean_name:
             raise ValidationError("Retail Analysis project name is required")
+
+        is_dp = analysis_kind == "data_processing"
+        dp_stage_names = (
+            "dataset_regularization",
+            "overview",
+            "profile_segmentation",
+            "association",
+            "recommendation",
+            "promotion",
+            "summary",
+        ) if is_dp else None
 
         project_id = uuid4().hex
         now = _now()
@@ -55,8 +71,10 @@ class RetailAnalysisFlow:
             "name": clean_name,
             "description": (description or "").strip(),
             "status": "queued",
-            "stage_statuses": [new_stage(stage_name) for stage_name in STAGE_NAMES],
-            "summary": {},
+            "stage_statuses": [
+                new_stage(s) for s in (dp_stage_names if is_dp else STAGE_NAMES)
+            ],
+            "summary": {"analysis_kind": analysis_kind} if is_dp else {},
             "dataset_ref": None,
             "quality_summary": {},
             "artifact_refs": [],

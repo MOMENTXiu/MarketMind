@@ -89,3 +89,10 @@ export function getDataProcessingSidecar(
     })
   )
 }
+
+// Project-facing wrappers for Data Processing lifecycle
+export function regularizeProjectDataset(projectId: string): Promise<DataProcessingJob> {
+  return unwrapApiEnvelope(
+    apiClient.post(`/api/analysis/projects/${encodeURIComponent(projectId)}/regularize`)
+  )
+}

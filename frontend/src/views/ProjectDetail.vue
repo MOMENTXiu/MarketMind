@@ -7,7 +7,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
-import { ArrowLeft, User, ShoppingCart, TrendCharts, Search, MagicStick, Folder } from '@element-plus/icons-vue'
+import { ArrowLeft, User, ShoppingCart, TrendCharts, Search, MagicStick, Folder, UploadFilled } from '@element-plus/icons-vue'
 import {
   getApiErrorMessage,
   getRetailArtifactPayload,
@@ -19,6 +19,8 @@ import {
   normalizeRetailProjectStatus,
   openRetailProjectEvents,
   runRetailAnalysis,
+  uploadRetailDataset,
+  regularizeProjectDataset,
   type AnalysisSseEvent,
   type ApiRef
 } from '../api'
@@ -33,7 +35,7 @@ const projectId = computed(() => String(route.params.id))
 interface ForecastRow { week: number; date?: string; sales: number; profit: number; profit_rate?: number }
 interface ForecastSummary { total_sales: number; total_profit: number; avg_profit_rate: number }
 interface ClusterProfile { cluster_id: number; cluster_name: string; customer_count: number; avg_recency: number; avg_frequency: number; avg_monetary: number; avg_order_value: number; marketing_strategy: string }
-interface Project { id: string; name: string; description?: string; dataset_filename?: string; dataset_ref?: { name?: string } | null; status: string; created_at: string; updated_at: string; parameters?: any; summary?: Record<string, any>; quality_summary?: Record<string, any>; artifact_refs?: any[]; recommendations?: any[]; marketer_insights?: Record<string, any[]>; stage_statuses?: any[]; results?: { association_rules?: any[]; prediction_data?: { sales_r2?: number; profit_r2?: number; train_samples?: number; forecast_weeks?: number; forecast_data?: ForecastRow[]; forecast_summary?: ForecastSummary }; clustering_data?: { total_customers?: number; n_clusters?: number; silhouette_score?: number; cluster_profiles?: ClusterProfile[]; contribution?: any[]; cluster_customers?: any }; report_path?: string }; error?: string; error_message?: string }
+interface Project { id: string; name: string; description?: string; analysis_kind?: string | null; dataset_filename?: string; dataset_ref?: { name?: string } | null; status: string; created_at: string; updated_at: string; parameters?: any; summary?: Record<string, any>; quality_summary?: Record<string, any>; artifact_refs?: any[]; recommendations?: any[]; marketer_insights?: Record<string, any[]>; stage_statuses?: any[]; results?: { association_rules?: any[]; prediction_data?: { sales_r2?: number; profit_r2?: number; train_samples?: number; forecast_weeks?: number; forecast_data?: ForecastRow[]; forecast_summary?: ForecastSummary }; clustering_data?: { total_customers?: number; n_clusters?: number; silhouette_score?: number; cluster_profiles?: ClusterProfile[]; contribution?: any[]; cluster_customers?: any }; report_path?: string }; error?: string; error_message?: string }
 
 // --- State ---
 const project = ref<Project | null>(null)
@@ -132,9 +134,14 @@ const projectStatusConfig = computed(() => getRetailProjectStatusConfig(project.
 const projectStatusClass = computed(() => normalizeRetailProjectStatus(project.value?.status))
 const isProjectRunning = computed(() => isActiveRetailProjectStatus(project.value?.status))
 const visibleArtifactRefs = computed(() => artifacts.value.length ? artifacts.value : (project.value?.artifact_refs || []))
-const summaryEntries = computed(() => Object.entries(project.value?.summary || {}).slice(0, 8))
+const summaryEntries = computed(() => Object.entries(project.value?.summary || {}).filter(([k]) => k !== 'analysis_kind' && k !== 'job_id').slice(0, 8))
 const qualityEntries = computed(() => Object.entries(project.value?.quality_summary || {}).slice(0, 8))
 const stageStatuses = computed(() => project.value?.stage_statuses || [])
+
+// Data Processing specific
+const isDataProcessingProject = computed(() => project.value?.analysis_kind === 'data_processing')
+const needsReview = computed(() => project.value?.status === 'needs_review')
+const isRetailProject = computed(() => !isDataProcessingProject.value)
 
 const formatValue = (value: unknown) => {
   if (value === undefined || value === null || value === '') return '-'
@@ -346,11 +353,47 @@ const calculateRealtimeRules = async () => {
   calcLoading.value = true
   try {
     recommendedItems.value = []
-    ElMessage.info('Retail V2 暂无实时关联重算结果')
+    ElMessage.info('暂无实时关联重算结果')
   } catch (e) {
     ElMessage.error('实时计算失败')
   } finally {
     calcLoading.value = false
+  }
+}
+
+const reuploadFile = ref<HTMLInputElement | null>(null)
+
+const triggerReupload = () => {
+  reuploadFile.value?.click()
+}
+
+const handleReupload = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  if (!/\.(csv|xls|xlsx)$/i.test(file.name)) {
+    ElMessage.error('仅支持 CSV、XLS、XLSX 文件')
+    return
+  }
+  try {
+    await uploadRetailDataset(projectId.value, file)
+    ElMessage.success('数据已重新上传，正在标准化...')
+    const result = await regularizeProjectDataset(projectId.value)
+    if (result.status === 'needs_review') {
+      ElMessage.warning('数据标准化仍需审查')
+    } else if (result.status === 'failed') {
+      ElMessage.error(`标准化失败: ${result.error || '未知错误'}`)
+    } else {
+      ElMessage.success('标准化完成')
+      await runRetailAnalysis(projectId.value)
+      ElMessage.success('分析已启动')
+      startProjectEvents()
+    }
+    await refreshProject()
+  } catch (error) {
+    ElMessage.error(`重新上传失败: ${getApiErrorMessage(error)}`)
+  } finally {
+    input.value = ''
   }
 }
 
@@ -402,12 +445,33 @@ onUnmounted(() => {
           </div>
         </div>
         <div class="header-actions">
-          <el-button @click="reanalyze" :loading="isProjectRunning" plain round>重新分析</el-button>
-          <el-button type="primary" round @click="$router.push(`/projects/${project?.id}/recommend`)">智能查询</el-button>
+          <input
+            ref="reuploadFile"
+            type="file"
+            accept=".csv,.xls,.xlsx"
+            style="display: none"
+            @change="handleReupload"
+          >
+          <el-button v-if="needsReview" @click="triggerReupload" type="warning" plain round>
+            <el-icon style="margin-right: 4px"><UploadFilled /></el-icon>重新上传数据
+          </el-button>
+          <el-button v-if="!isDataProcessingProject" @click="reanalyze" :loading="isProjectRunning" plain round>重新分析</el-button>
+          <el-button v-if="!isDataProcessingProject" type="primary" round @click="$router.push(`/projects/${project?.id}/recommend`)">智能查询</el-button>
         </div>
       </header>
 
       <main v-if="project" class="detail-content-flow">
+        <!-- Needs Review Alert -->
+        <el-alert
+          v-if="needsReview"
+          title="数据需要审查"
+          :description="project.error || '数据标准化过程中发现需要人工审查的问题，请检查数据后重新上传。'"
+          type="warning"
+          show-icon
+          :closable="false"
+          style="margin-bottom: 24px; border-radius: 16px;"
+        />
+
         <section class="section-block overview-section">
           <div class="section-header-modern compact">
             <div class="title-with-icon">
@@ -451,8 +515,8 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <!-- 1. KPI & Forecast Bento -->
-        <section class="section-block grid-dashboard">
+        <!-- 1. KPI & Forecast Bento (Retail only) -->
+        <section v-if="isRetailProject" class="section-block grid-dashboard">
           <div class="stats-col">
             <div class="metric-card-glass">
               <div class="m-label">预测总销售额</div>
@@ -495,8 +559,8 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <!-- 2. Association Rules (The "Missing" Part) -->
-        <section class="section-block association-section">
+        <!-- 2. Association Rules (Retail only) -->
+        <section v-if="isRetailProject" class="section-block association-section">
           <div class="section-header-modern">
             <div class="title-with-icon">
               <el-icon class="icon-main"><ShoppingCart /></el-icon>
@@ -573,8 +637,8 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <!-- 3. Customer Clusters -->
-        <section class="section-block clustering-section">
+        <!-- 3. Customer Clusters (Retail only) -->
+        <section v-if="isRetailProject" class="section-block clustering-section">
           <div class="section-header-modern">
             <div class="title-with-icon">
               <el-icon class="icon-main"><User /></el-icon>
@@ -774,6 +838,7 @@ html.dark .m-value { color: #A1A1A6; }
 .status-dot-nano.processing { background: #f59e0b; }
 .status-dot-nano.completed { background: #10b981; }
 .status-dot-nano.failed { background: #ef4444; }
+.status-dot-nano.needs_review { background: #f97316; }
 
 .mini-divider {
   width: 1px;
@@ -805,6 +870,7 @@ html.dark .section-block { background: var(--color-surface); border-color: var(-
 .stage-chip.processing strong { color: #f59e0b; }
 .stage-chip.failed strong { color: #ef4444; }
 .stage-chip.skipped strong { color: #94a3b8; }
+.stage-chip.needs_review strong { color: #f97316; }
 .artifact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 .artifact-card { display: flex; flex-direction: column; gap: 6px; background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 18px; padding: 16px; min-height: 130px; }
 .artifact-card strong { color: var(--text-primary); font-size: 0.95rem; }

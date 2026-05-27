@@ -22,7 +22,7 @@ from backend.business.flows.retail_analysis_flow import RetailAnalysisFlow
 from backend.business.pipelines.customer_text_suggestion_pipeline import (
     CustomerTextSuggestionPipeline,
 )
-from backend.core.errors import MarketMindError
+from backend.core.errors import MarketMindError, ValidationError
 from backend.providers.analysis_event_stream_provider import job_channel, project_channel
 from backend.providers.dtos import AnalysisEventSubscriptionItemDTO
 
@@ -32,6 +32,7 @@ router = APIRouter()
 class RetailAnalysisProjectCreate(BaseModel):
     name: str = Field(min_length=1)
     description: str | None = None
+    analysis_kind: str | None = None
 
     @field_validator("name")
     @classmethod
@@ -132,6 +133,58 @@ def _data_processing_job_snapshot(
     )
 
 
+def _is_dp_project(project: dict[str, Any]) -> bool:
+    return project.get("analysis_kind") == "data_processing"
+
+
+def _merge_dp_job_into_project(
+    project: dict[str, Any],
+    job: dict[str, Any],
+) -> dict[str, Any]:
+    """Map DP job state onto the project-facing shape."""
+    merged = dict(project)
+    merged["status"] = job.get("status", project.get("status"))
+    merged["stage_statuses"] = job.get("stages", project.get("stage_statuses"))
+    merged["error"] = job.get("error", project.get("error"))
+    merged["updated_at"] = job.get("updated_at", project.get("updated_at"))
+    quality = job.get("quality")
+    if quality:
+        merged["quality_summary"] = quality
+    merged["artifact_refs"] = list(job.get("output_refs", []))
+    return merged
+
+
+def _dp_project_snapshot_from_job(
+    project_id: str,
+    job_id: str,
+    job: dict[str, Any],
+) -> AnalysisEventSubscriptionItemDTO:
+    """Build an SSE snapshot for a DP-backed project."""
+    fallback_url = f"/api/analysis/projects/{project_id}"
+    status = job.get("status") or "queued"
+    return AnalysisEventSubscriptionItemDTO(
+        event_id="snapshot",
+        event="state_changed",
+        resource="retail_project",
+        channel=project_channel(project_id),
+        resource_id=project_id,
+        project_id=project_id,
+        job_id=job_id,
+        status=status,
+        payload={
+            "project_id": project_id,
+            "job_id": job_id,
+            "status": status,
+            "stage_statuses": job.get("stages") or [],
+            "fallback_url": fallback_url,
+        },
+        fallback_url=fallback_url,
+        occurred_at=job.get("updated_at"),
+        retry_ms=3000,
+        terminal=status in {"completed", "failed", "needs_review"},
+    )
+
+
 @router.post("/customer-suggestions")
 async def generate_customer_suggestion(
     payload: CustomerSuggestionCreate,
@@ -152,7 +205,11 @@ async def create_project(
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
 ) -> dict:
     try:
-        project = flow.create_project(payload.name, payload.description)
+        project = flow.create_project(
+            payload.name,
+            payload.description,
+            analysis_kind=payload.analysis_kind,
+        )
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(project)
@@ -175,6 +232,13 @@ async def delete_project(
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
 ) -> dict:
     try:
+        project = flow.get_project(project_id)
+        if _is_dp_project(project):
+            job_id = project.get("job_id")
+            if job_id:
+                flow.providers.analysis_models.delete_model(
+                    str(job_id), "data_processing_analysis_state"
+                )
         result = flow.delete_project(project_id)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
@@ -186,7 +250,34 @@ async def upload_dataset(
     project_id: str,
     file: Annotated[UploadFile, File(...)],
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
 ) -> dict:
+    filename = file.filename or ""
+    if not filename.lower().endswith((".csv", ".xls", ".xlsx")):
+        raise map_internal_error(
+            ValidationError("Unsupported file type — please upload a CSV or Excel file")
+        )
+    project = flow.get_project(project_id)
+    if _is_dp_project(project):
+        try:
+            job = dp_flow.create_job(project_id, project["name"])
+            job_id = str(job["job_id"])
+            # Link job to project via summary
+            state = flow.providers.retail_analysis_state.get_state(project_id)
+            if state is not None:
+                from dataclasses import replace as _replace
+
+                summary = dict(state.summary or {})
+                summary["job_id"] = job_id
+                flow.providers.retail_analysis_state.save_state(
+                    _replace(state, summary=summary)
+                )
+            result = dp_flow.upload_raw_dataset(
+                project_id, job_id, file.filename or "", await file.read()
+            )
+        except MarketMindError as exc:
+            raise map_internal_error(exc) from exc
+        return _success(result)
     try:
         result = flow.upload_dataset(
             project_id,
@@ -198,11 +289,41 @@ async def upload_dataset(
     return _success(result)
 
 
+@router.post("/projects/{project_id}/regularize")
+async def regularize_project_dataset(
+    project_id: str,
+    flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+) -> dict:
+    project = flow.get_project(project_id)
+    if not _is_dp_project(project):
+        raise map_internal_error(ValidationError("Regularization is only available for Data Processing projects"))
+    job_id = project.get("job_id")
+    if not job_id:
+        raise map_internal_error(ValidationError("No linked Data Processing job found"))
+    try:
+        result = dp_flow.regularize(project_id, str(job_id))
+    except MarketMindError as exc:
+        raise map_internal_error(exc) from exc
+    return _success(result)
+
+
 @router.post("/projects/{project_id}/run", status_code=status.HTTP_202_ACCEPTED)
 async def run_analysis(
     project_id: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
 ) -> dict:
+    project = flow.get_project(project_id)
+    if _is_dp_project(project):
+        job_id = project.get("job_id")
+        if not job_id:
+            raise map_internal_error(ValidationError("No linked Data Processing job found"))
+        try:
+            result = dp_flow.run_analysis(project_id, str(job_id))
+        except MarketMindError as exc:
+            raise map_internal_error(exc) from exc
+        return _success(result)
     try:
         result = flow.start_analysis(project_id)
     except MarketMindError as exc:
@@ -214,11 +335,20 @@ async def run_analysis(
 async def get_project(
     project_id: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
 ) -> dict:
     try:
         project = flow.get_project(project_id)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
+    if _is_dp_project(project):
+        job_id = project.get("job_id")
+        if job_id:
+            try:
+                job = dp_flow.get_job(project_id, str(job_id))
+                project = _merge_dp_job_into_project(project, job)
+            except MarketMindError:
+                pass
     return _success(project)
 
 
@@ -226,12 +356,31 @@ async def get_project(
 async def stream_project_events(
     project_id: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
     last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
 ) -> StreamingResponse:
     try:
         project = flow.get_project(project_id)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
+
+    is_dp = _is_dp_project(project)
+    job_id = str(project.get("job_id") or "") if is_dp else ""
+
+    if is_dp and job_id:
+        try:
+            job = dp_flow.get_job(project_id, job_id)
+        except MarketMindError:
+            job = {}
+
+        def dp_event_frames() -> Iterator[str]:
+            yield _sse_frame(_dp_project_snapshot_from_job(project_id, job_id, job))
+            for item in dp_flow.providers.analysis_event_stream.subscribe_job_events(
+                job_id, last_event_id
+            ):
+                yield _sse_frame(item)
+
+        return StreamingResponse(dp_event_frames(), media_type="text/event-stream")
 
     def event_frames() -> Iterator[str]:
         yield _sse_frame(_retail_project_snapshot(project))
@@ -248,7 +397,21 @@ async def stream_project_events(
 async def list_artifacts(
     project_id: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
 ) -> dict:
+    try:
+        project = flow.get_project(project_id)
+    except MarketMindError as exc:
+        raise map_internal_error(exc) from exc
+    if _is_dp_project(project):
+        job_id = project.get("job_id")
+        if job_id:
+            try:
+                outputs = dp_flow.list_outputs(project_id, str(job_id))
+                return _success(outputs)
+            except MarketMindError:
+                pass
+        return _success({"project_id": project_id, "artifacts": []})
     try:
         result = flow.list_artifacts(project_id)
     except MarketMindError as exc:

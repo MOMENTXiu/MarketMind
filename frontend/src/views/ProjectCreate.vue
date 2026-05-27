@@ -7,8 +7,9 @@ import { UploadFilled, ArrowLeft } from '@element-plus/icons-vue'
 import {
   createRetailProject,
   getApiErrorMessage,
-  runRetailAnalysis,
-  uploadRetailDataset
+  uploadRetailDataset,
+  regularizeProjectDataset,
+  runRetailAnalysis
 } from '../api'
 
 const router = useRouter()
@@ -22,6 +23,7 @@ const projectForm = ref({
 const uploadRef = ref<UploadInstance>()
 const fileList = ref<UploadUserFile[]>([])
 const uploading = ref(false)
+const statusMessage = ref('')
 
 const steps = [
   { title: '基本信息', desc: 'Project Details' },
@@ -38,8 +40,8 @@ const nextStep = () => {
 const prevStep = () => currentStep.value--
 
 const beforeUpload: UploadProps['beforeUpload'] = (file) => {
-  if (!/\.csv$/i.test(file.name)) {
-    ElMessage.error('Retail V2 仅支持 CSV 文件')
+  if (!/\.(csv|xls|xlsx)$/i.test(file.name)) {
+    ElMessage.error('仅支持 CSV、XLS、XLSX 文件')
     return false
   }
   if (file.size / 1024 / 1024 > 100) {
@@ -54,18 +56,38 @@ const handleFileChange: UploadProps['onChange'] = (_, files) => fileList.value =
 const createProject = async () => {
   if (fileList.value.length === 0) return ElMessage.warning('请上传数据集')
   uploading.value = true
+  statusMessage.value = '正在创建项目...'
   try {
     const project = await createRetailProject({
       name: projectForm.value.name,
-      description: projectForm.value.description
+      description: projectForm.value.description,
+      analysis_kind: 'data_processing'
     })
 
+    statusMessage.value = '正在上传数据...'
     const rawFile = fileList.value[0]?.raw
     if (!(rawFile instanceof File)) {
       throw new Error('无法读取上传文件')
     }
 
     await uploadRetailDataset(project.id, rawFile)
+
+    statusMessage.value = '正在数据标准化...'
+    const regularized = await regularizeProjectDataset(project.id)
+
+    if (regularized.status === 'needs_review') {
+      ElMessage.warning('数据标准化需要审查，请查看详情')
+      await router.push({ path: `/projects/${project.id}` })
+      return
+    }
+
+    if (regularized.status === 'failed') {
+      ElMessage.error(`数据标准化失败: ${regularized.error || '未知错误'}`)
+      await router.push({ path: `/projects/${project.id}` })
+      return
+    }
+
+    statusMessage.value = '正在启动分析...'
     await runRetailAnalysis(project.id)
     ElMessage.success('项目已创建，开始分析')
     await router.push({ path: `/projects/${project.id}`, query: { poll: '1' } })
@@ -73,6 +95,7 @@ const createProject = async () => {
     ElMessage.error(`创建失败: ${getApiErrorMessage(error)}`)
   } finally {
     uploading.value = false
+    statusMessage.value = ''
   }
 }
 </script>
@@ -141,7 +164,7 @@ const createProject = async () => {
               :limit="1"
               :before-upload="beforeUpload"
               :on-change="handleFileChange"
-              accept=".csv"
+              accept=".csv,.xls,.xlsx"
               drag
               action="#"
               class="full-width-upload"
@@ -149,7 +172,7 @@ const createProject = async () => {
               <div class="upload-placeholder">
                 <el-icon class="upload-icon"><UploadFilled /></el-icon>
                 <div class="upload-text">点击或拖拽上传数据集</div>
-                <div class="upload-hint">支持 .csv (Max 100MB)</div>
+                <div class="upload-hint">支持 .csv / .xls / .xlsx (Max 100MB)</div>
               </div>
             </el-upload>
           </div>
@@ -179,7 +202,7 @@ const createProject = async () => {
           :loading="uploading"
           class="btn-primary-large"
         >
-          {{ currentStep === 2 ? '开始智能分析' : '下一步' }}
+          {{ uploading ? statusMessage : (currentStep === 2 ? '开始智能分析' : '下一步') }}
         </el-button>
       </div>
     </div>

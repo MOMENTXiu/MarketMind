@@ -25,7 +25,7 @@ export interface AnalysisArtifactPayload {
   content?: string | null
 }
 
-export type RetailProjectStatus = 'queued' | 'processing' | 'completed' | 'failed'
+export type RetailProjectStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'needs_review'
 export type LegacyRetailProjectStatus = '待处理' | '处理中' | '已完成' | '失败'
 export type RetailStageName =
   | 'dataset_preparation'
@@ -58,6 +58,7 @@ export interface RetailProject {
   id: string
   name: string
   description?: string
+  analysis_kind?: string | null
   status: RetailProjectStatus | LegacyRetailProjectStatus | string
   dataset_ref?: ApiRef | null
   dataset_filename?: string | null
@@ -225,6 +226,7 @@ export function normalizeRetailProjectStatus(status: string | undefined | null):
     processing: 'processing',
     completed: 'completed',
     failed: 'failed',
+    needs_review: 'needs_review',
     待处理: 'queued',
     处理中: 'processing',
     已完成: 'completed',
@@ -239,6 +241,7 @@ export function getRetailProjectStatusConfig(status: string | undefined | null):
     processing: { color: '#F59E0B', label: '进行中' },
     completed: { color: '#10B981', label: '已完成' },
     failed: { color: '#EF4444', label: '失败' },
+    needs_review: { color: '#F97316', label: '需审查' },
     unknown: { color: '#9CA3AF', label: status || '未知' }
   }
   return map[normalizeRetailProjectStatus(status)]
