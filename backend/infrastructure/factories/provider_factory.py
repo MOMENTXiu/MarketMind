@@ -1,6 +1,7 @@
 """Provider container assembly."""
 
 from functools import lru_cache
+from typing import Any
 
 from fastapi import BackgroundTasks
 
@@ -38,16 +39,12 @@ from backend.infrastructure.adapters.local_regularized_dataset_adapter import (
 from backend.infrastructure.adapters.openai_compatible_llm_adapter import (
     OpenAICompatibleLLMAdapter,
 )
-from backend.infrastructure.adapters.postgres_retail_analysis_state_adapter import (
-    PostgresRetailAnalysisStateAdapter,
-)
 from backend.infrastructure.adapters.redis_analysis_event_stream_adapter import (
     RedisAnalysisEventStreamAdapter,
 )
 from backend.infrastructure.adapters.redis_analysis_job_queue_adapter import (
     RedisAnalysisJobQueueAdapter,
 )
-from backend.infrastructure.db.session import create_db_engine, create_session_factory
 from backend.providers.analysis_event_stream_provider import InMemoryAnalysisEventStreamProvider
 from backend.providers.analysis_job_queue_provider import InMemoryAnalysisJobQueueProvider
 from backend.providers.container import ProvidersContainer
@@ -96,11 +93,7 @@ def create_providers(
 
 def _build_phase3_redis_providers(
     settings: Settings,
-) -> tuple[
-    PostgresRetailAnalysisStateAdapter,
-    RedisAnalysisJobQueueAdapter,
-    RedisAnalysisEventStreamAdapter,
-]:
+) -> tuple[Any, Any, Any]:
     if not settings.REDIS_ENABLED:
         raise InfrastructureError(
             "TASK_QUEUE_BACKEND=redis requires REDIS_ENABLED=true for provider assembly"
@@ -128,13 +121,14 @@ def _build_phase3_redis_providers_cached(
     queue_name: str,
     heartbeat_ms: int,
     retry_ms: int,
-) -> tuple[
-    PostgresRetailAnalysisStateAdapter,
-    RedisAnalysisJobQueueAdapter,
-    RedisAnalysisEventStreamAdapter,
-]:
+) -> tuple[Any, Any, Any]:
     from redis import Redis
     from rq import Queue
+
+    from backend.infrastructure.adapters.postgres_retail_analysis_state_adapter import (
+        PostgresRetailAnalysisStateAdapter,
+    )
+    from backend.infrastructure.db.session import create_db_engine, create_session_factory
 
     runtime_settings = Settings(
         _env_file=None,

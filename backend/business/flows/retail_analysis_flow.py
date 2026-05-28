@@ -239,6 +239,24 @@ class RetailAnalysisFlow:
             skip_stages_after=self._skip_stages_after,
         ).run(state)
 
+    def link_data_processing_job(
+        self,
+        project_id: str,
+        *,
+        job_id: str,
+        dataset_filename: str | None = None,
+    ) -> dict[str, Any]:
+        state = self._load_state(project_id)
+        summary = dict(state.get("summary", {}))
+        summary["job_id"] = job_id
+        if dataset_filename is not None:
+            summary["dataset_filename"] = dataset_filename
+        state["summary"] = summary
+        state["job_id"] = job_id
+        state["status"] = "queued"
+        self._save_state(state, "state_changed")
+        return project_view(state)
+
     def get_project(self, project_id: str) -> dict[str, Any]:
         return project_view(self._load_state(project_id))
 

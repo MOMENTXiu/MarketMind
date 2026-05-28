@@ -134,7 +134,14 @@ def _data_processing_job_snapshot(
 
 
 def _is_dp_project(project: dict[str, Any]) -> bool:
-    return project.get("analysis_kind") == "data_processing"
+    summary = project.get("summary")
+    stages = project.get("stage_statuses") or []
+    stage_names = {stage.get("stage") for stage in stages if isinstance(stage, dict)}
+    return (
+        project.get("analysis_kind") == "data_processing"
+        or (isinstance(summary, dict) and summary.get("analysis_kind") == "data_processing")
+        or "dataset_regularization" in stage_names
+    )
 
 
 def _merge_dp_job_into_project(
@@ -218,11 +225,24 @@ async def create_project(
 @router.get("/projects")
 async def list_projects(
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
 ) -> dict:
     try:
         result = flow.list_projects()
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
+
+    for project in result.get("projects", []):
+        if _is_dp_project(project):
+            job_id = project.get("job_id")
+            if job_id:
+                try:
+                    job = dp_flow.get_job(project["id"], str(job_id))
+                    merged = _merge_dp_job_into_project(project, job)
+                    project.update(merged)
+                except MarketMindError:
+                    pass
+
     return _success(result)
 
 
@@ -262,24 +282,15 @@ async def upload_dataset(
         try:
             job = dp_flow.create_job(project_id, project["name"])
             job_id = str(job["job_id"])
-            # Link job to project via summary
-            state = flow.providers.retail_analysis_state.get_state(project_id)
-            if state is not None:
-                from dataclasses import replace as _replace
-
-                summary = dict(state.summary or {})
-                summary["job_id"] = job_id
-                flow.providers.retail_analysis_state.save_state(_replace(state, summary=summary))
-            result = dp_flow.upload_raw_dataset(
-                project_id, job_id, file.filename or "", await file.read()
-            )
+            flow.link_data_processing_job(project_id, job_id=job_id, dataset_filename=filename)
+            result = dp_flow.upload_raw_dataset(project_id, job_id, filename, await file.read())
         except MarketMindError as exc:
             raise map_internal_error(exc) from exc
         return _success(result)
     try:
         result = flow.upload_dataset(
             project_id,
-            file.filename or "",
+            filename,
             await file.read(),
         )
     except MarketMindError as exc:

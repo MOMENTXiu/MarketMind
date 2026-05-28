@@ -64,6 +64,11 @@ const createProject = async () => {
       analysis_kind: 'data_processing'
     })
 
+    // Defensive check: ensure backend created a Data Processing project
+    if (project.analysis_kind !== 'data_processing') {
+      throw new Error('项目类型创建异常，请刷新页面后重试')
+    }
+
     statusMessage.value = '正在上传数据...'
     const rawFile = fileList.value[0]?.raw
     if (!(rawFile instanceof File)) {
@@ -92,7 +97,13 @@ const createProject = async () => {
     ElMessage.success('项目已创建，开始分析')
     await router.push({ path: `/projects/${project.id}`, query: { poll: '1' } })
   } catch (error) {
-    ElMessage.error(`创建失败: ${getApiErrorMessage(error)}`)
+    const message = getApiErrorMessage(error)
+    // Translate the legacy Retail V2 column error into a project-type hint
+    if (message.includes('Retail V2 raw sales dataset missing columns')) {
+      ElMessage.error('项目类型不匹配：系统仍按旧版 Retail V2 处理。请尝试清除浏览器缓存后刷新页面，或重新创建项目。')
+    } else {
+      ElMessage.error(`创建失败: ${message}`)
+    }
   } finally {
     uploading.value = false
     statusMessage.value = ''
