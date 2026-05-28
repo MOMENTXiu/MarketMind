@@ -557,13 +557,6 @@ onUnmounted(() => {
 
           <div class="project-metadata-flow">
             <div class="meta-segment">
-              <span class="m-label">源文件：</span>
-              <span class="m-value">{{ project?.dataset_filename || project?.dataset_ref?.name || '无数据集' }}</span>
-            </div>
-
-            <div class="mini-divider"></div>
-
-            <div class="meta-segment">
               <span class="m-label">处理状态：</span>
               <div class="status-wrap-micro">
                 <span class="status-dot-nano" :class="projectStatusClass"></span>
