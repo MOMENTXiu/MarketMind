@@ -1,3 +1,4 @@
+export * from './analysis-artifacts'
 export * from './client'
 export * from './data-processing'
 export * from './errors'
