@@ -1,8 +1,133 @@
 # Backend Architecture Change Plan
 
-> Active note (2026-05-27): The active migration is Retail V2 state from local pickle to PostgreSQL, FastAPI BackgroundTasks to Redis Queue, and 2.5s frontend polling to SSE. The historical sections below remain as prior migration records. For this active work, this section is authoritative until the migration is completed and reconciled into the stable architecture docs.
+> Active note (2026-05-28): The active fix is DP (Data Processing) project artifact payload API 404 and universal analysis JSON data format mismatch that causes frontend ECharts charts to display empty state. The historical sections below remain as prior migration records. For this active work, the new section is authoritative until the fix is completed and reconciled.
 
-## Active 2026-05-27: Retail V2 PostgreSQL State + Redis Queue + SSE
+## Active 2026-05-28: DP Artifact Payload API 404 + Universal Analysis Data Format Fix
+
+### Scope And Decisions
+
+本轮修复的目标：
+1. 打通 Data Processing (DP) 项目 completed 状态下前端获取 artifact payload 的链路。
+2. 统一 universal analysis 各模块输出 JSON 的数据格式，使其与前端 chart transform 期望匹配。
+3. 补全 contract test 覆盖，防止前端图表 empty state 漏测。
+
+已锁定决策：
+
+| Decision | Selection | Result |
+|---|---|---|
+| D1 | A | 最小修改 `RetailAnalysisFlow.get_artifact_payload`，允许在 `artifact_refs` 中找不到时 fallback 到 `analysis_artifacts.load_payload`。 |
+| D2 | A | 修改 Ability Atom (`build_overview`, `estimate_universal_promotion_effect`, `rank_universal_recommendations`) 输出格式，不改前端 transform。 |
+| D3 | A | 一次只修复一个内聚阶段：先 API 404，再数据格式，再测试。 |
+
+### Current Runtime Chain
+
+DP 项目 artifact payload 当前路径：
+
+```text
+GET /api/analysis/projects/{pid}/artifacts/{aid}/payload
+  -> backend/api/analysis.py::get_artifact_payload
+  -> RetailAnalysisFlow.get_artifact_payload
+  -> _load_state(project_id)          # 加载 project state
+  -> _find_artifact_ref(state, aid)   # 在 project.artifact_refs 中查找
+  -> 404 NotFoundError                 # DP 项目的 artifact 不在 project state 中
+```
+
+问题：`_merge_dp_job_into_project` 只在 `get_project` API 中临时合并 job 的 `output_refs` 到 `artifact_refs`，没有持久化。`get_artifact_payload` 独立加载 project state，找不到 artifact ref。
+
+Universal analysis 数据格式当前链路：
+
+```text
+Backend Ability Atom (build_overview)
+  -> category_sales = cs.to_dict()          # dict
+  -> daily_sales = daily.to_dict()          # dict
+  -> save_json(project_id, "universal_overview", result)
+  -> LocalAnalysisArtifactAdapter.save_json
+  -> filesystem: projects/{pid}/analysis/artifacts/json/universal_overview.json
+
+Frontend transform (buildCategoryParetoOption)
+  -> expects Array<{category, sales}>       # 实际收到 dict，.length undefined
+  -> returns {} (empty option)
+```
+
+### Direct Access And Migration Targets
+
+| Current location | Current external access | Problem | Target boundary |
+|---|---|---|---|
+| `RetailAnalysisFlow.get_artifact_payload` | 严格检查 `artifact_refs` 白名单 | DP 项目 artifact 不在这个白名单里 | 放宽为：ref 存在时验证，不存在时直接尝试 `load_payload` |
+| `backend/abilities/universal_analysis/build_overview.py` | `category_sales = cs.to_dict()` | 返回 dict，前端期望 Array | 返回 `Array<{category, sales}>` |
+| `backend/abilities/universal_analysis/build_overview.py` | `daily_sales = daily.to_dict()` | 返回 dict，前端期望 Array | 返回 `Array<{date, sales}>` |
+| `backend/abilities/universal_analysis/build_overview.py` | `"记录数"` | 前端期望 `"总记录数"` | 改为 `"总记录数"` |
+| `backend/abilities/universal_analysis/estimate_universal_promotion_effect.py` | `discount_levels = dd.to_dict()` | 返回 dict，前端期望 Array | 返回 `Array<{discount, avg_amount}>` |
+| `backend/abilities/universal_analysis/rank_universal_recommendations.py` | `"模型"` | 前端期望 `"model"` | 改为 `"model"` |
+
+### Behavior Anchors
+
+Must preserve:
+- Existing `/api/analysis/projects/{pid}/artifacts/{aid}/payload` REST path and response schema.
+- Existing Retail 项目的 artifact payload 行为（不受影响）。
+- Existing `list_artifacts` 行为。
+- Existing DP job state 和 output_refs 行为。
+- Existing frontend chart transform logic in `frontend/src/utils/data-processing-charts.ts`.
+
+Allowed change:
+- `RetailAnalysisFlow.get_artifact_payload` 支持 fallback 加载。
+- Universal analysis ability atoms 输出字段名和结构改变。
+
+### Import Rules To Enforce
+
+Architecture lint must mechanically reject these regressions:
+
+- `backend/business/**` and `backend/abilities/**` importing `sqlalchemy`, `redis`, `rq`, FastAPI request/response types, infrastructure adapters, or env readers.
+- `backend/api/**` importing SQLAlchemy, Redis, RQ, infrastructure adapters, or constructing external clients.
+- Any business layer use of `os.environ`, `os.getenv`, or `backend.core.config.settings`.
+
+### Error Strategy
+
+External Adapters convert external errors to internal errors before crossing Provider Boundary:
+
+| External error | Internal expression |
+|---|---|
+| Artifact not found in storage | `NotFoundError` |
+| Invalid artifact id format | `ValidationError` |
+| JSON serialization failure | `ProviderError` |
+
+API Controller maps internal errors to public responses and must not return raw filesystem details.
+
+### Test, Runtime Check, And Verification Strategy
+
+| Category | Coverage |
+|---|---|
+| API contract | `GET /projects/{pid}/artifacts/{aid}/payload` 对 DP 项目返回 200 而非 404 |
+| Ability unit test | `build_overview` 输出 `category_sales` / `daily_sales` 为数组；KPI 字段为 `"总记录数"` |
+| Ability unit test | `estimate_universal_promotion_effect` 输出 `discount_levels` 为数组 |
+| Ability unit test | `rank_universal_recommendations` 输出 `evaluation[].model` 为英文键 |
+| Adapter contract | `LocalAnalysisArtifactAdapter` / `MinioAnalysisArtifactAdapter` 仍能正确加载 JSON payload |
+| Frontend transform | `data-processing-charts.ts` 各 `build*Option` 在正确输入下 `series.length > 0` |
+
+Verification commands:
+
+```bash
+uv run pytest tests/api/test_data_processing_analysis_contracts.py -k payload
+uv run pytest tests/business/test_data_processing_pipelines.py
+uv run pytest tests/abilities/test_universal_analysis_abilities.py
+make lint
+make test
+make build
+```
+
+### Rollback
+
+| Stage | Rollback |
+|---|---|
+| API fallback | 恢复 `get_artifact_payload` 的 ref-only 严格检查 |
+| Data format | 恢复 ability atoms 的旧输出格式（如果前端已适配，则保留新格式） |
+| Contract tests | 删除新增测试 |
+
+---
+
+> Historical note (2026-05-27): The migration described in the section below (Retail V2 PostgreSQL State + Redis Queue + SSE) has been completed and reconciled into stable architecture docs. It is preserved as historical record only.
+
+## 2026-05-27 (completed): Retail V2 PostgreSQL State + Redis Queue + SSE
 
 ### Scope And Decisions
 

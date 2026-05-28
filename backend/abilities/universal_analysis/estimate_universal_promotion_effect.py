@@ -59,7 +59,9 @@ def estimate_universal_promotion_effect(df: pd.DataFrame, _cap: dict[str, Any]) 
             ),
             observed=True,
         )["amount"].mean()
-        out["discount_levels"] = dd.round(2).to_dict()
+        out["discount_levels"] = [
+            {"discount": str(k), "avg_amount": round(v, 2)} for k, v in dd.items()
+        ]
     if _has("profit"):
         out["total_profit"] = round(pos["profit"].sum(), 1)
         out["profit_margin"] = round(pos["profit"].sum() / pos["amount"].sum(), 4)

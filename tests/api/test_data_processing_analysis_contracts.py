@@ -256,14 +256,79 @@ def test_run_analysis_with_real_adapter(isolated_env_real_adapter: Any) -> None:
     reg_response = client.post(f"/api/analysis/jobs/{job_id}/regularize?project_id=test-project")
     assert reg_response.status_code == 200
     reg_data = assert_success_payload(reg_response.json())
-    if reg_data["status"] != "completed":
-        pytest.skip("Regularization did not complete; cannot test run with real adapter")
+    if reg_data["status"] == "needs_review":
+        pytest.skip("Regularization needs review; cannot test run with real adapter")
 
     run_response = client.post(f"/api/analysis/jobs/{job_id}/run?project_id=test-project")
     assert run_response.status_code in {200, 202}
     run_data = assert_success_payload(run_response.json())
     assert run_data["job_id"] == job_id
     assert run_data["status"] in VALID_JOB_STATUSES
+
+
+def _create_dp_project(client: TestClient) -> str:
+    response = client.post(
+        "/api/analysis/projects",
+        json={"name": "DP Payload Contract", "analysis_kind": "data_processing"},
+    )
+    assert response.status_code == 201
+    data = assert_success_payload(response.json())
+    return str(data["id"])
+
+
+def test_artifact_payload_for_dp_project_contract(isolated_env_real_adapter: Any) -> None:
+    """Completed DP project must load artifact payload via /projects/{pid}/artifacts/{aid}/payload."""
+    client = TestClient(app)
+    project_id = _create_dp_project(client)
+
+    response = client.post(
+        f"/api/analysis/projects/{project_id}/dataset",
+        files={
+            "file": (
+                "retail.csv",
+                open("tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv", "rb"),
+                "text/csv",
+            )
+        },
+    )
+    assert response.status_code == 200
+    data = assert_success_payload(response.json())
+    job_id = data.get("job_id")
+    assert job_id
+
+    reg_response = client.post(f"/api/analysis/jobs/{job_id}/regularize?project_id={project_id}")
+    assert reg_response.status_code == 200
+    reg_data = assert_success_payload(reg_response.json())
+    if reg_data["status"] == "needs_review":
+        pytest.skip("Regularization needs review; cannot test payload")
+
+    run_response = client.post(f"/api/analysis/jobs/{job_id}/run?project_id={project_id}")
+    assert run_response.status_code in {200, 202}
+
+    # Fetch project to get artifact refs
+    project_response = client.get(f"/api/analysis/projects/{project_id}")
+    assert project_response.status_code == 200
+    project = assert_success_payload(project_response.json())
+
+    refs = project.get("artifact_refs", [])
+    json_refs = [ref for ref in refs if str(ref.get("id", "")).startswith("json:")]
+    if not json_refs:
+        pytest.skip("No JSON artifacts found after analysis")
+
+    # Verify payload endpoint returns 200 for at least one JSON artifact
+    for ref in json_refs:
+        art_id = ref["id"]
+        payload_response = client.get(
+            f"/api/analysis/projects/{project_id}/artifacts/{art_id}/payload"
+        )
+        if payload_response.status_code == 200:
+            data = assert_success_payload(payload_response.json())
+            assert data["project_id"] == project_id
+            assert data["payload_type"] == "json"
+            assert "payload" in data
+            return
+
+    pytest.fail("No JSON artifact payload returned 200")
 
 
 def test_error_contracts(client: TestClient) -> None:

@@ -355,6 +355,23 @@ curl 'http://localhost:8000/api/analysis/jobs/{job_id}/sidecars/sidecar:quality_
 curl 'http://localhost:8000/api/analysis/jobs/{job_id}/sidecars/sidecar:capability?project_id=demo-project'
 ```
 
+Data Processing 项目 completed 后，前端通过 Retail V2 同款的 artifact payload 接口读取 universal analysis JSON 产物（例如 `json:universal_overview.json`）：
+
+```bash
+curl 'http://localhost:8000/api/analysis/projects/{project_id}/artifacts/json:universal_overview.json/payload'
+```
+
+可用的 universal analysis artifact id 示例：
+
+```text
+json:universal_overview.json
+json:universal_profile_segments.json
+json:universal_association.json
+json:universal_recommendation.json
+json:universal_promotion.json
+json:universal_summary.json
+```
+
 Data Processing dataset ref 和 sidecar ref 会包含 `id`、`project_id`、`job_id`、`type` 或 `sidecar_type`、`name`、`storage_key`、`url`、`metadata`、`created_at`。调用方不应依赖本地文件路径。
 
 ## 推荐接入流程

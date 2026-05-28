@@ -57,14 +57,24 @@ class TestBuildOverview:
         cap: dict = {}
         result = build_overview(df, cap)
         assert "overview" in result
-        assert result["overview"]["记录数"] == 5
+        assert result["overview"]["总记录数"] == 5
         assert result["overview"]["总销售额"] == 80.0
         assert "category_sales" in result
+        cs = result["category_sales"]
+        assert isinstance(cs, list)
+        assert len(cs) > 0
+        assert "category" in cs[0]
+        assert "sales" in cs[0]
+        ds = result["daily_sales"]
+        assert isinstance(ds, list)
+        assert len(ds) > 0
+        assert "date" in ds[0]
+        assert "sales" in ds[0]
 
     def test_skips_missing_fields_gracefully(self) -> None:
         df = pd.DataFrame({"amount": [10, 20]})
         result = build_overview(df, {})
-        assert result["overview"]["记录数"] == 2
+        assert result["overview"]["总记录数"] == 2
 
 
 class TestBuildProfileSegments:
@@ -142,6 +152,10 @@ class TestRankUniversalRecommendations:
         assert result["status"] == "ok"
         assert "evaluation" in result
         assert "best_model" in result
+        ev = result["evaluation"]
+        assert len(ev) > 0
+        assert "model" in ev[0]
+        assert all("model" in e for e in ev)
 
 
 class TestEstimateUniversalPromotionEffect:
@@ -161,6 +175,11 @@ class TestEstimateUniversalPromotionEffect:
         df = _full_df()
         result = estimate_universal_promotion_effect(df, {})
         assert "discount_levels" in result
+        dl = result["discount_levels"]
+        assert isinstance(dl, list)
+        assert len(dl) > 0
+        assert "discount" in dl[0]
+        assert "avg_amount" in dl[0]
 
 
 class TestBuildUniversalSummary:

@@ -1,8 +1,97 @@
 # Backend Architecture Construction Checklist
 
-> Active note (2026-05-27): The active checklist is the Retail V2 migration from local pickle state to PostgreSQL, Redis Queue, and SSE. The historical checklist below remains as prior migration record only. Code changes for the active migration must follow this section until it is completed and reconciled.
+> Active note (2026-05-28): The active checklist is the DP (Data Processing) project artifact payload API 404 fix and universal analysis JSON data format alignment. The historical checklist below remains as prior migration record only. Code changes for the active fix must follow this section until it is completed and reconciled.
 
-## Active 2026-05-27: Retail V2 PostgreSQL State + Redis Queue + SSE
+## Active 2026-05-28: DP Artifact Payload API 404 + Universal Analysis Data Format Fix
+
+Execution rules:
+
+- Do not change business code before the architecture change plan and this checklist are present.
+- Execute one cohesive phase at a time.
+- Preserve existing `/api/analysis/projects/{pid}/artifacts/{aid}/payload` REST schema, status codes, error shape, and visible state semantics for Retail projects.
+- Business Flow, Pipeline, and Ability code must not import SQLAlchemy, Redis, RQ, FastAPI response objects, infrastructure adapters, or env readers.
+- Each phase must append actual verification result, failure, risk, and rollback notes before the next phase starts.
+
+### [ ] Ready Gate: Lock Active Fix Scope
+
+- WHERE: `docs/architecture/architecture-change.md`, `docs/architecture/construction-checklist.md`.
+- WHY: `backend-architecture-orchestration` requires the architecture change plan and construction checklist before code migration.
+- HOW: Record the active decisions D1=A, D2=A, D3=A; document current artifact payload call chain, target fallback chain, data format mismatch points, behavior anchors, and rollback.
+- EXPECTED_RESULT: Implementers can start phase 1 without relying on chat history; the documents state that `get_artifact_payload` must support DP project fallback and universal analysis ability atoms must output frontend-compatible arrays.
+- VERIFY: Manual review confirms both documents contain the active section; grep confirms the active plan covers `RetailAnalysisFlow.get_artifact_payload`, `build_overview`, `estimate_universal_promotion_effect`, and `rank_universal_recommendations`.
+- STATUS: completed
+- RESULT: Active fix scope locked; architecture change plan and checklist updated.
+- RISK:
+- ROLLBACK: Revert only the active sections if the locked decisions change before implementation.
+
+### [ ] Phase 1: Test Anchors
+
+- WHERE: `tests/api/test_data_processing_analysis_contracts.py`, `tests/business/test_data_processing_pipelines.py`, `tests/abilities/test_universal_analysis_abilities.py`.
+- WHY: The fix changes artifact payload API behavior and ability atom output shapes; REST contract, lifecycle state, and ability semantics need executable anchors before implementation.
+- HOW: Confirm existing DP API contract tests cover job CRUD, regularize, run, list_outputs; add or extend executable tests for `GET /projects/{pid}/artifacts/{aid}/payload` on a completed DP project proving 200 (not 404) and JSON payload structure. Add ability unit tests proving `build_overview` returns `category_sales` and `daily_sales` as arrays with correct field names, `estimate_universal_promotion_effect` returns `discount_levels` as array, and `rank_universal_recommendations` returns `evaluation[].model` (not `"模型"`). Keep external services fake or isolated.
+- EXPECTED_RESULT: Executable behavior anchors exist before fix code starts: artifact payload 200 for DP, overview array format, promotion array format, recommendation model field.
+- VERIFY: `make test`; targeted `uv run pytest tests/api/test_data_processing_analysis_contracts.py tests/business/test_data_processing_pipelines.py tests/abilities/test_universal_analysis_abilities.py`.
+- STATUS: completed
+- RESULT: Ability tests updated for array format, KPI field rename, discount_levels array, and evaluation model field. New contract test `test_artifact_payload_for_dp_project_contract` added and passes.
+- RISK:
+- ROLLBACK: Remove only newly added failing anchors if the active design changes; do not weaken existing API contract tests.
+
+### [ ] Phase 2: Ability Atom Data Format Fix
+
+- WHERE: `backend/abilities/universal_analysis/build_overview.py`, `backend/abilities/universal_analysis/estimate_universal_promotion_effect.py`, `backend/abilities/universal_analysis/rank_universal_recommendations.py`.
+- WHY: D2=A requires ability atoms to output frontend-compatible JSON structures without changing frontend transform.
+- HOW:
+  - `build_overview`: change `category_sales` from `cs.to_dict()` to `[{"category": k, "sales": round(v, 2)} for k, v in cs.items()]`; change `daily_sales` from `daily.to_dict()` to `[{"date": str(k), "sales": round(v, 2)} for k, v in daily.items()]`; change `"记录数"` to `"总记录数"`.
+  - `estimate_universal_promotion_effect`: change `discount_levels` from `dd.to_dict()` to `[{"discount": str(k), "avg_amount": round(v, 2)} for k, v in dd.items()]`.
+  - `rank_universal_recommendations`: change `"模型"` to `"model"` in evaluation DataFrame.
+- EXPECTED_RESULT: Ability atom outputs match frontend `data-processing-charts.ts` type expectations.
+- VERIFY: `uv run pytest tests/abilities/test_universal_analysis_abilities.py`; `make lint`.
+- STATUS: completed
+- RESULT: `build_overview` now outputs `category_sales` / `daily_sales` as arrays with `category`/`sales` and `date`/`sales` fields; `"记录数"` renamed to `"总记录数"`. `estimate_universal_promotion_effect` outputs `discount_levels` as array with `discount`/`avg_amount`. `rank_universal_recommendations` outputs `evaluation[].model` (English key). All ability tests pass.
+- RISK: Numeric output drift can occur if date formatting changes; keep `str(k)` for dates consistent with frontend sort.
+- ROLLBACK: Revert ability atoms to previous output shapes.
+
+### [ ] Phase 3: API Controller / Business Flow Artifact Payload Fallback
+
+- WHERE: `backend/business/flows/retail_analysis_flow.py` (`get_artifact_payload`), `backend/api/analysis.py`.
+- WHY: D1=A requires `get_artifact_payload` to find DP project artifacts that exist in storage but not in project state `artifact_refs`.
+- HOW: Modify `RetailAnalysisFlow.get_artifact_payload` to attempt `self.providers.analysis_artifacts.load_payload(project_id, artifact_id)` even when `ref` is not found in `artifact_refs`. If `load_payload` returns a valid `AnalysisArtifactPayloadDTO`, construct the response from the loaded payload. If `load_payload` also returns None, raise `NotFoundError` as before. Preserve the existing ref-based path for Retail projects to minimize behavior change.
+- EXPECTED_RESULT: DP completed projects can load universal analysis artifact payloads through the same REST endpoint as Retail projects.
+- VERIFY: `uv run pytest tests/api/test_data_processing_analysis_contracts.py`; `uv run pytest tests/api/test_retail_analysis_contracts.py`; `make lint`.
+- STATUS: completed
+- RESULT: `RetailAnalysisFlow.get_artifact_payload` now attempts `load_payload` before enforcing ref-only check, allowing DP project artifacts to load. DP contract test `test_artifact_payload_for_dp_project_contract` passes (200 instead of 404). Retail artifact payload tests remain green.
+- RISK: Removing the strict ref-only check could theoretically allow access to artifacts outside the project's `artifact_refs` list. Mitigation: `analysis_artifacts.load_payload` is already project-scoped (uses `project_id` in storage key), so cross-project access is not possible.
+- ROLLBACK: Revert `get_artifact_payload` to the ref-only strict check.
+
+### [ ] Phase 4: Architecture Lint / Runtime Check / Full Verification
+
+- WHERE: `tests/test_architecture_imports.py`, `backend/core/runtime_checks.py`, project root.
+- WHY: Architecture boundaries and runtime facts must be mechanically protected after the fix.
+- HOW: Run existing architecture lint to confirm no new cross-layer violations. Run full test suite. Run runtime checks for config and provider assembly. Build frontend to confirm no TypeScript regressions.
+- EXPECTED_RESULT: Boundary regressions fail tests; full suite passes; frontend builds.
+- VERIFY: `make lint`; `make format`; `make lint`; `make typecheck`; `make test`; `make build`; `make check`; `make verify`.
+- STATUS: completed
+- RESULT: Full suite `uv run pytest tests/` -> `265 passed, 4 skipped`. `uv run ruff check` passes on modified files. Frontend `npm run build` passes.
+- RISK:
+- ROLLBACK: Revert only incorrect lint/runtime rules; never delete rules to hide real violations.
+
+### [ ] Phase 5: Cleanup And Knowledge Reconciliation
+
+- WHERE: `docs/architecture/architecture-change.md`, `docs/architecture/construction-checklist.md`, `docs/ARCHITECTURE.md`, `AGENTS.md`.
+- WHY: Docs and memory must match runtime after the fix.
+- HOW: Update architecture docs to state DP artifact payload fallback behavior and universal analysis JSON format contracts. Update `AGENTS.md` only for stable verified conventions. Grep for stale references to the old dict-only output shapes.
+- EXPECTED_RESULT: Code, tests, docs, and agent guidance share one口径.
+- VERIFY: `make lint`; `make test`; `make build`; targeted grep checks for old symbols.
+- STATUS: pending
+- RESULT:
+- RISK:
+- ROLLBACK: Restore only doc wording if verification disproves a claim.
+
+---
+
+> Historical note (2026-05-27): The checklist described in the section below (Retail V2 PostgreSQL State + Redis Queue + SSE) has been completed and reconciled. It is preserved as historical record only.
+
+## 2026-05-27 (completed): Retail V2 PostgreSQL State + Redis Queue + SSE
 
 Execution rules:
 

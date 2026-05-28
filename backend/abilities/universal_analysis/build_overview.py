@@ -18,7 +18,7 @@ def build_overview(df: pd.DataFrame, _cap: dict[str, Any]) -> dict[str, Any]:
         return c in df.columns
 
     ov = {
-        "记录数": len(df),
+        "总记录数": len(df),
         "用户数": df["user_id"].nunique() if _has("user_id") else None,
         "商品数": df["item_id"].nunique() if _has("item_id") else None,
         "订单数": df["order_id"].nunique() if _has("order_id") else None,
@@ -37,11 +37,11 @@ def build_overview(df: pd.DataFrame, _cap: dict[str, Any]) -> dict[str, Any]:
         cs = pos.groupby("cat_l1_name")["amount"].sum().sort_values(ascending=False)
         out["top_category"] = cs.index[0]
         out["pareto_top20pct_share"] = round(cs.head(max(1, len(cs) // 5)).sum() / cs.sum(), 3)
-        out["category_sales"] = cs.round(2).to_dict()
+        out["category_sales"] = [{"category": k, "sales": round(v, 2)} for k, v in cs.items()]
 
     if _has("sale_date") and _has("amount"):
         daily = pos.groupby(pos["sale_date"].dt.normalize())["amount"].sum()
-        out["daily_sales"] = daily.round(2).to_dict()
+        out["daily_sales"] = [{"date": str(k), "sales": round(v, 2)} for k, v in daily.items()]
         span = (daily.index.max() - daily.index.min()).days
         out["time_span_days"] = span
 

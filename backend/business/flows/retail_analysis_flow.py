@@ -281,11 +281,14 @@ class RetailAnalysisFlow:
     def get_artifact_payload(self, project_id: str, artifact_id: str) -> dict[str, Any]:
         state = self._load_state(project_id)
         ref = self._find_artifact_ref(state, artifact_id)
-        if ref is None or ref.get("type") == "model":
-            raise NotFoundError(f"Retail Analysis artifact not found: {artifact_id}")
 
         payload = self.providers.analysis_artifacts.load_payload(project_id, artifact_id)
         if payload is None:
+            raise NotFoundError(f"Retail Analysis artifact not found: {artifact_id}")
+
+        # Reject model refs; allow fallback load for artifacts not in project state
+        # (e.g. Data Processing projects where artifact_refs live in job state)
+        if ref is not None and ref.get("type") == "model":
             raise NotFoundError(f"Retail Analysis artifact not found: {artifact_id}")
 
         return {

@@ -140,7 +140,7 @@ def _evaluate(
         union |= set(topk)
     n = max(n, 1)
     return {
-        "模型": name,
+        "model": name,
         "Precision@10": round(P / n, 4),
         "Recall@10": round(R / n, 4),
         "HitRate@10": round(H / n, 4),
@@ -198,13 +198,13 @@ def rank_universal_recommendations(df: pd.DataFrame, _cap: dict[str, Any]) -> di
             models["CRITIC-TOPSIS"][u] = glob
 
     ev = pd.DataFrame([_evaluate(models[m], truth, all_items, m) for m in models])
-    fusion = float(ev[ev["模型"] == "CRITIC-TOPSIS"]["HitRate@10"].iloc[0])
-    best_single = ev[ev["模型"] != "CRITIC-TOPSIS"]["HitRate@10"].max()
+    fusion = float(ev[ev["model"] == "CRITIC-TOPSIS"]["HitRate@10"].iloc[0])
+    best_single = ev[ev["model"] != "CRITIC-TOPSIS"]["HitRate@10"].max()
     return {
         "status": "ok",
         "eval_users": len(eval_users),
         "reliability": {k: round(v, 3) for k, v in reliability.items()},
-        "best_model": ev.loc[ev["HitRate@10"].idxmax(), "模型"],
+        "best_model": ev.loc[ev["HitRate@10"].idxmax(), "model"],
         "fusion_hit": round(fusion, 4),
         "best_single_hit": round(float(best_single), 4),
         "fusion_vs_best": round(fusion - float(best_single), 4),
