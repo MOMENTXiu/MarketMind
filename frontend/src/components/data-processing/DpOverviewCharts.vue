@@ -22,7 +22,7 @@ const hasTrend = computed(() => props.payload?.daily_sales && props.payload.dail
         <el-icon class="icon-main"><DataLine /></el-icon>
         <div>
           <h3>销售概览</h3>
-          <p>类目分布与趋势</p>
+          <p>销售额趋势与品类贡献分析</p>
         </div>
       </div>
     </div>

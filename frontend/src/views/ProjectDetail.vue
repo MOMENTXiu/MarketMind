@@ -208,6 +208,24 @@ const qualityGridRows = computed((): DpKvRow[] => {
 
 const summaryEntries = computed(() => Object.entries(project.value?.summary || {}).filter(([k]) => k !== 'analysis_kind' && k !== 'job_id').slice(0, 8))
 const qualityEntries = computed(() => Object.entries(project.value?.quality_summary || {}).slice(0, 8))
+
+const STAGE_LABELS: Record<string, string> = {
+  dataset_regularization: '数据标准化',
+  overview: '概览分析',
+  profile_segmentation: '客户分群',
+  association: '关联分析',
+  recommendation: '个性化推荐',
+  promotion: '促销分析',
+  summary: '结果摘要',
+}
+const STAGE_STATUS_LABELS: Record<string, string> = {
+  completed: '已完成',
+  processing: '处理中',
+  failed: '失败',
+  queued: '等待中',
+  skipped: '已跳过',
+  needs_review: '需审查',
+}
 const stageStatuses = computed(() => project.value?.stage_statuses || [])
 
 // Data Processing specific
@@ -599,7 +617,7 @@ onUnmounted(() => {
               <el-icon class="icon-main"><TrendCharts /></el-icon>
               <div>
                 <h3>项目概览</h3>
-                <p>{{ project.error || '诊断状态与数据集摘要' }}</p>
+                <p>数据诊断与业务建议</p>
               </div>
             </div>
           </div>
@@ -652,13 +670,6 @@ onUnmounted(() => {
               </div>
             </template>
           </div>
-
-          <div class="stage-strip" v-if="stageStatuses.length">
-            <div v-for="stage in stageStatuses" :key="stage.stage" class="stage-chip" :class="stage.status">
-              <span>{{ stage.stage }}</span>
-              <strong>{{ stage.status }}</strong>
-            </div>
-          </div>
         </section>
 
         <!-- Data Processing Dashboard -->
@@ -701,10 +712,18 @@ onUnmounted(() => {
               <el-icon class="icon-main"><Folder /></el-icon>
               <div>
                 <h3>{{ isDataProcessingProject ? '诊断信息' : '分析产物' }}</h3>
-                <p>{{ isDataProcessingProject ? '原始 artifact refs 与调试输出' : '通过后端公开 ref 和 URL 访问' }}</p>
+                <p>技术详情、处理阶段与原始文件</p>
               </div>
             </div>
           </div>
+
+          <div class="stage-strip" v-if="stageStatuses.length">
+            <div v-for="stage in stageStatuses" :key="stage.stage" class="stage-chip" :class="stage.status">
+              <span>{{ STAGE_LABELS[stage.stage] || stage.stage }}</span>
+              <strong>{{ STAGE_STATUS_LABELS[stage.status] || stage.status }}</strong>
+            </div>
+          </div>
+
           <div class="artifact-grid">
             <div v-for="ref in visibleArtifactRefs" :key="ref.id" class="artifact-card">
               <span class="artifact-type">{{ ref.type || 'artifact' }}</span>

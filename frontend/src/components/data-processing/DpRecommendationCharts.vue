@@ -14,8 +14,34 @@ const reliabilityOption = computed(() => buildReliabilityOption(props.payload?.r
 
 const hasEvaluation = computed(() => props.payload?.evaluation && props.payload.evaluation.length > 0)
 const hasReliability = computed(() => props.payload?.reliability && Object.keys(props.payload.reliability).length > 0)
+const hasAnyData = computed(() => hasEvaluation.value || hasReliability.value)
 const bestModel = computed(() => props.payload?.best_model)
 const fusionHit = computed(() => props.payload?.fusion_hit)
+
+const strengthLabel = computed(() => {
+  const h = fusionHit.value
+  if (h === undefined || h === null) return null
+  if (h >= 0.1) return '高'
+  if (h >= 0.05) return '中'
+  return '低'
+})
+
+const MODEL_NAMES: Record<string, string> = {
+  '热门': '热门商品',
+  '类目偏好': '类目偏好',
+  '图嵌入': '图嵌入协同过滤',
+  'CRITIC-TOPSIS': '多信号融合',
+}
+const modelName = computed(() => bestModel.value ? (MODEL_NAMES[bestModel.value] || bestModel.value) : null)
+
+const actionText = computed(() => {
+  if (!hasAnyData.value) return '当前数据不足以生成稳定的个性化推荐结果。'
+  const parts: string[] = []
+  if (modelName.value) parts.push(`采用${modelName.value}模型`)
+  if (strengthLabel.value) parts.push(`推荐强度：${strengthLabel.value}`)
+  if (!parts.length) return '推荐系统已就绪。'
+  return parts.join('，') + '。可在会员小程序、收银推荐或短信推送中使用推荐结果。'
+})
 </script>
 
 <template>
@@ -25,42 +51,72 @@ const fusionHit = computed(() => props.payload?.fusion_hit)
         <el-icon class="icon-main"><Star /></el-icon>
         <div>
           <h3>个性化推荐</h3>
-          <p>模型评估与信号可靠性</p>
+          <p>根据用户行为生成可执行的商品推荐建议</p>
         </div>
       </div>
-      <div v-if="bestModel || fusionHit !== undefined" class="rec-meta">
-        <span v-if="bestModel" class="meta-tag">最佳: {{ bestModel }}</span>
-        <span v-if="fusionHit !== undefined" class="meta-tag">融合命中率: {{ (fusionHit * 100).toFixed(1) }}%</span>
-      </div>
     </div>
 
-    <div class="rec-charts-grid">
-      <div v-if="hasEvaluation" class="chart-card">
-        <h4 class="chart-title">模型指标对比</h4>
-        <v-chart :option="metricsOption" autoresize class="dp-chart" />
-      </div>
-      <div v-else class="chart-card empty">
-        <el-empty description="暂无模型评估" :image-size="56" />
-      </div>
-
-      <div v-if="hasReliability" class="chart-card">
-        <h4 class="chart-title">信号可靠性</h4>
-        <v-chart :option="reliabilityOption" autoresize class="dp-chart" />
-      </div>
-      <div v-else class="chart-card empty">
-        <el-empty description="暂无可靠性数据" :image-size="56" />
+    <!-- Business insight card -->
+    <div v-if="hasAnyData" class="insight-card">
+      <div class="insight-header">推荐建议</div>
+      <div class="insight-body">
+        <div class="insight-row" v-if="modelName">
+          <span class="insight-label">推荐策略</span>
+          <span>{{ modelName }}模型</span>
+        </div>
+        <div class="insight-row" v-if="strengthLabel">
+          <span class="insight-label">推荐强度</span>
+          <span :class="'strength-' + strengthLabel">{{ strengthLabel === '高' ? '高 — 推荐结果较可靠' : strengthLabel === '中' ? '中 — 建议结合业务经验使用' : '低 — 建议积累更多数据后重新分析' }}</span>
+        </div>
+        <div class="insight-row">
+          <span class="insight-label">执行方式</span>
+          <span>可在会员小程序首页、收银台提示或短信推送中展示推荐商品</span>
+        </div>
+        <p class="insight-body-text">{{ actionText }}</p>
       </div>
     </div>
+    <div v-else class="insight-card muted">
+      <p>{{ actionText }}</p>
+    </div>
+
+    <!-- Technical charts (foldable) -->
+    <details v-if="hasEvaluation || hasReliability" class="tech-details">
+      <summary>查看技术指标</summary>
+      <div class="rec-charts-grid">
+        <div v-if="hasEvaluation" class="chart-card">
+          <h4 class="chart-title">模型指标对比</h4>
+          <v-chart :option="metricsOption" autoresize class="dp-chart" />
+        </div>
+        <div v-if="hasReliability" class="chart-card">
+          <h4 class="chart-title">信号可靠性</h4>
+          <v-chart :option="reliabilityOption" autoresize class="dp-chart" />
+        </div>
+      </div>
+    </details>
   </section>
 </template>
 
 <style scoped>
 .rec-charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
 .chart-card { background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 20px; padding: 16px; }
-.chart-card.empty { display: flex; align-items: center; justify-content: center; min-height: 280px; }
 .chart-title { font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); margin: 0 0 12px 0; }
 .dp-chart { height: 280px; width: 100%; }
-.rec-meta { display: flex; gap: 8px; }
-.meta-tag { font-size: 0.72rem; padding: 4px 10px; background: var(--color-accent-soft); color: var(--color-accent); border-radius: 999px; font-weight: 700; }
+
+.insight-card { background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+.insight-card.muted { background: transparent; border-style: dashed; }
+.insight-card.muted p { color: var(--text-tertiary); font-size: 0.85rem; margin: 0; }
+.insight-header { font-size: 0.85rem; font-weight: 800; color: var(--text-primary); margin-bottom: 12px; }
+.insight-body { display: flex; flex-direction: column; gap: 8px; }
+.insight-row { display: flex; gap: 12px; font-size: 0.85rem; color: var(--text-secondary); }
+.insight-label { font-weight: 700; color: var(--text-primary); min-width: 80px; flex-shrink: 0; }
+.insight-body-text { font-size: 0.82rem; color: var(--text-tertiary); margin: 4px 0 0 0; line-height: 1.5; }
+.strength-高 { color: #10B981; font-weight: 600; }
+.strength-中 { color: #F59E0B; font-weight: 600; }
+.strength-低 { color: #EF4444; font-weight: 600; }
+
+.tech-details { margin-top: 8px; }
+.tech-details summary { cursor: pointer; font-size: 0.78rem; color: var(--text-tertiary); padding: 8px 0; user-select: none; }
+.tech-details .rec-charts-grid { margin-top: 12px; }
+
 @media (max-width: 980px) { .rec-charts-grid { grid-template-columns: 1fr; } }
 </style>

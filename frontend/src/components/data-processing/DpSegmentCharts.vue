@@ -27,7 +27,7 @@ const radarKey = computed(() => `radar-${props.payload?.segment_profiles?.length
         <el-icon class="icon-main"><User /></el-icon>
         <div>
           <h3>客户分群</h3>
-          <p>聚类画像与模型选择</p>
+          <p>识别不同类型客户，用于会员运营和精准推荐</p>
         </div>
       </div>
       <div v-if="nSegments !== undefined || silhouette !== undefined" class="segment-meta">

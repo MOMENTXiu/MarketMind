@@ -23,7 +23,7 @@ const hasAnySkipped = computed(() => {
         <el-icon class="icon-main"><TrendCharts /></el-icon>
         <div>
           <h3>分析概览</h3>
-          <p>核心指标总览</p>
+          <!-- no subtitle -->
         </div>
       </div>
     </div>

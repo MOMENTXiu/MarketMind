@@ -25,6 +25,13 @@ const topRules = computed(() => {
     .slice()
     .sort((a, b) => (b.提升度 ?? 0) - (a.提升度 ?? 0))
     .slice(0, 5)
+    .map(rule => ({
+      ant: String(rule.前项 ?? ''),
+      con: String(rule.后项 ?? ''),
+      conf: Number(rule.置信度 ?? 0),
+      lift: Number(rule.提升度 ?? 0),
+      explain: `购买「${rule.前项}」的顾客，更容易继续购买「${rule.后项}」。可用于商品陈列、捆绑销售或收银推荐。`,
+    }))
 })
 </script>
 
@@ -35,7 +42,7 @@ const topRules = computed(() => {
         <el-icon class="icon-main"><ShoppingCart /></el-icon>
         <div>
           <h3>关联分析</h3>
-          <p>购物篮规则与组合效用</p>
+          <p>发现常被一起购买的商品组合，用于陈列和捆绑销售</p>
         </div>
       </div>
       <div v-if="nRules !== undefined || avgLift !== undefined" class="assoc-meta">
@@ -72,13 +79,16 @@ const topRules = computed(() => {
       <h4 class="preview-title">Top 规则预览</h4>
       <div class="rules-table">
         <div v-for="(rule, idx) in topRules" :key="idx" class="rule-row">
-          <span class="rule-ant">{{ rule.前项 }}</span>
-          <span class="rule-arrow">→</span>
-          <span class="rule-con">{{ rule.后项 }}</span>
-          <span class="rule-metrics">
-            置信度 {{ ((rule.置信度 ?? 0) * 100).toFixed(1) }}% ·
-            提升度 {{ (rule.提升度 ?? 0).toFixed(2) }}
-          </span>
+          <div class="rule-main">
+            <span class="rule-ant">{{ rule.ant }}</span>
+            <span class="rule-arrow">→</span>
+            <span class="rule-con">{{ rule.con }}</span>
+            <span class="rule-metrics">
+              置信度 {{ (rule.conf * 100).toFixed(1) }}% ·
+              提升度 {{ rule.lift.toFixed(2) }}
+            </span>
+          </div>
+          <div class="rule-explain">{{ rule.explain }}</div>
         </div>
       </div>
     </div>
@@ -96,11 +106,13 @@ const topRules = computed(() => {
 .rules-preview { margin-top: 20px; }
 .preview-title { font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); margin: 0 0 12px 0; }
 .rules-table { display: flex; flex-direction: column; gap: 8px; }
-.rule-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 12px; font-size: 0.82rem; }
+.rule-row { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 12px; font-size: 0.82rem; }
+.rule-main { display: flex; align-items: center; gap: 12px; }
 .rule-ant { color: var(--text-primary); font-weight: 600; }
 .rule-arrow { color: var(--color-accent); font-weight: 700; }
 .rule-con { color: var(--color-accent); font-weight: 700; }
 .rule-metrics { margin-left: auto; color: var(--text-tertiary); font-size: 0.75rem; white-space: nowrap; }
+.rule-explain { font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.4; }
 .custom-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; margin-top: 10px; }
 .legend-chip { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: var(--text-secondary); }
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
