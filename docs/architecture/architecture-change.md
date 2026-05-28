@@ -332,7 +332,7 @@ D5=A means there is no production data migration and no historical pickle import
 
 Any temporary debug fallback to pickle must include a removal task in `docs/architecture/construction-checklist.md` and must not become a supported runtime path.
 
-> Status note (2026-05-26): This document is a historical migration record for the pre-Analysis V2 backend architecture refactor. For the current Retail V2 runtime baseline, use `docs/ARCHITECTURE.md` and `docs/architecture/analysis-v2-integration-checklist.md`. The active analysis path is `/api/analysis` -> `RetailAnalysisFlow` -> retail pipelines/abilities -> provider interfaces -> infrastructure adapters; legacy `/api/projects`, `/api/recommend`, `/api/association`, Voice/TTS routes (`/api/voice/*`, `/api/ai-voice/*`, `/api/tts/`), inactive prediction/clustering controllers, and `backend/services/*` are retired. Later Voice/TTS references in this file are preserved only as historical migration anchors, not current runtime guidance.
+> Status note (2026-05-26): This document is a historical migration record for the pre-Analysis V2 backend architecture refactor. For the current Retail V2 runtime baseline, use `docs/ARCHITECTURE.md` and `docs/archive/analysis-v2-integration-checklist.md`. The active analysis path is `/api/analysis` -> `RetailAnalysisFlow` -> retail pipelines/abilities -> provider interfaces -> infrastructure adapters; legacy `/api/projects`, `/api/recommend`, `/api/association`, Voice/TTS routes (`/api/voice/*`, `/api/ai-voice/*`, `/api/tts/`), inactive prediction/clustering controllers, and `backend/services/*` are retired. Later Voice/TTS references in this file are preserved only as historical migration anchors, not current runtime guidance.
 
 ## 1. Scope
 
