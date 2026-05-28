@@ -19,8 +19,8 @@ Run commands from the repository root.
 | `make infra-down` | Stops PostgreSQL and Redis without deleting named volumes |
 | `make infra-reset` | Stops services, deletes named volumes, then starts services again |
 | `make infra-logs` | Follows PostgreSQL and Redis logs |
-| `make db-migrate` | Runs `uv run alembic upgrade head` |
-| `make db-downgrade` | Runs `uv run alembic downgrade base` |
+| `make db-migrate` | Runs `uv run python -m alembic upgrade head` |
+| `make db-downgrade` | Runs `uv run python -m alembic downgrade base` |
 | `make db-revision` | Runs Alembic autogenerate; set `DB_REVISION_MESSAGE` |
 
 Quality loop after code changes:

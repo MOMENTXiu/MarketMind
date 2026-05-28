@@ -27,6 +27,8 @@
 | [architecture/frontend-backend-lack-port-checklist.md](architecture/frontend-backend-lack-port-checklist.md) | 前后端接口缺失施工清单。 |
 | [architecture/minio-object-storage-design.md](architecture/minio-object-storage-design.md) | MinIO 对象存储集成设计记录。 |
 | [architecture/minio-object-storage-checklist.md](architecture/minio-object-storage-checklist.md) | MinIO 对象存储集成检查清单。 |
+| [architecture/project-script-split-design.md](architecture/project-script-split-design.md) | 本地脚本拆分设计（deploy / start 分离）。 |
+| [architecture/project-script-split-checklist.md](architecture/project-script-split-checklist.md) | 本地脚本拆分实施检查清单。 |
 
 ## 历史与归档
 

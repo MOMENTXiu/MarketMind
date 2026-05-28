@@ -1,6 +1,7 @@
 @echo off
 REM MarketMind Project Startup Script for Windows
-REM This script starts backend, frontend, and worker concurrently
+REM Starts backend, worker, and frontend directly.
+REM Run scripts\deploy-project.bat first to prepare infrastructure and dependencies.
 
 setlocal enabledelayedexpansion
 
@@ -18,50 +19,18 @@ set "SCRIPT_DIR=%~dp0"
 set "ROOT_DIR=%SCRIPT_DIR%.."
 cd /d "%ROOT_DIR%"
 
-REM Check if startup scripts exist
-echo [1/5] Checking startup scripts...
-if not exist "%SCRIPT_DIR%start-backend.bat" (
-    echo Error: start-backend.bat not found
-    pause
-    exit /b 1
-)
-
-if not exist "%SCRIPT_DIR%start-frontend.bat" (
-    echo Error: start-frontend.bat not found
-    pause
-    exit /b 1
-)
-
-if not exist "%SCRIPT_DIR%start-worker.bat" (
-    echo Error: start-worker.bat not found
-    pause
-    exit /b 1
-)
-echo + Startup scripts ready
-echo.
-
-REM Check system requirements
-echo [2/5] Checking system requirements...
-
-REM Check Python
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo Error: Python 3 is not installed
-    pause
-    exit /b 1
-)
-for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
-echo + Python %PYTHON_VERSION% found
+REM Check required runtime tools
+echo [1/3] Checking runtime tools...
 
 REM Check uv
 uv --version >nul 2>&1
 if errorlevel 1 (
     echo Error: 'uv' package manager is not installed
-    echo Install with: powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+    echo Install with: powershell -c "irm https://astral.sh/uv/install.ps1 ^| iex"
     pause
     exit /b 1
 )
-echo + uv package manager found
+echo   uv found
 
 REM Check Node.js
 node --version >nul 2>&1
@@ -70,8 +39,7 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-for /f %%i in ('node --version') do set NODE_VERSION=%%i
-echo + Node.js %NODE_VERSION% found
+echo   Node.js found
 
 REM Check npm
 npm --version >nul 2>&1
@@ -80,135 +48,89 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-for /f %%i in ('npm --version') do set NPM_VERSION=%%i
-echo + npm %NPM_VERSION% found
+echo   npm found
 
-REM Check Docker
-docker --version >nul 2>&1
+REM Check curl
+curl --version >nul 2>&1
 if errorlevel 1 (
-    echo Error: Docker is not installed or not in PATH
+    echo Error: curl is not installed
     pause
     exit /b 1
 )
-echo + Docker found
+echo   curl found
+
 echo.
 
-REM Start Docker infrastructure
-echo [3/5] Starting Docker infrastructure...
-docker compose -f docker-compose.dev.yml up -d postgres redis
-if errorlevel 1 (
-    echo Error: Failed to start Docker infrastructure
-    pause
-    exit /b 1
-)
+REM Verify Docker infrastructure is ready
+echo [2/3] Verifying infrastructure readiness...
 
-REM Wait for postgres
-echo Waiting for postgres...
-set ATTEMPT=0
-:wait_postgres
-set /a ATTEMPT+=1
-if %ATTEMPT% GTR 30 (
-    echo Error: postgres did not become healthy
-    docker compose -f docker-compose.dev.yml ps
-    pause
-    exit /b 1
-)
 docker inspect --format="{{.State.Status}}" marketmind-postgres-dev 2>nul | findstr "running" >nul 2>&1
 if errorlevel 1 (
-    echo   Waiting for postgres (%ATTEMPT%/30)...
-    timeout /t 2 /nobreak >nul
-    goto wait_postgres
+    echo   postgres is not running
+    set INFRA_READY=0
+) else (
+    echo   postgres is running
 )
-echo + postgres is running
 
-REM Wait for redis
-echo Waiting for redis...
-set ATTEMPT=0
-:wait_redis
-set /a ATTEMPT+=1
-if %ATTEMPT% GTR 30 (
-    echo Error: redis did not become healthy
-    docker compose -f docker-compose.dev.yml ps
-    pause
-    exit /b 1
-)
 docker inspect --format="{{.State.Status}}" marketmind-redis-dev 2>nul | findstr "running" >nul 2>&1
 if errorlevel 1 (
-    echo   Waiting for redis (%ATTEMPT%/30)...
-    timeout /t 2 /nobreak >nul
-    goto wait_redis
+    echo   redis is not running
+    set INFRA_READY=0
+) else (
+    echo   redis is running
 )
-echo + redis is running
-echo.
 
-REM Install dependencies
-echo [4/5] Installing dependencies...
-
-REM Backend dependencies
-echo Installing backend dependencies...
-uv sync
+docker inspect --format="{{.State.Status}}" marketmind-minio-dev 2>nul | findstr "running" >nul 2>&1
 if errorlevel 1 (
-    echo Error: Failed to install backend dependencies
+    echo   minio is not running
+    set INFRA_READY=0
+) else (
+    echo   minio is running
+)
+
+if "%INFRA_READY%"=="0" (
+    echo.
+    echo Error: Docker infrastructure is not ready.
+    echo Run the deploy script first:
+    echo   scripts\deploy-project.bat
     pause
     exit /b 1
 )
-echo + Backend dependencies installed
-
-REM Frontend dependencies
-echo Installing frontend dependencies...
-cd /d "%ROOT_DIR%\frontend"
-if not exist "node_modules" (
-    npm install
-    if errorlevel 1 (
-        echo Error: Failed to install frontend dependencies
-        pause
-        exit /b 1
-    )
-)
-cd /d "%ROOT_DIR%"
-echo + Frontend dependencies installed
 echo.
 
-REM Apply database migrations
-echo Applying database migrations...
-uv run alembic upgrade head
-if errorlevel 1 (
-    echo Error: Database migration failed
-    pause
-    exit /b 1
-)
-echo + Database schema is ready
-echo.
-
-REM Create log directory and set env vars
-if not exist "logs" mkdir logs
+REM Set runtime environment
 set "REDIS_ENABLED=true"
 set "TASK_QUEUE_BACKEND=redis"
+if "%REDIS_URL%"=="" set "REDIS_URL=redis://localhost:6379/0"
+if "%DATABASE_URL%"=="" set "DATABASE_URL=postgresql+psycopg://marketmind:marketmind_dev_password@localhost:5432/marketmind"
+if "%ANALYSIS_QUEUE_NAME%"=="" set "ANALYSIS_QUEUE_NAME=retail-analysis"
+
+REM Create log directory
+if not exist "logs" mkdir logs
 
 REM Start servers
-echo [5/5] Starting servers...
+echo [3/3] Starting servers...
 echo.
 
-REM Start backend in new window
+REM Start backend in a new window
 echo Starting backend server...
-set "MARKETMIND_SKIP_INFRA=1"
-start "MarketMind Backend" cmd /c "set MARKETMIND_SKIP_INFRA=1 && \"%SCRIPT_DIR%start-backend.bat\" > logs\backend.log 2>&1"
-echo + Backend server started
+start "MarketMind Backend" cmd /c "cd /d "%ROOT_DIR%" && uv run python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000 > logs\backend.log 2>&1"
+echo   Backend server started
 echo   Backend logs: logs\backend.log
 
-REM Start worker in new window
+REM Start worker in a new window
 echo Starting analysis worker...
-start "MarketMind Worker" cmd /c "set MARKETMIND_SKIP_DEP_SYNC=1 && \"%SCRIPT_DIR%start-worker.bat\" > logs\worker.log 2>&1"
-echo + Analysis worker started
+start "MarketMind Worker" cmd /c "cd /d "%ROOT_DIR%" && uv run python -m rq.cli worker %ANALYSIS_QUEUE_NAME% --url %REDIS_URL% > logs\worker.log 2>&1"
+echo   Analysis worker started
 echo   Worker logs: logs\worker.log
 
 REM Wait a bit for backend to start
 timeout /t 3 /nobreak >nul
 
-REM Start frontend in new window
+REM Start frontend in a new window
 echo Starting frontend server...
-start "MarketMind Frontend" cmd /c "\"%SCRIPT_DIR%start-frontend.bat\" > logs\frontend.log 2>&1"
-echo + Frontend server started
+start "MarketMind Frontend" cmd /c "cd /d "%ROOT_DIR%\frontend" && npm run dev -- --host 0.0.0.0 > ..\logs\frontend.log 2>&1"
+echo   Frontend server started
 echo   Frontend logs: logs\frontend.log
 
 echo.
@@ -222,6 +144,8 @@ echo   Backend API: http://localhost:8000/api
 echo   API Docs:    http://localhost:8000/api/docs
 echo   Postgres:    localhost:5432
 echo   Redis:       localhost:6379
+echo   MinIO API:   http://localhost:9000
+echo   MinIO Console: http://localhost:9001
 echo.
 echo Log Files:
 echo   Backend:  logs\backend.log

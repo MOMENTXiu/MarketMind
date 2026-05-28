@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # MarketMind Project Startup Script
-# This script starts both frontend and backend servers concurrently
+# Starts backend, worker, and frontend directly.
+# Run ./scripts/deploy-project.sh first to prepare infrastructure and dependencies.
 
-set -e  # Exit on error
+set -e
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -16,7 +17,6 @@ NC='\033[0m' # No Color
 BACKEND_PID=""
 WORKER_PID=""
 FRONTEND_PID=""
-INFRA_STARTED=0
 
 kill_process_tree() {
     local pid="$1"
@@ -95,12 +95,12 @@ cleanup() {
     report_port_if_busy "9000" "MinIO API"
     report_port_if_busy "9001" "MinIO Console"
 
-    if [ "$INFRA_STARTED" = "1" ] && [ "${MARKETMIND_KEEP_INFRA:-0}" != "1" ]; then
+    if [ "${MARKETMIND_KEEP_INFRA:-0}" != "1" ]; then
         echo -e "${YELLOW}Stopping Docker infrastructure...${NC}"
         docker compose -f docker-compose.dev.yml stop postgres redis minio minio-init >/dev/null 2>&1 || true
     fi
 
-    echo -e "${GREEN}✓ MarketMind environment cleaned up${NC}"
+    echo -e "${GREEN}MarketMind environment cleaned up${NC}"
     exit "$exit_code"
 }
 
@@ -122,88 +122,102 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROOT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 cd "$ROOT_DIR"
 
-# Check if startup scripts exist
-echo -e "${YELLOW}[1/5] Checking startup scripts...${NC}"
-if [ ! -f "$SCRIPT_DIR/start-backend.sh" ]; then
-    echo -e "${RED}Error: start-backend.sh not found${NC}"
-    exit 1
-fi
+# Check required runtime tools
+echo -e "${YELLOW}[1/3] Checking runtime tools...${NC}"
 
-if [ ! -f "$SCRIPT_DIR/start-frontend.sh" ]; then
-    echo -e "${RED}Error: start-frontend.sh not found${NC}"
-    exit 1
-fi
-
-if [ ! -f "$SCRIPT_DIR/start-worker.sh" ]; then
-    echo -e "${RED}Error: start-worker.sh not found${NC}"
-    exit 1
-fi
-
-# Make sure scripts are executable
-chmod +x "$SCRIPT_DIR/start-backend.sh"
-chmod +x "$SCRIPT_DIR/start-frontend.sh"
-chmod +x "$SCRIPT_DIR/start-worker.sh"
-echo -e "${GREEN}✓ Startup scripts ready${NC}"
-echo ""
-
-# Check system requirements
-echo -e "${YELLOW}[2/5] Checking system requirements...${NC}"
-
-# Check Python
-if ! command -v python3 &> /dev/null; then
-    echo -e "${RED}Error: Python 3 is not installed${NC}"
-    exit 1
-fi
-PYTHON_VERSION=$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-echo -e "${GREEN}✓ Python ${PYTHON_VERSION} found${NC}"
-
-# Check uv
 if ! command -v uv &> /dev/null; then
     echo -e "${RED}Error: 'uv' package manager is not installed${NC}"
     echo -e "${YELLOW}Install with: curl -LsSf https://astral.sh/uv/install.sh | sh${NC}"
     exit 1
 fi
-echo -e "${GREEN}✓ uv package manager found${NC}"
+echo -e "${GREEN}  uv found${NC}"
 
-# Check Node.js
 if ! command -v node &> /dev/null; then
     echo -e "${RED}Error: Node.js is not installed${NC}"
     exit 1
 fi
-NODE_VERSION=$(node --version)
-echo -e "${GREEN}✓ Node.js ${NODE_VERSION} found${NC}"
+echo -e "${GREEN}  Node.js found${NC}"
 
-# Check npm
 if ! command -v npm &> /dev/null; then
     echo -e "${RED}Error: npm is not installed${NC}"
     exit 1
 fi
-NPM_VERSION=$(npm --version)
-echo -e "${GREEN}✓ npm ${NPM_VERSION} found${NC}"
+echo -e "${GREEN}  npm found${NC}"
 
-# Check curl
 if ! command -v curl &> /dev/null; then
     echo -e "${RED}Error: curl is not installed${NC}"
     exit 1
 fi
-echo -e "${GREEN}✓ curl found${NC}"
-
-# Check Docker
-if ! command -v docker &> /dev/null; then
-    echo -e "${RED}Error: Docker is not installed or not in PATH${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✓ Docker found${NC}"
+echo -e "${GREEN}  curl found${NC}"
 echo ""
 
-# Full-stack startup must use the production-like runtime. Force these values so
-# stale shell env or a local .env rollback cannot silently switch state to memory.
+# Verify Docker infrastructure is ready
+echo -e "${YELLOW}[2/3] Verifying infrastructure readiness...${NC}"
+
+check_service_running() {
+    local service_name="$1"
+    local status
+    status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "marketmind-${service_name}-dev" 2>/dev/null || true)"
+    if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+        echo -e "${GREEN}  ${service_name} is ${status}${NC}"
+        return 0
+    fi
+    return 1
+}
+
+INFRA_READY=true
+for svc in postgres redis minio; do
+    if ! check_service_running "$svc"; then
+        INFRA_READY=false
+        echo -e "${RED}  ${svc} is not running${NC}"
+    fi
+done
+
+if [ "$INFRA_READY" != "true" ]; then
+    echo ""
+    echo -e "${RED}Error: Docker infrastructure is not ready.${NC}"
+    echo -e "${YELLOW}Run the deploy script first:${NC}"
+    echo -e "  ${CYAN}./scripts/deploy-project.sh${NC}"
+    exit 1
+fi
+echo ""
+
+# Ensure ports are free
+echo -e "${YELLOW}Checking application ports...${NC}"
+
+ensure_port_free() {
+    local port="$1"
+    local name="$2"
+
+    if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port" -sTCP:LISTEN >/tmp/marketmind-port-check.log 2>/dev/null; then
+        echo -e "${RED}Error: ${name} port ${port} is already in use${NC}"
+        echo -e "${YELLOW}Existing listener:${NC}"
+        cat /tmp/marketmind-port-check.log
+        rm -f /tmp/marketmind-port-check.log
+        exit 1
+    fi
+    rm -f /tmp/marketmind-port-check.log
+}
+
+ensure_port_free "8000" "Backend API"
+ensure_port_free "5173" "Frontend"
+ensure_port_free "9000" "MinIO API"
+ensure_port_free "9001" "MinIO Console"
+echo -e "${GREEN}  All ports are free${NC}"
+echo ""
+
+# Set runtime environment
 export REDIS_ENABLED="true"
 export TASK_QUEUE_BACKEND="redis"
 export REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}"
 export DATABASE_URL="${DATABASE_URL:-postgresql+psycopg://marketmind:marketmind_dev_password@localhost:5432/marketmind}"
 export ANALYSIS_QUEUE_NAME="${ANALYSIS_QUEUE_NAME:-retail-analysis}"
+export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
+# Create log directory
+mkdir -p logs
+
+# Helper: ensure process is still alive
 ensure_process_alive() {
     local pid="$1"
     local name="$2"
@@ -230,10 +244,10 @@ wait_for_http() {
     while [ "$attempt" -le "$max_attempts" ]; do
         ensure_process_alive "$pid" "$name" "$log_file"
         if curl -fsS "$url" >/dev/null 2>&1; then
-            echo -e "${GREEN}✓ ${name} is ready (${url})${NC}"
+            echo -e "${GREEN}  ${name} is ready (${url})${NC}"
             return 0
         fi
-        echo -e "${YELLOW}Waiting for ${name} (${attempt}/${max_attempts})...${NC}"
+        echo -e "${YELLOW}  Waiting for ${name} (${attempt}/${max_attempts})...${NC}"
         sleep 1
         attempt=$((attempt + 1))
     done
@@ -253,10 +267,10 @@ wait_for_worker() {
     while [ "$attempt" -le "$max_attempts" ]; do
         ensure_process_alive "$pid" "Retail analysis worker" "$log_file"
         if grep -q "Listening on ${ANALYSIS_QUEUE_NAME}" "$log_file" 2>/dev/null; then
-            echo -e "${GREEN}✓ Retail analysis worker is ready (${ANALYSIS_QUEUE_NAME})${NC}"
+            echo -e "${GREEN}  Retail analysis worker is ready (${ANALYSIS_QUEUE_NAME})${NC}"
             return 0
         fi
-        echo -e "${YELLOW}Waiting for Retail analysis worker (${attempt}/${max_attempts})...${NC}"
+        echo -e "${YELLOW}  Waiting for Retail analysis worker (${attempt}/${max_attempts})...${NC}"
         sleep 1
         attempt=$((attempt + 1))
     done
@@ -267,123 +281,33 @@ wait_for_worker() {
     exit 1
 }
 
-ensure_port_free() {
-    local port="$1"
-    local name="$2"
-
-    if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port" -sTCP:LISTEN >/tmp/marketmind-port-check.log 2>/dev/null; then
-        echo -e "${RED}Error: ${name} port ${port} is already in use${NC}"
-        echo -e "${YELLOW}Existing listener:${NC}"
-        cat /tmp/marketmind-port-check.log
-        rm -f /tmp/marketmind-port-check.log
-        exit 1
-    fi
-    rm -f /tmp/marketmind-port-check.log
-}
-
-ensure_port_free "8000" "Backend API"
-ensure_port_free "5173" "Frontend"
-ensure_port_free "9000" "MinIO API"
-ensure_port_free "9001" "MinIO Console"
-
-# Start infrastructure
-echo -e "${YELLOW}[3/5] Starting Docker infrastructure...${NC}"
-docker compose -f docker-compose.dev.yml up -d postgres redis minio minio-init
-INFRA_STARTED=1
-
-wait_for_service() {
-    local service_name="$1"
-    local max_attempts="${2:-30}"
-    local attempt=1
-
-    while [ "$attempt" -le "$max_attempts" ]; do
-        status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "marketmind-${service_name}-dev" 2>/dev/null || true)"
-        if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
-            echo -e "${GREEN}✓ ${service_name} is ${status}${NC}"
-            return 0
-        fi
-        echo -e "${YELLOW}Waiting for ${service_name} (${attempt}/${max_attempts})...${NC}"
-        sleep 2
-        attempt=$((attempt + 1))
-    done
-
-    echo -e "${RED}Error: ${service_name} did not become healthy${NC}"
-    docker compose -f docker-compose.dev.yml ps
-    exit 1
-}
-
-wait_for_service "postgres"
-wait_for_service "redis"
-wait_for_service "minio"
-echo ""
-
-# Pre-install dependencies
-echo -e "${YELLOW}[4/5] Installing dependencies...${NC}"
-
-# Backend dependencies
-echo -e "${BLUE}Installing backend dependencies...${NC}"
-uv sync
-echo -e "${GREEN}✓ Backend dependencies installed${NC}"
-
-# Frontend dependencies
-echo -e "${BLUE}Installing frontend dependencies...${NC}"
-cd frontend
-if [ ! -d "node_modules" ]; then
-    if [ -f "init-vue.sh" ]; then
-        chmod +x init-vue.sh
-        ./init-vue.sh
-    else
-        npm install
-    fi
-fi
-cd ..
-echo -e "${GREEN}✓ Frontend dependencies installed${NC}"
-echo ""
-
-echo -e "${BLUE}Checking backend runtime wiring...${NC}"
-uv run python -m backend.core.runtime_checks check-retail-runtime --dry-run
-echo -e "${GREEN}✓ Backend runtime wiring is PostgreSQL/Redis ready${NC}"
-echo ""
-
-echo -e "${BLUE}Checking object storage readiness...${NC}"
-uv run python -m backend.core.runtime_checks check-object-storage --sandbox || true
-echo -e "${GREEN}✓ Object storage check completed${NC}"
-echo ""
-
-# Apply database migrations after dependencies are ready
-echo -e "${BLUE}Applying database migrations...${NC}"
-uv run python -m alembic upgrade head
-echo -e "${GREEN}✓ Database schema is ready${NC}"
-echo ""
-
-# Create log directory
-mkdir -p logs
-
 # Start servers
-echo -e "${YELLOW}[5/5] Starting servers...${NC}"
+echo -e "${YELLOW}[3/3] Starting servers...${NC}"
 echo ""
 
 # Start backend in background
 echo -e "${BLUE}Starting backend server...${NC}"
-MARKETMIND_SKIP_INFRA=1 "$SCRIPT_DIR/start-backend.sh" > logs/backend.log 2>&1 &
+uv run python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000 > logs/backend.log 2>&1 &
 BACKEND_PID=$!
-echo -e "${GREEN}✓ Backend server launching (PID: $BACKEND_PID)${NC}"
+echo -e "${GREEN}  Backend server launching (PID: $BACKEND_PID)${NC}"
 echo -e "${CYAN}  Backend logs: logs/backend.log${NC}"
 wait_for_http "Backend API" "http://127.0.0.1:8000/api/health/" "$BACKEND_PID" "logs/backend.log"
 
 # Start Retail analysis worker in background
 echo -e "${BLUE}Starting Retail analysis worker...${NC}"
-MARKETMIND_SKIP_DEP_SYNC=1 "$SCRIPT_DIR/start-worker.sh" > logs/worker.log 2>&1 &
+uv run python -m rq.cli worker "$ANALYSIS_QUEUE_NAME" --url "$REDIS_URL" > logs/worker.log 2>&1 &
 WORKER_PID=$!
-echo -e "${GREEN}✓ Retail analysis worker launching (PID: $WORKER_PID)${NC}"
+echo -e "${GREEN}  Retail analysis worker launching (PID: $WORKER_PID)${NC}"
 echo -e "${CYAN}  Worker logs: logs/worker.log${NC}"
 wait_for_worker "$WORKER_PID" "logs/worker.log"
 
 # Start frontend in background
 echo -e "${BLUE}Starting frontend server...${NC}"
-"$SCRIPT_DIR/start-frontend.sh" > logs/frontend.log 2>&1 &
+cd frontend
+npm run dev -- --host 0.0.0.0 > ../logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
-echo -e "${GREEN}✓ Frontend server launching (PID: $FRONTEND_PID)${NC}"
+cd "$ROOT_DIR"
+echo -e "${GREEN}  Frontend server launching (PID: $FRONTEND_PID)${NC}"
 echo -e "${CYAN}  Frontend logs: logs/frontend.log${NC}"
 wait_for_http "Frontend" "http://127.0.0.1:5173" "$FRONTEND_PID" "logs/frontend.log"
 
@@ -411,10 +335,6 @@ echo -e "  View backend logs:  ${CYAN}tail -f logs/backend.log${NC}"
 echo -e "  View worker logs:   ${CYAN}tail -f logs/worker.log${NC}"
 echo -e "  View frontend logs: ${CYAN}tail -f logs/frontend.log${NC}"
 echo -e "  Stop all servers:   ${CYAN}Press Ctrl+C${NC}"
-echo ""
-echo -e "${GREEN}========================================${NC}"
-echo -e "${YELLOW}Press Ctrl+C to stop all servers${NC}"
-echo -e "${GREEN}========================================${NC}"
 echo ""
 
 # Wait for background processes

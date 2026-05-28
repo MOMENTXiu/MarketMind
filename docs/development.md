@@ -61,7 +61,7 @@ On a fresh named volume, `docker-compose.dev.yml` runs `scripts/postgres-init/01
 
 ## Retail Worker Runtime
 
-Retail V2 analysis jobs use Redis/RQ through `AnalysisJobQueueProvider`, and workers enter through `backend/workers/retail_analysis_worker.py`. Run `scripts/start-worker.sh` or `scripts/start-project.sh` when testing the full local stack. Retail project state is PostgreSQL-backed; generated artifacts and model payloads still remain file-backed and must be accessed through API refs.
+Retail V2 analysis jobs use Redis/RQ through `AnalysisJobQueueProvider`, and workers enter through `backend/workers/retail_analysis_worker.py`. Run `./scripts/start-project.sh` when testing the full local stack. Retail project state is PostgreSQL-backed; generated artifacts and model payloads still remain file-backed and must be accessed through API refs.
 
 ## Commit Convention
 
