@@ -346,30 +346,73 @@ export function buildKScanOption(
 
 // ─── Association: Rule Bubble ───
 
+export const ASSOCIATION_CATEGORY_COLORS = [
+  '#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+  '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#14B8A6',
+]
+
+export interface LegendItem {
+  name: string
+  color: string
+}
+
+export interface AssociationBubbleResult {
+  option: EChartsOption
+  legendItems: LegendItem[]
+}
+
 export function buildAssociationBubbleOption(
   rules?: AssociationRule[] | null
-): EChartsOption {
-  if (!rules?.length) return {}
-  const data = rules.map(r => [toNum(r.置信度), toNum(r.提升度), toNum(r.支持度)])
+): AssociationBubbleResult {
+  const empty: AssociationBubbleResult = { option: {}, legendItems: [] }
+  if (!rules?.length) return empty
 
-  return {
+  // Group by 后项 (consequent) so each recommended item gets its own color
+  const groups = new Map<string, Array<{ ant: string; con: string; conf: number; lift: number; sup: number }>>()
+  const seen = new Set<string>()
+  for (const r of rules) {
+    if (!r.前项 || !r.后项) continue
+    const ant = String(r.前项)
+    const con = String(r.后项)
+    const dedupe = `${ant}→${con}`
+    if (seen.has(dedupe)) continue
+    seen.add(dedupe)
+    const entry = { ant, con, conf: toNum(r.置信度), lift: toNum(r.提升度), sup: toNum(r.支持度) }
+    if (!groups.has(con)) groups.set(con, [])
+    groups.get(con)!.push(entry)
+  }
+
+  const groupNames = [...groups.keys()]
+  const legendItems: LegendItem[] = groupNames.map((name, idx) => ({
+    name,
+    color: ASSOCIATION_CATEGORY_COLORS[idx % ASSOCIATION_CATEGORY_COLORS.length],
+  }))
+
+  const series = groupNames.map((con, idx) => ({
+    name: con,
+    type: 'scatter' as const,
+    data: groups.get(con)!.map(e => [e.conf, e.lift, e.sup, e.ant, e.con] as any),
+    symbolSize: (d: number[]) => Math.sqrt(d[2]) * 200 + 4,
+    itemStyle: { color: ASSOCIATION_CATEGORY_COLORS[idx % ASSOCIATION_CATEGORY_COLORS.length], opacity: 0.75 },
+  }))
+
+  const option: EChartsOption = {
     tooltip: {
       trigger: 'item',
       formatter: (params: any) => {
-        const [conf, lift, sup] = params.data
-        return `置信度: ${(conf * 100).toFixed(1)}%<br>提升度: ${lift.toFixed(2)}<br>支持度: ${(sup * 100).toFixed(2)}%`
-      }
+        const d = params.data
+        return `${d[3] || '?'} → <b>${d[4] || '?'}</b><br/>置信度: ${(d[0] * 100).toFixed(1)}%<br/>提升度: ${d[1].toFixed(2)}<br/>支持度: ${(d[2] * 100).toFixed(2)}%`
+      },
     },
-    grid: { left: '3%', right: '7%', bottom: '10%', top: '10%', containLabel: true },
+    legend: { show: false },
+    grid: { left: '3%', right: '5%', bottom: '8%', top: '10%', containLabel: true },
     xAxis: { type: 'value', name: '置信度', axisLabel: { formatter: (v: number) => `${(v * 100).toFixed(0)}%` }, splitLine: { lineStyle: { type: 'dashed' } } },
     yAxis: { type: 'value', name: '提升度', splitLine: { lineStyle: { type: 'dashed' } } },
-    series: [{
-      type: 'scatter',
-      data,
-      symbolSize: (d: number[]) => Math.sqrt(d[2]) * 200 + 4,
-      itemStyle: { color: '#5E6AD2', opacity: 0.7 }
-    }]
+    series,
+    color: ASSOCIATION_CATEGORY_COLORS,
   }
+
+  return { option, legendItems }
 }
 
 // ─── Association: HUIM Top Bundles ───

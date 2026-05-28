@@ -9,7 +9,9 @@ const props = defineProps<{
   payload?: AssociationPayload | null
 }>()
 
-const bubbleOption = computed(() => buildAssociationBubbleOption(props.payload?.rules))
+const bubbleResult = computed(() => buildAssociationBubbleOption(props.payload?.rules))
+const bubbleOption = computed(() => bubbleResult.value.option)
+const bubbleLegend = computed(() => bubbleResult.value.legendItems)
 const huimOption = computed(() => buildHuimBarOption(props.payload?.huim))
 
 const hasRules = computed(() => props.payload?.rules && props.payload.rules.length > 0)
@@ -46,6 +48,12 @@ const topRules = computed(() => {
       <div v-if="hasRules" class="chart-card">
         <h4 class="chart-title">置信度-提升度-支持度</h4>
         <v-chart :option="bubbleOption" autoresize class="dp-chart" />
+        <div v-if="bubbleLegend.length" class="custom-legend">
+          <div v-for="item in bubbleLegend" :key="item.name" class="legend-chip">
+            <span class="legend-dot" :style="{ backgroundColor: item.color }"></span>
+            <span class="legend-name">{{ item.name }}</span>
+          </div>
+        </div>
       </div>
       <div v-else class="chart-card empty">
         <el-empty description="暂无关联规则" :image-size="56" />
@@ -93,5 +101,9 @@ const topRules = computed(() => {
 .rule-arrow { color: var(--color-accent); font-weight: 700; }
 .rule-con { color: var(--color-accent); font-weight: 700; }
 .rule-metrics { margin-left: auto; color: var(--text-tertiary); font-size: 0.75rem; white-space: nowrap; }
+.custom-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; margin-top: 10px; }
+.legend-chip { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: var(--text-secondary); }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.legend-name { white-space: nowrap; }
 @media (max-width: 980px) { .assoc-charts-grid { grid-template-columns: 1fr; } }
 </style>

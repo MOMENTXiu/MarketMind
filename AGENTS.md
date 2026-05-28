@@ -73,5 +73,7 @@ Before commit:
 - Frontend business pages must route LLM text generation through `POST /api/analysis/customer-suggestions`; do not reintroduce browser direct `/chat/completions` or `/models` calls.
 - `analysis/code_files` and `analysis/data-processing-pipeline` are excluded from Ruff lint/format because they are reference blueprint/archive directories, not backend runtime code.
 - Legacy `backend/api/{projects,recommend,association,prediction,clustering}.py`, old project/recommend/association business flow/pipelines, and `backend/services/*` were deleted after import search; do not reintroduce compatibility wrappers.
+- ECharts 5 tree-shaking requires explicit imports for every chart type AND its coordinate system. Radar charts need **both** `RadarChart` from `echarts/charts` (renders data polygons) AND `RadarComponent` from `echarts/components` (renders axes/indicators). Missing one silently produces an incomplete chart — axes show but no data polygons appear, or vice versa.
+- Frontend DP diagnostic charts use a two-layer transform: `backend ability → JSON artifact → API payload → frontend chart transform → ECharts option`. When adding a new ability that outputs JSON for chart rendering, verify the output data shape matches the frontend `build*Option` function's expectations (array vs dict, field names, value types).
 - Do not bypass `.editorconfig`, `.gitignore`, pre-commit, or CI rules.
 - Expand this file only when a stable convention is confirmed by project files or user decision.
