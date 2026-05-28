@@ -11,12 +11,14 @@ from fastapi import APIRouter, Depends, File, Header, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
+from backend.api.auth_dependencies import get_current_user_or_enforce
 from backend.api.dependencies import (
     get_customer_text_suggestion_pipeline,
     get_data_processing_analysis_flow,
     get_retail_analysis_flow,
 )
 from backend.api.error_mapping import map_internal_error
+from backend.providers.auth_dtos import AuthenticatedUserContext
 from backend.business.flows.data_processing_analysis_flow import DataProcessingAnalysisFlow
 from backend.business.flows.retail_analysis_flow import RetailAnalysisFlow
 from backend.business.pipelines.customer_text_suggestion_pipeline import (
@@ -196,6 +198,7 @@ def _dp_project_snapshot_from_job(
 async def generate_customer_suggestion(
     payload: CustomerSuggestionCreate,
     pipeline: CustomerTextSuggestionPipeline = Depends(get_customer_text_suggestion_pipeline),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
         return await pipeline.generate(payload.data, payload.llm_config)
@@ -210,12 +213,14 @@ async def generate_customer_suggestion(
 async def create_project(
     payload: RetailAnalysisProjectCreate,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
         project = flow.create_project(
             payload.name,
             payload.description,
             analysis_kind=payload.analysis_kind,
+            user_context=user,
         )
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
@@ -226,9 +231,10 @@ async def create_project(
 async def list_projects(
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
     dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.list_projects()
+        result = flow.list_projects(user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
 
@@ -250,16 +256,17 @@ async def list_projects(
 async def delete_project(
     project_id: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        project = flow.get_project(project_id)
+        project = flow.get_project(project_id, user_context=user)
         if _is_dp_project(project):
             job_id = project.get("job_id")
             if job_id:
                 flow.providers.analysis_models.delete_model(
                     str(job_id), "data_processing_analysis_state"
                 )
-        result = flow.delete_project(project_id)
+        result = flow.delete_project(project_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -271,13 +278,14 @@ async def upload_dataset(
     file: Annotated[UploadFile, File(...)],
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
     dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     filename = file.filename or ""
     if not filename.lower().endswith((".csv", ".xls", ".xlsx")):
         raise map_internal_error(
             ValidationError("Unsupported file type — please upload a CSV or Excel file")
         )
-    project = flow.get_project(project_id)
+    project = flow.get_project(project_id, user_context=user)
     if _is_dp_project(project):
         try:
             job = dp_flow.create_job(project_id, project["name"])
@@ -292,6 +300,7 @@ async def upload_dataset(
             project_id,
             filename,
             await file.read(),
+            user_context=user,
         )
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
@@ -347,9 +356,10 @@ async def get_project(
     project_id: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
     dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        project = flow.get_project(project_id)
+        project = flow.get_project(project_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     if _is_dp_project(project):
