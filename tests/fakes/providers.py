@@ -155,15 +155,24 @@ class FakeProjectRepositoryProvider:
         kwargs: dict[str, Any] = {"name": data.name, "description": data.description}
         if data.parameters is not None:
             kwargs["parameters"] = data.parameters
+        if data.owner_user_id is not None:
+            kwargs["owner_user_id"] = data.owner_user_id
         project = Project(**kwargs)
         self.projects[project.id] = project
         return project
 
-    def get_project(self, project_id: str) -> Project | None:
-        return self.projects.get(project_id)
+    def get_project(self, project_id: str, owner_user_id: str | None = None) -> Project | None:
+        project = self.projects.get(project_id)
+        if project is None:
+            return None
+        if owner_user_id is not None and project.owner_user_id != owner_user_id:
+            return None
+        return project
 
-    def list_projects(self, skip: int = 0, limit: int = 100) -> list[Project]:
+    def list_projects(self, skip: int = 0, limit: int = 100, owner_user_id: str | None = None) -> list[Project]:
         items = list(self.projects.values())
+        if owner_user_id is not None:
+            items = [p for p in items if p.owner_user_id == owner_user_id]
         return items[skip : skip + limit]
 
     def update_project(self, project_id: str, update_data: ProjectUpdate) -> Project | None:
@@ -202,11 +211,18 @@ class FakeProjectRepositoryProvider:
         self.projects[project_id] = updated
         return updated
 
-    def delete_project(self, project_id: str) -> bool:
+    def delete_project(self, project_id: str, owner_user_id: str | None = None) -> bool:
+        project = self.projects.get(project_id)
+        if project is None:
+            return False
+        if owner_user_id is not None and project.owner_user_id != owner_user_id:
+            return False
         return self.projects.pop(project_id, None) is not None
 
-    def count_projects(self) -> int:
-        return len(self.projects)
+    def count_projects(self, owner_user_id: str | None = None) -> int:
+        if owner_user_id is None:
+            return len(self.projects)
+        return sum(1 for p in self.projects.values() if p.owner_user_id == owner_user_id)
 
 
 class FakeDatasetProvider:
