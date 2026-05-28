@@ -4,11 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components'
+import { LineChart, BarChart, ScatterChart, CustomChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent, TitleComponent, RadarComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { ArrowLeft, User, ShoppingCart, TrendCharts, Search, MagicStick, Folder, UploadFilled } from '@element-plus/icons-vue'
 import {
+  getAnalysisArtifactPayload,
   getApiErrorMessage,
   getRetailArtifactPayload,
   getRetailProject,
@@ -24,8 +25,14 @@ import {
   type AnalysisSseEvent,
   type ApiRef
 } from '../api'
+import DpKpiStrip from '../components/data-processing/DpKpiStrip.vue'
+import DpOverviewCharts from '../components/data-processing/DpOverviewCharts.vue'
+import DpSegmentCharts from '../components/data-processing/DpSegmentCharts.vue'
+import DpAssociationCharts from '../components/data-processing/DpAssociationCharts.vue'
+import DpRecommendationCharts from '../components/data-processing/DpRecommendationCharts.vue'
+import DpPromotionCharts from '../components/data-processing/DpPromotionCharts.vue'
 
-use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent])
+use([CanvasRenderer, LineChart, BarChart, ScatterChart, CustomChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent, RadarComponent])
 
 const route = useRoute()
 const router = useRouter()
@@ -143,6 +150,15 @@ const isDataProcessingProject = computed(() => project.value?.analysis_kind === 
 const needsReview = computed(() => project.value?.status === 'needs_review')
 const isRetailProject = computed(() => !isDataProcessingProject.value)
 
+// Data Processing payloads
+const dpSummary = ref<Record<string, any> | null>(null)
+const dpOverview = ref<Record<string, any> | null>(null)
+const dpSegments = ref<Record<string, any> | null>(null)
+const dpAssociation = ref<Record<string, any> | null>(null)
+const dpRecommendation = ref<Record<string, any> | null>(null)
+const dpPromotion = ref<Record<string, any> | null>(null)
+const dpPayloadsLoading = ref(false)
+
 const formatValue = (value: unknown) => {
   if (value === undefined || value === null || value === '') return '-'
   if (typeof value === 'number') return Number.isFinite(value) ? value.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) : '-'
@@ -178,6 +194,49 @@ const loadDetailPayloads = async () => {
   customerProfileRows.value = profiles
 }
 
+const findJsonArtifactId = (pattern: string) => {
+  const refs = artifacts.value.length ? artifacts.value : (project.value?.artifact_refs || [])
+  return refs.find(ref => ref.id?.includes(pattern))?.id
+}
+
+const loadDataProcessingPayloads = async () => {
+  if (!isDataProcessingProject.value) return
+  dpPayloadsLoading.value = true
+  try {
+    const ids = {
+      summary: findJsonArtifactId('universal_summary'),
+      overview: findJsonArtifactId('universal_overview'),
+      segments: findJsonArtifactId('universal_profile_segments'),
+      association: findJsonArtifactId('universal_association'),
+      recommendation: findJsonArtifactId('universal_recommendation'),
+      promotion: findJsonArtifactId('universal_promotion')
+    }
+    const [
+      summaryRes,
+      overviewRes,
+      segmentsRes,
+      associationRes,
+      recommendationRes,
+      promotionRes
+    ] = await Promise.all([
+      ids.summary ? getAnalysisArtifactPayload(projectId.value, ids.summary).catch(() => null) : null,
+      ids.overview ? getAnalysisArtifactPayload(projectId.value, ids.overview).catch(() => null) : null,
+      ids.segments ? getAnalysisArtifactPayload(projectId.value, ids.segments).catch(() => null) : null,
+      ids.association ? getAnalysisArtifactPayload(projectId.value, ids.association).catch(() => null) : null,
+      ids.recommendation ? getAnalysisArtifactPayload(projectId.value, ids.recommendation).catch(() => null) : null,
+      ids.promotion ? getAnalysisArtifactPayload(projectId.value, ids.promotion).catch(() => null) : null
+    ])
+    dpSummary.value = (summaryRes?.payload as Record<string, any>) ?? null
+    dpOverview.value = (overviewRes?.payload as Record<string, any>) ?? null
+    dpSegments.value = (segmentsRes?.payload as Record<string, any>) ?? null
+    dpAssociation.value = (associationRes?.payload as Record<string, any>) ?? null
+    dpRecommendation.value = (recommendationRes?.payload as Record<string, any>) ?? null
+    dpPromotion.value = (promotionRes?.payload as Record<string, any>) ?? null
+  } finally {
+    dpPayloadsLoading.value = false
+  }
+}
+
 const loadArtifacts = async () => {
   try {
     const payload = await listRetailArtifacts(projectId.value)
@@ -192,7 +251,11 @@ const refreshProject = async () => {
   project.value = data as Project
   if (!isActiveRetailProjectStatus(data.status)) {
     await loadArtifacts()
-    await loadDetailPayloads()
+    if (isDataProcessingProject.value) {
+      await loadDataProcessingPayloads()
+    } else {
+      await loadDetailPayloads()
+    }
   }
 }
 
@@ -515,6 +578,16 @@ onUnmounted(() => {
           </div>
         </section>
 
+        <!-- Data Processing Dashboard -->
+        <template v-if="isDataProcessingProject">
+          <dp-kpi-strip :summary="dpSummary" />
+          <dp-overview-charts :payload="dpOverview" />
+          <dp-segment-charts :payload="dpSegments" />
+          <dp-association-charts :payload="dpAssociation" />
+          <dp-recommendation-charts :payload="dpRecommendation" />
+          <dp-promotion-charts :payload="dpPromotion" />
+        </template>
+
         <!-- 1. KPI & Forecast Bento (Retail only) -->
         <section v-if="isRetailProject" class="section-block grid-dashboard">
           <div class="stats-col">
@@ -544,8 +617,8 @@ onUnmounted(() => {
             <div class="title-with-icon">
               <el-icon class="icon-main"><Folder /></el-icon>
               <div>
-                <h3>分析产物</h3>
-                <p>通过后端公开 ref 和 URL 访问</p>
+                <h3>{{ isDataProcessingProject ? '诊断信息' : '分析产物' }}</h3>
+                <p>{{ isDataProcessingProject ? '原始 artifact refs 与调试输出' : '通过后端公开 ref 和 URL 访问' }}</p>
               </div>
             </div>
           </div>

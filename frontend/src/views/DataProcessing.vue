@@ -505,6 +505,24 @@ onUnmounted(() => {
         </div>
       </section>
 
+      <!-- Completed Job: Link to Dashboard -->
+      <section v-if="job?.status === 'completed'" class="dp-panel dashboard-link-panel">
+        <div class="dashboard-link-content">
+          <div>
+            <h3>分析已完成</h3>
+            <p>在项目详情页查看完整的可视化仪表盘</p>
+          </div>
+          <el-button
+            type="primary"
+            size="large"
+            round
+            @click="router.push(`/projects/${job.project_id}`)"
+          >
+            查看仪表盘
+          </el-button>
+        </div>
+      </section>
+
       <section v-if="job" class="dp-panel sidecar-section">
         <div class="panel-heading">
           <span class="step-number">03</span>
@@ -588,6 +606,10 @@ onUnmounted(() => {
 .sidecar-section { margin-top: 24px; }
 .sidecar-tabs { margin-top: 18px; }
 .json-viewer { min-height: 320px; max-height: 520px; overflow: auto; margin: 0; padding: 18px; border-radius: 18px; background: var(--color-bg-base); color: var(--text-secondary); border: 1px solid var(--border-subtle); font-size: 0.78rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.dashboard-link-panel { margin-top: 24px; }
+.dashboard-link-content { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 8px; }
+.dashboard-link-content h3 { margin: 0 0 6px 0; font-size: 1.1rem; color: var(--text-primary); }
+.dashboard-link-content p { margin: 0; font-size: 0.85rem; color: var(--text-tertiary); }
 @media (max-width: 980px) {
   .dp-layout, .dp-results-grid { grid-template-columns: 1fr; }
   .job-meta-grid { grid-template-columns: 1fr; }
