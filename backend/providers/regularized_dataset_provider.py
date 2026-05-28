@@ -66,20 +66,23 @@ class RegularizedDatasetProvider(Protocol):
         project_id: str,
         job_id: str,
         ref_id: str,
+        owner_user_id: str | None = None,
     ) -> RegularizedDatasetReferenceDTO | None:
-        """Resolve an opaque dataset ref id to a typed DTO."""
+        """Resolve an opaque dataset ref id to a typed DTO, optionally scoped to an owner."""
 
     def resolve_sidecar_ref(
         self,
         project_id: str,
         job_id: str,
         ref_id: str,
+        owner_user_id: str | None = None,
     ) -> RegularizationSidecarReferenceDTO | None:
-        """Resolve an opaque sidecar ref id to a typed DTO."""
+        """Resolve an opaque sidecar ref id to a typed DTO, optionally scoped to an owner."""
 
     def list_sidecars(
         self,
         project_id: str,
         job_id: str,
+        owner_user_id: str | None = None,
     ) -> list[RegularizationSidecarReferenceDTO]:
-        """List all sidecar refs for a project/job."""
+        """List all sidecar refs for a project/job, optionally scoped to an owner."""

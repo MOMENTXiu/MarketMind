@@ -16,8 +16,8 @@ class RetailAnalysisStateProvider(Protocol):
     def save_state(self, state: RetailAnalysisProjectStateDTO) -> RetailAnalysisProjectStateDTO:
         """Persist one JSON-safe Retail V2 project state snapshot."""
 
-    def get_state(self, project_id: str) -> RetailAnalysisProjectStateDTO | None:
-        """Return one Retail V2 project state snapshot when it exists."""
+    def get_state(self, project_id: str, owner_user_id: str | None = None) -> RetailAnalysisProjectStateDTO | None:
+        """Return one Retail V2 project state snapshot when it exists, optionally scoped to an owner."""
 
     def save_run_info(
         self,
@@ -26,11 +26,11 @@ class RetailAnalysisStateProvider(Protocol):
     ) -> RetailAnalysisProjectStateDTO | None:
         """Persist latest run metadata without exposing storage primitives."""
 
-    def list_projects(self) -> list[RetailAnalysisProjectSummaryDTO]:
-        """List Retail V2 project summaries newest first."""
+    def list_projects(self, owner_user_id: str | None = None) -> list[RetailAnalysisProjectSummaryDTO]:
+        """List Retail V2 project summaries newest first, optionally scoped to an owner."""
 
-    def delete_project(self, project_id: str) -> bool:
-        """Delete one Retail V2 project state snapshot when it exists."""
+    def delete_project(self, project_id: str, owner_user_id: str | None = None) -> bool:
+        """Delete one Retail V2 project state snapshot when it exists, optionally scoped to an owner."""
 
 
 class InMemoryRetailAnalysisStateProvider:
@@ -43,8 +43,13 @@ class InMemoryRetailAnalysisStateProvider:
         self._states[state.id] = state
         return state
 
-    def get_state(self, project_id: str) -> RetailAnalysisProjectStateDTO | None:
-        return self._states.get(project_id)
+    def get_state(self, project_id: str, owner_user_id: str | None = None) -> RetailAnalysisProjectStateDTO | None:
+        state = self._states.get(project_id)
+        if state is None:
+            return None
+        if owner_user_id is not None and state.owner_user_id != owner_user_id:
+            return None
+        return state
 
     def save_run_info(
         self,
@@ -65,15 +70,22 @@ class InMemoryRetailAnalysisStateProvider:
         self._states[project_id] = updated
         return updated
 
-    def list_projects(self) -> list[RetailAnalysisProjectSummaryDTO]:
+    def list_projects(self, owner_user_id: str | None = None) -> list[RetailAnalysisProjectSummaryDTO]:
         states = sorted(
             self._states.values(),
             key=lambda state: (state.created_at or "", state.id),
             reverse=True,
         )
+        if owner_user_id is not None:
+            states = [s for s in states if s.owner_user_id == owner_user_id]
         return [_summary_from_state(state) for state in states]
 
-    def delete_project(self, project_id: str) -> bool:
+    def delete_project(self, project_id: str, owner_user_id: str | None = None) -> bool:
+        state = self._states.get(project_id)
+        if state is None:
+            return False
+        if owner_user_id is not None and state.owner_user_id != owner_user_id:
+            return False
         return self._states.pop(project_id, None) is not None
 
 
@@ -97,6 +109,7 @@ def _summary_from_state(state: RetailAnalysisProjectStateDTO) -> RetailAnalysisP
         trace_id=trace_id,
         run_info=state.run_info,
         error=state.error,
+        owner_user_id=state.owner_user_id,
         created_at=state.created_at,
         updated_at=state.updated_at,
     )

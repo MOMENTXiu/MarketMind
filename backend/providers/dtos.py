@@ -198,6 +198,7 @@ class RetailAnalysisProjectSummaryDTO:
     trace_id: str | None = None
     run_info: RetailAnalysisRunInfoDTO | None = None
     error: str | None = None
+    owner_user_id: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -217,6 +218,7 @@ class RetailAnalysisProjectStateDTO:
     marketer_insights: JSONObject = field(default_factory=dict)
     run_info: RetailAnalysisRunInfoDTO | None = None
     error: str | None = None
+    owner_user_id: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 

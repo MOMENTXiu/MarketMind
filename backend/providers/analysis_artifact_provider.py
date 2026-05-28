@@ -39,12 +39,14 @@ class AnalysisArtifactProvider(Protocol):
         self,
         project_id: str,
         artifact_id: str,
+        owner_user_id: str | None = None,
     ) -> AnalysisArtifactReferenceDTO | None:
-        """Resolve artifact metadata without exposing local filesystem paths."""
+        """Resolve artifact metadata without exposing local filesystem paths, optionally scoped to an owner."""
 
     def load_payload(
         self,
         project_id: str,
         artifact_id: str,
+        owner_user_id: str | None = None,
     ) -> AnalysisArtifactPayloadDTO | None:
-        """Load a public artifact payload without exposing local filesystem paths."""
+        """Load a public artifact payload without exposing local filesystem paths, optionally scoped to an owner."""
