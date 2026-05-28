@@ -12,7 +12,7 @@ Browser / Vue 3
   -> Ability Atom
   -> Provider Interface / ProvidersContainer
   -> Infrastructure Adapter
-  -> PostgreSQL / Redis / filesystem artifacts / LLM HTTP
+  -> PostgreSQL / Redis / MinIO (object storage) / LLM HTTP
 ```
 
 `/api/analysis` 下并存两条分析链路：
@@ -101,6 +101,7 @@ frontend/
 | Data Processing jobs | `POST /api/analysis/jobs`, `GET /api/analysis/jobs/{job_id}` |
 | Data Processing lifecycle | `POST /api/analysis/jobs/{job_id}/raw-dataset`, `POST /api/analysis/jobs/{job_id}/regularize`, `POST /api/analysis/jobs/{job_id}/run` |
 | Data Processing outputs | `GET /api/analysis/jobs/{job_id}/outputs`, `GET /api/analysis/jobs/{job_id}/datasets/{dataset_id}`, `GET /api/analysis/jobs/{job_id}/sidecars/{sidecar_id}` |
+| Sample files | `GET /api/samples`, `GET /api/samples/{sample_id}`, `GET /api/samples/{sample_id}/download` |
 
 Retired routes `/api/projects`, `/api/recommend`, `/api/association`, `/api/voice/*`, `/api/ai-voice/*` and `/api/tts/*` are intentionally absent.
 
@@ -189,7 +190,7 @@ make check
 make hooks
 ```
 
-`make check` 运行 backend Ruff lint、backend Ruff format check、pytest、frontend `npm run build`。当前测试基线为 `217 passed, 5 skipped`。`make typecheck` 与 `make clean` 是占位目标。
+`make check` 运行 backend Ruff lint、backend Ruff format check、pytest、frontend `npm run build`。当前测试基线为 `262 passed, 5 skipped`。`make typecheck` 与 `make clean` 是占位目标。
 
 Runtime smoke checks：
 

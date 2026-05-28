@@ -43,4 +43,4 @@ echo -e "Redis: ${BLUE}${REDIS_URL}${NC}"
 echo -e "${YELLOW}Press Ctrl+C to stop the worker${NC}"
 echo ""
 
-uv run rq worker "$ANALYSIS_QUEUE_NAME" --url "$REDIS_URL"
+uv run python -m rq.cli worker "$ANALYSIS_QUEUE_NAME" --url "$REDIS_URL"

@@ -13,6 +13,7 @@ import argparse
 import io
 import json
 import tempfile
+import uuid
 from dataclasses import fields
 from datetime import datetime
 from pathlib import Path
@@ -727,6 +728,89 @@ def cmd_check_regularization(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_check_object_storage(args: argparse.Namespace) -> int:
+    if not getattr(args, "sandbox", False):
+        _emit("check-object-storage: refusing to run without --sandbox")
+        return 1
+
+    settings = Settings(_env_file=None)
+    backend = settings.OBJECT_STORAGE_BACKEND
+    if backend == "local":
+        _emit("check-object-storage: ok backend=local (skipping live probe)")
+        return 0
+
+    from backend.infrastructure.adapters.minio_object_storage_adapter import (
+        MinioObjectStorageAdapter,
+    )
+
+    try:
+        storage = MinioObjectStorageAdapter(
+            endpoint=settings.OBJECT_STORAGE_ENDPOINT,
+            access_key=settings.OBJECT_STORAGE_ACCESS_KEY,
+            secret_key=settings.OBJECT_STORAGE_SECRET_KEY,
+            bucket=settings.OBJECT_STORAGE_BUCKET,
+            region=settings.OBJECT_STORAGE_REGION,
+            secure=settings.OBJECT_STORAGE_SECURE,
+        )
+        probe_key = f"_runtime-checks/{uuid.uuid4()}.txt"
+        probe_data = b"runtime-check-probe"
+        storage.put(probe_key, probe_data, content_type="text/plain")
+        read_back = storage.get(probe_key)
+        if read_back != probe_data:
+            _emit("check-object-storage: read-back mismatch")
+            return 1
+        stat = storage.stat(probe_key)
+        if stat is None or stat.size_bytes != len(probe_data):
+            _emit("check-object-storage: stat mismatch")
+            return 1
+        storage.delete(probe_key)
+    except Exception as exc:
+        _emit(f"check-object-storage: failed: {exc}")
+        return 1
+
+    _emit(f"check-object-storage: ok backend={backend} sandbox=probe")
+    return 0
+
+
+def cmd_check_minio(args: argparse.Namespace) -> int:
+    if not getattr(args, "sandbox", False):
+        _emit("check-minio: refusing to run without --sandbox")
+        return 1
+
+    return cmd_check_object_storage(args)
+
+
+def cmd_check_sample_files(args: argparse.Namespace) -> int:
+    settings = Settings(_env_file=None)
+    if settings.OBJECT_STORAGE_BACKEND == "local":
+        _emit("check-sample-files: ok backend=local (skipping MinIO probe)")
+        return 0
+
+    from backend.infrastructure.adapters.minio_object_storage_adapter import (
+        MinioObjectStorageAdapter,
+    )
+
+    try:
+        storage = MinioObjectStorageAdapter(
+            endpoint=settings.OBJECT_STORAGE_ENDPOINT,
+            access_key=settings.OBJECT_STORAGE_ACCESS_KEY,
+            secret_key=settings.OBJECT_STORAGE_SECRET_KEY,
+            bucket=settings.OBJECT_STORAGE_BUCKET,
+            region=settings.OBJECT_STORAGE_REGION,
+            secure=settings.OBJECT_STORAGE_SECURE,
+        )
+        keys = storage.list_keys("samples/")
+        if not keys:
+            _emit("check-sample-files: no sample objects found under samples/")
+            return 1
+    except Exception as exc:
+        _emit(f"check-sample-files: failed: {exc}")
+        return 1
+
+    _emit(f"check-sample-files: ok count={len(keys)}")
+    return 0
+
+
 COMMANDS = {
     "check-config": cmd_check_config,
     "check-providers": cmd_check_providers,
@@ -744,6 +828,9 @@ COMMANDS = {
     "inspect-trace": cmd_inspect_trace,
     "check-data-processing": cmd_check_data_processing,
     "check-regularization": cmd_check_regularization,
+    "check-object-storage": cmd_check_object_storage,
+    "check-minio": cmd_check_minio,
+    "check-sample-files": cmd_check_sample_files,
 }
 
 
@@ -789,6 +876,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_reg = sub.add_parser("check-regularization")
     p_reg.add_argument("--sandbox", action="store_true")
+
+    p_obj = sub.add_parser("check-object-storage")
+    p_obj.add_argument("--sandbox", action="store_true")
+
+    p_minio = sub.add_parser("check-minio")
+    p_minio.add_argument("--sandbox", action="store_true")
+
+    sub.add_parser("check-sample-files")
 
     return parser
 

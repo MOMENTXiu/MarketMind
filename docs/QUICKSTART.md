@@ -29,6 +29,8 @@ scripts\start-project.bat
 - Backend API: `http://localhost:8000/api`
 - Swagger: `http://localhost:8000/api/docs`
 - ReDoc: `http://localhost:8000/api/redoc`
+- MinIO API: `http://localhost:9000`
+- MinIO Console: `http://localhost:9001`
 
 ## Manual Start
 
@@ -56,7 +58,7 @@ npm run dev
 
 ## Optional Local Infrastructure
 
-PostgreSQL/Redis 用于 Retail V2 state、Redis/RQ worker queue、SSE event pub/sub 和 DB smoke tests。大文件与模型 artifact 仍保留在文件系统。
+PostgreSQL/Redis/MinIO 用于 Retail V2 state、Redis/RQ worker queue、SSE event pub/sub、对象存储和 DB smoke tests。
 
 ```bash
 make infra-up
@@ -72,6 +74,8 @@ make infra-logs
 make db-downgrade
 make db-revision DB_REVISION_MESSAGE="describe change"
 ```
+
+MinIO 服务在 `docker-compose.dev.yml` 中定义，端口 `9000`（API）和 `9001`（Console）。当 `OBJECT_STORAGE_BACKEND=minio` 时，样本文件、原始上传、标准化数据集、sidecars、artifacts 和模型都存储在 MinIO；`local` 时仍使用文件系统。
 
 `TEST_DATABASE_URL` 必须指向隔离测试库；迁移 roundtrip 测试会 drop/recreate 表。新 volume 会通过 `scripts/postgres-init/01-create-test-db.sql` 创建 `marketmind_test`。
 
@@ -95,7 +99,7 @@ make build
 
 当前基线：
 
-- Backend tests: `217 passed, 5 skipped`。
+- Backend tests: `268 collected` (`262 passed, 5 skipped`)。
 - Backend lint/format: Ruff。
 - Frontend build/type validation: `cd frontend && npm run build`。
 - `make typecheck` 和 `make clean` 是占位目标，不能作为验证证据。
@@ -135,6 +139,9 @@ uv run python -m backend.core.runtime_checks check-retail-runtime --dry-run
 uv run python -m backend.core.runtime_checks check-data-processing --sample
 uv run python -m backend.core.runtime_checks check-regularization --sandbox
 uv run python -m backend.core.runtime_checks check-analysis-optional-runtime
+uv run python -m backend.core.runtime_checks check-object-storage --sandbox
+uv run python -m backend.core.runtime_checks check-minio --sandbox
+uv run python -m backend.core.runtime_checks check-sample-files
 ```
 
 ## Optional Streamlit Entry

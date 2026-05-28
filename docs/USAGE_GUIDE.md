@@ -144,4 +144,4 @@ make check
 make hooks
 ```
 
-当前基线为 `217 passed, 5 skipped`，前端 `npm run build` 通过。pandas/numpy/pydantic warnings 属于已知非阻塞输出。
+当前基线为 `262 passed, 5 skipped`，前端 `npm run build` 通过。pandas/numpy/pydantic warnings 属于已知非阻塞输出。

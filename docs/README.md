@@ -25,6 +25,8 @@
 | [architecture/architecture-change.md](architecture/architecture-change.md) | 架构变更记录。 |
 | [architecture/frontend-backend-lack-port-design.md](architecture/frontend-backend-lack-port-design.md) | 前后端接口缺失设计方案。 |
 | [architecture/frontend-backend-lack-port-checklist.md](architecture/frontend-backend-lack-port-checklist.md) | 前后端接口缺失施工清单。 |
+| [architecture/minio-object-storage-design.md](architecture/minio-object-storage-design.md) | MinIO 对象存储集成设计记录。 |
+| [architecture/minio-object-storage-checklist.md](architecture/minio-object-storage-checklist.md) | MinIO 对象存储集成检查清单。 |
 
 ## 历史与归档
 

@@ -51,6 +51,9 @@
 | `GET` | `/api/redoc` | ReDoc UI |
 | `GET` | `/openapi.json` | OpenAPI schema |
 | `GET` | `/outputs/{path}` | 静态输出文件挂载，不在 OpenAPI paths 中列出 |
+| `GET` | `/api/samples` | 列出样本文件 catalog |
+| `GET` | `/api/samples/{sample_id}` | 查询单个样本文件元数据 |
+| `GET` | `/api/samples/{sample_id}/download` | 下载样本文件字节流 |
 
 ## Customer Suggestions
 

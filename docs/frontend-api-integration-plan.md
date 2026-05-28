@@ -65,7 +65,7 @@ frontend/src/api/
 
 ## 验收记录
 
-最近一次接入验收执行：
+最近一次接入验收执行（2026-05-27）：
 
 ```bash
 cd frontend && npm run build
@@ -80,7 +80,7 @@ make check
 
 - Frontend build passed。
 - `make hooks` passed。
-- `make check` passed：`217 passed, 5 skipped`。
+- `make check` passed：`262 passed, 5 skipped`。
 - grep 确认无旧 API/旧 HTTP/直连 LLM 残留。
 
 ## 剩余建议

@@ -62,6 +62,18 @@ class Settings(BaseSettings):
     ANALYSIS_EVENT_HEARTBEAT_MS: int = 15000
     ANALYSIS_EVENT_RETRY_MS: int = 3000
 
+    # Object Storage (MinIO / S3-compatible)
+    OBJECT_STORAGE_BACKEND: Literal["local", "minio"] = "local"
+    OBJECT_STORAGE_BUCKET: str = "marketmind-dev"
+    OBJECT_STORAGE_ENDPOINT: str = "http://localhost:9000"
+    OBJECT_STORAGE_PUBLIC_ENDPOINT: str = "http://localhost:9000"
+    OBJECT_STORAGE_ACCESS_KEY: str = "marketmind"
+    OBJECT_STORAGE_SECRET_KEY: str = "marketmind_dev_password"
+    OBJECT_STORAGE_REGION: str = "us-east-1"
+    OBJECT_STORAGE_SECURE: bool = False
+    OBJECT_STORAGE_PRESIGNED_URL_TTL_SECONDS: int = 900
+    OBJECT_STORAGE_FORCE_PATH_STYLE: bool = True
+
     model_config = ConfigDict(env_file=".env", case_sensitive=True)
 
 

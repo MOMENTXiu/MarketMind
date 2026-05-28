@@ -8,6 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
 
+_STORAGE_SDK_PREFIXES = ("minio", "boto3", "boto3.")
+
 FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
     "api": (
         "edge_tts",
@@ -22,7 +24,8 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
         "backend.core.config",
         "backend.infrastructure.db",
         "backend.infrastructure",
-    ),
+    )
+    + _STORAGE_SDK_PREFIXES,
     "business": (
         "edge_tts",
         "httpx",
@@ -42,7 +45,8 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
         "fastapi",
         "backend.api",
         "backend.infrastructure",
-    ),
+    )
+    + _STORAGE_SDK_PREFIXES,
     "abilities": (
         "edge_tts",
         "httpx",
@@ -60,7 +64,8 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
         "backend.api",
         "backend.business",
         "backend.infrastructure",
-    ),
+    )
+    + _STORAGE_SDK_PREFIXES,
     "providers": (
         "edge_tts",
         "httpx",
@@ -82,7 +87,8 @@ FORBIDDEN_DIRECT_IMPORT_PREFIXES = {
         "backend.abilities",
         "backend.infrastructure",
         "backend.core.config",
-    ),
+    )
+    + _STORAGE_SDK_PREFIXES,
 }
 
 LEGACY_IMPORT_ALLOWLIST = {
@@ -122,11 +128,15 @@ def layer_for(path: Path) -> str | None:
 def imported_modules(path: Path) -> list[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     modules: list[str] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            modules.extend(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            modules.append(node.module)
+
+    def _is_module_level(node: ast.AST) -> bool:
+        return isinstance(node, ast.Module)
+
+    for child in ast.iter_child_nodes(tree):
+        if isinstance(child, ast.Import):
+            modules.extend(alias.name for alias in child.names)
+        elif isinstance(child, ast.ImportFrom) and child.module:
+            modules.append(child.module)
     return modules
 
 

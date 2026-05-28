@@ -36,6 +36,18 @@ from backend.infrastructure.adapters.local_recommendation_model_store_adapter im
 from backend.infrastructure.adapters.local_regularized_dataset_adapter import (
     LocalRegularizedDatasetAdapter,
 )
+from backend.infrastructure.adapters.minio_analysis_artifact_adapter import (
+    MinioAnalysisArtifactAdapter,
+)
+from backend.infrastructure.adapters.minio_analysis_model_store_adapter import (
+    MinioAnalysisModelStoreAdapter,
+)
+from backend.infrastructure.adapters.minio_object_storage_adapter import (
+    MinioObjectStorageAdapter,
+)
+from backend.infrastructure.adapters.minio_regularized_dataset_adapter import (
+    MinioRegularizedDatasetAdapter,
+)
 from backend.infrastructure.adapters.openai_compatible_llm_adapter import (
     OpenAICompatibleLLMAdapter,
 )
@@ -68,6 +80,16 @@ def create_providers(
             _build_phase3_redis_providers(settings)
         )
 
+    if settings.OBJECT_STORAGE_BACKEND == "minio":
+        minio_storage = _build_minio_storage(settings)
+        regularized_dataset = MinioRegularizedDatasetAdapter(minio_storage)
+        analysis_artifacts = MinioAnalysisArtifactAdapter(minio_storage)
+        analysis_models = MinioAnalysisModelStoreAdapter(minio_storage)
+    else:
+        regularized_dataset = LocalRegularizedDatasetAdapter("data")
+        analysis_artifacts = LocalAnalysisArtifactAdapter("data")
+        analysis_models = LocalAnalysisModelStoreAdapter("data")
+
     return ProvidersContainer(
         repository=JsonProjectRepositoryAdapter("data"),
         storage=LocalProjectFileStorageAdapter("data"),
@@ -77,11 +99,11 @@ def create_providers(
         ),
         dataset=CsvDatasetAdapter("data"),
         retail_dataset=CsvRetailDatasetAdapter("data"),
-        regularized_dataset=LocalRegularizedDatasetAdapter("data"),
+        regularized_dataset=regularized_dataset,
         association_rules=LocalAssociationRuleStoreAdapter(),
         recommendation_models=LocalRecommendationModelStoreAdapter("backend/data/model_data.pkl"),
-        analysis_artifacts=LocalAnalysisArtifactAdapter("data"),
-        analysis_models=LocalAnalysisModelStoreAdapter("data"),
+        analysis_artifacts=analysis_artifacts,
+        analysis_models=analysis_models,
         llm=llm,
         analysis_jobs=FastApiBackgroundAnalysisJobAdapter(background_tasks),
         telemetry=ConsoleTelemetryAdapter(),
@@ -108,6 +130,19 @@ def _build_phase3_redis_providers(
         settings.ANALYSIS_QUEUE_NAME,
         settings.ANALYSIS_EVENT_HEARTBEAT_MS,
         settings.ANALYSIS_EVENT_RETRY_MS,
+    )
+
+
+def _build_minio_storage(settings: Settings) -> MinioObjectStorageAdapter:
+    return MinioObjectStorageAdapter(
+        endpoint=settings.OBJECT_STORAGE_ENDPOINT,
+        access_key=settings.OBJECT_STORAGE_ACCESS_KEY,
+        secret_key=settings.OBJECT_STORAGE_SECRET_KEY,
+        bucket=settings.OBJECT_STORAGE_BUCKET,
+        region=settings.OBJECT_STORAGE_REGION,
+        secure=settings.OBJECT_STORAGE_SECURE,
+        presigned_ttl_seconds=settings.OBJECT_STORAGE_PRESIGNED_URL_TTL_SECONDS,
+        public_endpoint=settings.OBJECT_STORAGE_PUBLIC_ENDPOINT,
     )
 
 

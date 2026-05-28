@@ -22,8 +22,20 @@ The root `.env.example` mirrors backend `Settings` fields in `backend/core/confi
 | `DATABASE_URL` | PostgreSQL development database | Retail V2 state is PostgreSQL-backed; used by DB infrastructure and migrations. |
 | `TEST_DATABASE_URL` | Isolated PostgreSQL test database | Required for live DB adapter and Alembic roundtrip tests. |
 | `REDIS_URL`, `REDIS_ENABLED`, `TASK_QUEUE_BACKEND` | Redis/queue configuration | Redis/RQ worker is the default async backend; `TASK_QUEUE_BACKEND=redis`, `REDIS_ENABLED=true`. |
+| `OBJECT_STORAGE_BACKEND` | Object storage backend selection | `local` (default, filesystem) or `minio` (S3-compatible). |
+| `OBJECT_STORAGE_BUCKET` | MinIO bucket name | `marketmind-dev` for local dev. |
+| `OBJECT_STORAGE_ENDPOINT` | MinIO API endpoint | `http://localhost:9000` for local dev. |
+| `OBJECT_STORAGE_PUBLIC_ENDPOINT` | Public-facing MinIO endpoint | Same as endpoint unless behind a proxy. |
+| `OBJECT_STORAGE_ACCESS_KEY` | MinIO access key | `marketmind` for local dev. |
+| `OBJECT_STORAGE_SECRET_KEY` | MinIO secret key | `marketmind_dev_password` for local dev. |
+| `OBJECT_STORAGE_REGION` | S3 region | `us-east-1` (MinIO ignores this). |
+| `OBJECT_STORAGE_SECURE` | Use HTTPS for MinIO | `false` for local dev. |
+| `OBJECT_STORAGE_PRESIGNED_URL_TTL_SECONDS` | Presigned URL TTL | `900` (15 minutes). |
+| `OBJECT_STORAGE_FORCE_PATH_STYLE` | Force path-style URLs | `true` for MinIO compatibility. |
 
-Large CSV files, charts, reports, and model artifacts should remain as filesystem/object references. Do not store them directly in PostgreSQL.
+Large CSV files, charts, reports, model artifacts, and Data Processing raw/normalized datasets/sidecars are stored through the object storage provider. When `OBJECT_STORAGE_BACKEND=minio`, bytes live in MinIO and Postgres keeps metadata only. When `OBJECT_STORAGE_BACKEND=local`, bytes remain on the filesystem under `data/projects/...`.
+
+Do not store blob payloads directly in PostgreSQL.
 
 ## Frontend
 

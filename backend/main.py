@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from backend.api import analysis
+from backend.api import analysis, samples
 from backend.core.config import settings
 
 # 创建 FastAPI 应用
@@ -36,6 +36,7 @@ app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 
 # 注册路由
 app.include_router(analysis.router, prefix="/api/analysis", tags=["Retail Analysis V2"])
+app.include_router(samples.router, prefix="/api", tags=["Sample Files"])
 
 
 @app.get("/")

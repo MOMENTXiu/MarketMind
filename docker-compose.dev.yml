@@ -33,6 +33,39 @@ services:
       timeout: 3s
       retries: 10
 
+  minio:
+    image: minio/minio:latest
+    container_name: marketmind-minio-dev
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - marketmind_minio_data:/data
+    environment:
+      MINIO_ROOT_USER: marketmind
+      MINIO_ROOT_PASSWORD: marketmind_dev_password
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: marketmind-minio-init-dev
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        mc alias set local http://minio:9000 marketmind marketmind_dev_password &&
+        mc mb local/marketmind-dev --ignore-existing || true
+      "
+
 volumes:
   marketmind_postgres_data:
   marketmind_redis_data:
+  marketmind_minio_data:

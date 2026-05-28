@@ -116,7 +116,7 @@ echo ""
 
 # Apply database migrations
 echo -e "${YELLOW}[db] Applying database migrations...${NC}"
-uv run alembic upgrade head
+uv run python -m alembic upgrade head
 echo -e "${GREEN}✓ Database schema is ready${NC}"
 echo ""
 
@@ -134,4 +134,4 @@ echo -e "${YELLOW}Press Ctrl+C to stop the server${NC}"
 echo ""
 
 # Run the server
-uv run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+uv run python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000

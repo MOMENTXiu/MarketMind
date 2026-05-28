@@ -129,7 +129,7 @@ make check
 make hooks
 ```
 
-当前 `make check` 覆盖 backend Ruff lint、backend Ruff format check、pytest、frontend `npm run build`。最近基线为 `217 passed, 5 skipped`，pytest 仍有 pandas/numpy/pydantic 运行时 warnings。
+当前 `make check` 覆盖 backend Ruff lint、backend Ruff format check、pytest、frontend `npm run build`。最新基线为 `262 passed, 5 skipped`，pytest 仍有 pandas/numpy/pydantic 运行时 warnings。
 
 `make typecheck` 与 `make clean` 是占位目标，不能作为验证通过的证据。
 

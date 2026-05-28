@@ -21,6 +21,18 @@ class ProviderErrorDTO:
 
 
 @dataclass(frozen=True)
+class StoredObjectDTO:
+    storage_key: str
+    storage_uri: str
+    content_type: str
+    size_bytes: int
+    checksum: str | None = None
+    etag: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    url: str | None = None
+
+
+@dataclass(frozen=True)
 class ProviderResultDTO:
     success: bool
     error: ProviderErrorDTO | None = None

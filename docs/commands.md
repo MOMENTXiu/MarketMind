@@ -34,7 +34,7 @@ Quality loop after code changes:
 
 Run `make hooks` before commit.
 
-`make check` currently reports the backend pytest baseline as `217 passed, 5 skipped` when optional live DB URLs are not configured. Pytest warnings from pandas/numpy/pydantic are known and do not fail the gate.
+`make check` currently reports the backend pytest baseline as `262 passed, 5 skipped` when optional live DB URLs are not configured. Pytest warnings from pandas/numpy/pydantic are known and do not fail the gate.
 
 Echo-only targets are placeholders. They are not evidence that lint, format, test, build, hooks, or CI passed.
 
