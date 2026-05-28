@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Star } from '@element-plus/icons-vue'
+import { Sparkles } from 'lucide-vue-next'
 import VChart from 'vue-echarts'
 import type { RecommendationPayload } from '../../utils/data-processing-charts'
 import { buildRecommendationMetricsOption, buildReliabilityOption } from '../../utils/data-processing-charts'
@@ -49,7 +49,7 @@ const actionText = computed(() => {
 
 <template>
   <ReportSectionCard>
-    <ReportSectionHeader :icon="Star" title="个性化推荐" description="根据用户行为生成可执行的商品推荐建议" />
+    <ReportSectionHeader :icon="Sparkles" title="个性化推荐" description="根据用户行为生成可执行的商品推荐建议" />
 
     <!-- Business insight card -->
     <div v-if="hasAnyData" class="r-insight r-insight-info">

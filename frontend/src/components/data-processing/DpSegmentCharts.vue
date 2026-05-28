@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { User } from '@element-plus/icons-vue'
+import { Users } from 'lucide-vue-next'
 import VChart from 'vue-echarts'
 import ReportSectionCard from '../report/ReportSectionCard.vue'
 import ReportSectionHeader from '../report/ReportSectionHeader.vue'
@@ -26,7 +26,7 @@ const radarKey = computed(() => `radar-${props.payload?.segment_profiles?.length
 
 <template>
   <ReportSectionCard>
-    <ReportSectionHeader :icon="User" title="客户分群" description="识别不同类型客户，用于会员运营和精准推荐">
+    <ReportSectionHeader :icon="Users" title="客户分群" description="识别不同类型客户，用于会员运营和精准推荐">
       <template v-if="nSegments !== undefined || silhouette !== undefined">
         <ReportBadge v-if="nSegments !== undefined" tone="info">K={{ nSegments }}</ReportBadge>
         <ReportBadge v-if="silhouette !== undefined" tone="info">轮廓系数={{ silhouette.toFixed(3) }}</ReportBadge>

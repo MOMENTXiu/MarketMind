@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { TrendCharts } from '@element-plus/icons-vue'
+import { BarChart3 } from 'lucide-vue-next'
 import type { SummaryPayload } from '../../utils/data-processing-charts'
 import { buildKpiTiles } from '../../utils/data-processing-charts'
 import ReportSectionCard from '../report/ReportSectionCard.vue'
@@ -20,7 +20,7 @@ const hasAnySkipped = computed(() => {
 
 <template>
   <ReportSectionCard>
-    <ReportSectionHeader :icon="TrendCharts" title="分析概览" />
+    <ReportSectionHeader :icon="BarChart3" title="分析概览" />
 
     <div v-if="tiles.length" class="kpi-grid">
       <div v-for="tile in tiles" :key="tile.label" class="kpi-tile">

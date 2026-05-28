@@ -7,7 +7,8 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, BarChart, ScatterChart, CustomChart, RadarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, TitleComponent, RadarComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
-import { ArrowLeft, User, ShoppingCart, TrendCharts, Search, MagicStick, Folder, UploadFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, User, ShoppingCart, Search, FolderOpen, Upload } from 'lucide-vue-next'
+import { BarChart3, Wand2 } from 'lucide-vue-next'
 import ReportSectionCard from '../components/report/ReportSectionCard.vue'
 import ReportSectionHeader from '../components/report/ReportSectionHeader.vue'
 import ReportPanel from '../components/report/ReportPanel.vue'
@@ -570,7 +571,7 @@ onUnmounted(() => {
       <header class="detail-navbar">
         <div class="header-left-aligned">
           <button class="btn-back-round" @click="$router.push('/projects')">
-            <el-icon><ArrowLeft /></el-icon>
+            <ArrowLeft class="h-5 w-5" />
           </button>
 
           <h1 class="project-main-title">{{ project?.name }}</h1>
@@ -596,7 +597,7 @@ onUnmounted(() => {
             @change="handleReupload"
           >
           <el-button v-if="needsReview" @click="triggerReupload" type="warning" plain round>
-            <el-icon style="margin-right: 4px"><UploadFilled /></el-icon>重新上传数据
+            <Upload class="h-4 w-4 mr-1" />重新上传数据
           </el-button>
           <el-button v-if="!isDataProcessingProject" @click="reanalyze" :loading="isProjectRunning" plain round>重新分析</el-button>
           <el-button v-if="!isDataProcessingProject" type="primary" round @click="$router.push(`/projects/${project?.id}/recommend`)">智能查询</el-button>
@@ -616,7 +617,7 @@ onUnmounted(() => {
         />
 
         <ReportSectionCard>
-          <ReportSectionHeader :icon="TrendCharts" title="项目概览" description="数据诊断与业务建议" />
+          <ReportSectionHeader :icon="BarChart3" title="项目概览" description="数据诊断与业务建议" />
 
           <div class="overview-grid">
             <template v-if="isDataProcessingProject">
@@ -694,14 +695,14 @@ onUnmounted(() => {
           </div>
           <div class="chart-col">
             <div class="section-header-inline">
-              <h3><el-icon><TrendCharts /></el-icon> 销售趋势预估</h3>
+              <h3><BarChart3 class="inline h-5 w-5 mr-1" /> 销售趋势预估</h3>
             </div>
             <v-chart :option="forecastOption" autoresize class="dashboard-chart" />
           </div>
         </section>
 
         <ReportSectionCard v-if="visibleArtifactRefs.length">
-          <ReportSectionHeader :icon="Folder" title="诊断信息" description="技术详情、处理阶段与原始文件" />
+          <ReportSectionHeader :icon="FolderOpen" title="诊断信息" description="技术详情、处理阶段与原始文件" />
 
           <div v-if="stageStatuses.length" class="stage-strip">
             <div v-for="stage in stageStatuses" :key="stage.stage" class="stage-chip" :class="stage.status">
@@ -724,7 +725,7 @@ onUnmounted(() => {
         <section v-if="isRetailProject" class="section-block association-section">
           <div class="section-header-modern">
             <div class="title-with-icon">
-              <el-icon class="icon-main"><ShoppingCart /></el-icon>
+              <ShoppingCart class="h-5 w-5" />
               <div>
                 <h3>购物篮关联分析</h3>
                 <p>发现商品间的隐藏购买规律</p>
@@ -734,7 +735,7 @@ onUnmounted(() => {
 
           <div class="association-lookup-wrapper">
             <div class="lookup-label">
-              <el-icon><ShoppingCart /></el-icon> 关联查询
+              <ShoppingCart class="h-4 w-4" /> 关联查询
             </div>
 
             <div class="lookup-controls">
@@ -747,7 +748,7 @@ onUnmounted(() => {
                 class="premium-select"
               >
                 <template #prefix>
-                  <el-icon><Search /></el-icon>
+                  <Search class="h-4 w-4" />
                 </template>
                 <el-option v-for="item in antecedentOptions" :key="item" :label="item" :value="item" />
               </el-select>
@@ -770,7 +771,7 @@ onUnmounted(() => {
                 <div v-else class="rec-none">
                   <span class="none-text">无直接关联</span>
                   <el-button type="primary" size="small" @click="calculateRealtimeRules" :loading="calcLoading" class="btn-calculate-gradient">
-                    <el-icon><MagicStick /></el-icon> 立即计算
+                    <Wand2 class="h-4 w-4" /> 立即计算
                   </el-button>
                 </div>
               </div>
@@ -790,7 +791,7 @@ onUnmounted(() => {
             >
               <div class="rule-flow">
                 <div class="antecedents"><span v-for="a in rule.antecedents" :key="a" class="a-tag">{{ a }}</span></div>
-                <el-icon class="arrow"><ShoppingCart /></el-icon>
+                <ShoppingCart class="h-3 w-3" />
                 <div class="consequent"><span class="c-tag">{{ rule.consequent }}</span></div>
               </div>
               <div class="rule-meta">提升度 {{ rule.lift.toFixed(2) }}</div>
@@ -802,7 +803,7 @@ onUnmounted(() => {
         <section v-if="isRetailProject" class="section-block clustering-section">
           <div class="section-header-modern">
             <div class="title-with-icon">
-              <el-icon class="icon-main"><User /></el-icon>
+              <User class="h-5 w-5" />
               <div>
                 <h3>客户画像聚类</h3>
                 <p>基于 RFM 模型的客户价值分群</p>
@@ -910,7 +911,7 @@ onUnmounted(() => {
         <!-- 2. Marketing Strategy Section -->
         <div class="marketing-strategy-section">
           <h4 class="strategy-header">
-            <el-icon class="icon-align"><TrendCharts /></el-icon> 营销建议
+            <BarChart3 class="h-4 w-4 inline" /> 营销建议
           </h4>
 
           <div v-if="customerRecs.length" class="rec-grid-compact">

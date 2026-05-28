@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ShoppingCart } from '@element-plus/icons-vue'
+import { ShoppingCart } from 'lucide-vue-next'
 import VChart from 'vue-echarts'
 import type { AssociationPayload } from '../../utils/data-processing-charts'
 import { buildAssociationBubbleOption, buildHuimBarOption } from '../../utils/data-processing-charts'

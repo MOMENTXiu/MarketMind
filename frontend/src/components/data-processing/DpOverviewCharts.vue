@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { DataLine } from '@element-plus/icons-vue'
+import { TrendingUp } from 'lucide-vue-next'
 import VChart from 'vue-echarts'
 import ReportSectionCard from '../report/ReportSectionCard.vue'
 import ReportSectionHeader from '../report/ReportSectionHeader.vue'
@@ -20,7 +20,7 @@ const hasTrend = computed(() => props.payload?.daily_sales && props.payload.dail
 
 <template>
   <ReportSectionCard>
-    <ReportSectionHeader :icon="DataLine" title="销售概览" description="销售额趋势与品类贡献分析" />
+    <ReportSectionHeader :icon="TrendingUp" title="销售概览" description="销售额趋势与品类贡献分析" />
 
     <div class="overview-charts-grid">
       <ReportPanel v-if="hasPareto">

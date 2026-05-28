@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Promotion } from '@element-plus/icons-vue'
+import { BadgePercent } from 'lucide-vue-next'
 import VChart from 'vue-echarts'
 import type { PromotionPayload } from '../../utils/data-processing-charts'
 import { buildPromotionEffectOption, buildDiscountLevelsOption } from '../../utils/data-processing-charts'
@@ -74,7 +74,7 @@ const riskNotes = computed((): string[] => {
 
 <template>
   <ReportSectionCard>
-    <ReportSectionHeader :icon="Promotion" title="促销分析" description="评估促销是否带来额外销售增长" />
+    <ReportSectionHeader :icon="BadgePercent" title="促销分析" description="评估促销是否带来额外销售增长" />
 
     <!-- Business conclusion card -->
     <div v-if="hasAnyData" class="r-insight" :class="'r-insight-' + (effectLabel === '有效' ? 'success' : effectLabel === '不明显' ? 'warning' : 'info')">
