@@ -57,6 +57,10 @@ from backend.infrastructure.adapters.redis_analysis_event_stream_adapter import 
 from backend.infrastructure.adapters.redis_analysis_job_queue_adapter import (
     RedisAnalysisJobQueueAdapter,
 )
+from backend.infrastructure.adapters.jwt_auth_token_adapter import JwtAuthTokenAdapter
+from backend.infrastructure.adapters.passlib_password_hasher_adapter import (
+    PasslibPasswordHasherAdapter,
+)
 from backend.providers.analysis_event_stream_provider import InMemoryAnalysisEventStreamProvider
 from backend.providers.analysis_job_queue_provider import InMemoryAnalysisJobQueueProvider
 from backend.providers.container import ProvidersContainer
@@ -90,6 +94,15 @@ def create_providers(
         analysis_artifacts = LocalAnalysisArtifactAdapter("data")
         analysis_models = LocalAnalysisModelStoreAdapter("data")
 
+    password_hasher = PasslibPasswordHasherAdapter(rounds=settings.AUTH_PASSWORD_HASH_ROUNDS)
+    auth_token = JwtAuthTokenAdapter(
+        secret_key=settings.AUTH_SECRET_KEY,
+        algorithm=settings.AUTH_ALGORITHM,
+        access_token_expire_minutes=settings.AUTH_ACCESS_TOKEN_EXPIRE_MINUTES,
+        issuer=settings.AUTH_TOKEN_ISSUER,
+        audience=settings.AUTH_TOKEN_AUDIENCE,
+    )
+
     return ProvidersContainer(
         repository=JsonProjectRepositoryAdapter("data"),
         storage=LocalProjectFileStorageAdapter("data"),
@@ -110,6 +123,10 @@ def create_providers(
         retail_analysis_state=retail_analysis_state,
         analysis_job_queue=analysis_job_queue,
         analysis_event_stream=analysis_event_stream,
+        user_directory=None,
+        password_hasher=password_hasher,
+        auth_token=auth_token,
+        sse_ticket=None,
     )
 
 

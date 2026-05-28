@@ -53,6 +53,7 @@ class Project(BaseModel):
     )
     results: Optional[AnalysisResults] = Field(None, description="分析结果")
     error_message: Optional[str] = Field(None, description="错误信息")
+    owner_user_id: Optional[str] = Field(None, description="项目所有者用户ID")
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
 
@@ -69,6 +70,7 @@ class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="项目名称")
     description: Optional[str] = Field(None, max_length=500, description="项目描述")
     parameters: Optional[AnalysisParameters] = None
+    owner_user_id: Optional[str] = Field(None, description="项目所有者用户ID")
 
 
 class ProjectUpdate(BaseModel):

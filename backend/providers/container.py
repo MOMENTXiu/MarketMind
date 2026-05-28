@@ -14,9 +14,11 @@ from backend.providers.analysis_job_queue_provider import (
 )
 from backend.providers.analysis_model_store_provider import AnalysisModelStoreProvider
 from backend.providers.association_rule_store_provider import AssociationRuleStoreProvider
+from backend.providers.auth_token_provider import AuthTokenProvider
 from backend.providers.dataset_provider import DatasetProvider
 from backend.providers.generated_asset_provider import GeneratedAssetProvider
 from backend.providers.llm_provider import LLMProvider
+from backend.providers.password_hasher_provider import PasswordHasherProvider
 from backend.providers.project_file_storage_provider import ProjectFileStorageProvider
 from backend.providers.project_repository_provider import ProjectRepositoryProvider
 from backend.providers.recommendation_model_store_provider import RecommendationModelStoreProvider
@@ -26,7 +28,9 @@ from backend.providers.retail_analysis_state_provider import (
     RetailAnalysisStateProvider,
 )
 from backend.providers.retail_dataset_provider import RetailDatasetProvider
+from backend.providers.sse_ticket_provider import SseTicketProvider
 from backend.providers.telemetry_provider import TelemetryProvider
+from backend.providers.user_directory_provider import UserDirectoryProvider
 
 
 @dataclass(frozen=True)
@@ -53,3 +57,7 @@ class ProvidersContainer:
     analysis_event_stream: AnalysisEventStreamProvider = field(
         default_factory=InMemoryAnalysisEventStreamProvider
     )
+    user_directory: UserDirectoryProvider | None = None
+    password_hasher: PasswordHasherProvider | None = None
+    auth_token: AuthTokenProvider | None = None
+    sse_ticket: SseTicketProvider | None = None
