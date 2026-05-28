@@ -17,6 +17,7 @@ const hasProfiles = computed(() => props.payload?.segment_profiles && props.payl
 const hasKscan = computed(() => props.payload?.kscan && props.payload.kscan.length > 0)
 const silhouette = computed(() => props.payload?.silhouette)
 const nSegments = computed(() => props.payload?.n_segments)
+const radarKey = computed(() => `radar-${props.payload?.segment_profiles?.length ?? 0}-${props.payload?.silhouette ?? 0}`)
 </script>
 
 <template>
@@ -46,7 +47,7 @@ const nSegments = computed(() => props.payload?.n_segments)
 
       <div v-if="hasProfiles" class="chart-card">
         <h4 class="chart-title">分群雷达图</h4>
-        <v-chart :option="radarOption" autoresize class="dp-chart" />
+        <v-chart :key="radarKey" :option="radarOption" autoresize class="dp-chart" />
       </div>
       <div v-else class="chart-card empty">
         <el-empty description="暂无雷达数据" :image-size="56" />

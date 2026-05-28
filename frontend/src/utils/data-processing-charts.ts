@@ -122,26 +122,38 @@ const fmt = (v: number, digits = 2): string =>
 const fmtPct = (v: number, digits = 1): string =>
   `${(v * 100).toFixed(digits)}%`
 
+const fmtCurrencyShort = (v: number): string => {
+  if (Math.abs(v) >= 1_000_000) return `¥${(v / 1_000_000).toFixed(2)}M`
+  if (Math.abs(v) >= 10_000) return `¥${(v / 10_000).toFixed(2)}万`
+  return `¥${v.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
+}
+
+const fmtCompact = (v: number, digits = 2): string => {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(digits)}M`
+  if (v >= 10_000) return `${(v / 10_000).toFixed(digits)}万`
+  return v.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
+}
+
 // ─── KPI Strip ───
 
 export function buildKpiTiles(summary?: SummaryPayload | null): KpiTile[] {
   if (!summary) return []
   const tiles: KpiTile[] = []
   const stats = summary.基础销售统计 || {}
-  if (stats.总记录数 !== undefined) tiles.push({ label: '总记录', value: fmt(toNum(stats.总记录数), 0) })
-  if (stats.用户数 !== undefined) tiles.push({ label: '用户数', value: fmt(toNum(stats.用户数), 0) })
-  if (stats.商品数 !== undefined) tiles.push({ label: '商品数', value: fmt(toNum(stats.商品数), 0) })
-  if (stats.订单数 !== undefined) tiles.push({ label: '订单数', value: fmt(toNum(stats.订单数), 0) })
-  if (stats.总销售额 !== undefined) tiles.push({ label: '总销售额', value: `¥${fmt(toNum(stats.总销售额))}` })
-  if (stats.客单价 !== undefined) tiles.push({ label: '客单价', value: `¥${fmt(toNum(stats.客单价))}` })
+  if (stats.总记录数 !== undefined) tiles.push({ label: '总记录数', value: fmtCompact(toNum(stats.总记录数), 0) })
+  if (stats.用户数 !== undefined) tiles.push({ label: '用户数', value: fmtCompact(toNum(stats.用户数), 0) })
+  if (stats.商品数 !== undefined) tiles.push({ label: '商品数', value: fmtCompact(toNum(stats.商品数), 0) })
+  if (stats.订单数 !== undefined) tiles.push({ label: '订单数', value: fmtCompact(toNum(stats.订单数), 0) })
+  if (stats.总销售额 !== undefined) tiles.push({ label: '总销售额', value: fmtCurrencyShort(toNum(stats.总销售额)) })
+  if (stats.客单价 !== undefined) tiles.push({ label: '客单价', value: fmtCurrencyShort(toNum(stats.客单价)) })
   if (stats.退货率 !== undefined) tiles.push({ label: '退货率', value: fmtPct(toNum(stats.退货率)) })
 
   const seg = summary.顾客画像 || {}
-  if (seg.分群数 !== undefined) tiles.push({ label: '分群数', value: fmt(toNum(seg.分群数), 0) })
+  if (seg.分群数 !== undefined) tiles.push({ label: '分群数', value: fmtCompact(toNum(seg.分群数), 0) })
   if (seg.轮廓系数 !== undefined) tiles.push({ label: '轮廓系数', value: fmt(toNum(seg.轮廓系数), 3) })
 
   const assoc = summary.关联规则 || {}
-  if (assoc.规则数 !== undefined) tiles.push({ label: '关联规则', value: fmt(toNum(assoc.规则数), 0) })
+  if (assoc.规则数 !== undefined) tiles.push({ label: '关联规则', value: fmtCompact(toNum(assoc.规则数), 0) })
 
   const rec = summary.个性化推荐 || {}
   if (rec.最佳模型 !== undefined) tiles.push({ label: '最佳模型', value: String(rec.最佳模型) })
@@ -151,6 +163,8 @@ export function buildKpiTiles(summary?: SummaryPayload | null): KpiTile[] {
 
   return tiles
 }
+
+export { fmtCurrencyShort, fmtCompact, fmtPct, fmt }
 
 // ─── Overview: Category Pareto ───
 

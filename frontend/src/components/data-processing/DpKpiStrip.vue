@@ -46,9 +46,9 @@ const hasAnySkipped = computed(() => {
 <style scoped>
 .kpi-section { padding: 24px 32px; }
 .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; }
-.kpi-tile { background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+.kpi-tile { background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow: hidden; }
 .kpi-label { font-size: 0.72rem; color: var(--text-tertiary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-.kpi-value { font-size: 1.3rem; font-weight: 800; color: var(--text-primary); }
-.kpi-sub { font-size: 0.72rem; color: var(--text-tertiary); }
+.kpi-value { font-size: clamp(18px, 2.5vw, 26px); font-weight: 800; color: var(--text-primary); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
+.kpi-sub { font-size: 0.72rem; color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .skipped-hint { margin-top: 12px; font-size: 0.75rem; color: #94a3b8; }
 </style>

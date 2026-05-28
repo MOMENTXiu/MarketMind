@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart, BarChart, ScatterChart, CustomChart } from 'echarts/charts'
+import { LineChart, BarChart, ScatterChart, CustomChart, RadarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, TitleComponent, RadarComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { ArrowLeft, User, ShoppingCart, TrendCharts, Search, MagicStick, Folder, UploadFilled } from '@element-plus/icons-vue'
@@ -32,7 +32,7 @@ import DpAssociationCharts from '../components/data-processing/DpAssociationChar
 import DpRecommendationCharts from '../components/data-processing/DpRecommendationCharts.vue'
 import DpPromotionCharts from '../components/data-processing/DpPromotionCharts.vue'
 
-use([CanvasRenderer, LineChart, BarChart, ScatterChart, CustomChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent, RadarComponent])
+use([CanvasRenderer, LineChart, BarChart, ScatterChart, CustomChart, RadarChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent, RadarComponent])
 
 const route = useRoute()
 const router = useRouter()
@@ -141,6 +141,71 @@ const projectStatusConfig = computed(() => getRetailProjectStatusConfig(project.
 const projectStatusClass = computed(() => normalizeRetailProjectStatus(project.value?.status))
 const isProjectRunning = computed(() => isActiveRetailProjectStatus(project.value?.status))
 const visibleArtifactRefs = computed(() => artifacts.value.length ? artifacts.value : (project.value?.artifact_refs || []))
+interface DpKvRow { label: string; value: string }
+const safeNum = (v: unknown, fallback: number | null = null): number | null => {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : fallback
+}
+const numShort = (v: unknown): string => {
+  const n = safeNum(v)
+  if (n === null) return '-'
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
+  if (n >= 10_000) return `${(n / 10_000).toFixed(2)}万`
+  return n.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
+}
+const pctLabel = (v: unknown): string => {
+  const n = safeNum(v)
+  return n !== null ? `${(n * 100).toFixed(1)}%` : '-'
+}
+const currencyShort = (v: unknown): string => {
+  const n = safeNum(v)
+  if (n === null) return '-'
+  if (n >= 1_000_000) return `¥${(n / 1_000_000).toFixed(2)}M`
+  if (n >= 10_000) return `¥${(n / 10_000).toFixed(2)}万`
+  return `¥${n.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
+}
+
+const datasetSummaryRows = computed((): DpKvRow[] => {
+  if (!isDataProcessingProject.value) return []
+  const stats = (dpOverview.value?.overview ?? dpSummary.value?.基础销售统计) as Record<string, unknown> | undefined
+  const rows: DpKvRow[] = []
+  if (project.value?.dataset_filename) rows.push({ label: '数据集', value: project.value.dataset_filename })
+  if (stats?.['总记录数'] !== undefined) rows.push({ label: '总记录数', value: numShort(stats['总记录数']) })
+  if (stats?.['用户数'] !== undefined) rows.push({ label: '用户数', value: numShort(stats['用户数']) })
+  if (stats?.['商品数'] !== undefined) rows.push({ label: '商品数', value: numShort(stats['商品数']) })
+  if (stats?.['订单数'] !== undefined) rows.push({ label: '订单数', value: numShort(stats['订单数']) })
+  if (stats?.['总销售额'] !== undefined) rows.push({ label: '总销售额', value: currencyShort(stats['总销售额']) })
+  if (stats?.['客单价'] !== undefined) rows.push({ label: '客单价', value: currencyShort(stats['客单价']) })
+  if (stats?.['退货率'] !== undefined) rows.push({ label: '退货率', value: pctLabel(stats['退货率']) })
+  const seg = dpSummary.value?.顾客画像 as Record<string, unknown> | undefined
+  if (seg?.['分群数'] !== undefined) rows.push({ label: '分群数', value: numShort(seg['分群数']) })
+  const rec = dpSummary.value?.个性化推荐 as Record<string, unknown> | undefined
+  if (rec?.['最佳模型'] !== undefined) rows.push({ label: '最佳模型', value: String(rec['最佳模型']) })
+  return rows
+})
+
+const qualityGridRows = computed((): DpKvRow[] => {
+  const q = project.value?.quality_summary ?? {}
+  const rows: DpKvRow[] = []
+  if (q['raw_rows'] !== undefined) rows.push({ label: '原始行数', value: numShort(q['raw_rows']) })
+  if (q['normalized_rows'] !== undefined) rows.push({ label: '标准化行数', value: numShort(q['normalized_rows']) })
+  if (q['duplicate_rows_removed'] !== undefined) rows.push({ label: '去重行数', value: numShort(q['duplicate_rows_removed']) })
+  if (q['mapped_field_count'] !== undefined) rows.push({ label: '字段映射数', value: numShort(q['mapped_field_count']) })
+  const fields = q['available_standard_fields'] as string[] | undefined
+  if (fields) rows.push({ label: '标准字段覆盖', value: numShort(fields.length) })
+  const mr = q['missing_rates'] as Record<string, unknown> | undefined
+  if (mr) {
+    const maxRate = Math.max(...Object.values(mr).map(v => safeNum(v, 0) ?? 0))
+    rows.push({ label: '最大缺失率', value: pctLabel(maxRate) })
+  }
+  if (q['invalid_date_count'] !== undefined) rows.push({ label: '无效日期', value: numShort(q['invalid_date_count']) })
+  if (q['invalid_amount_count'] !== undefined) rows.push({ label: '无效金额', value: numShort(q['invalid_amount_count']) })
+  const score = safeNum(q['analysis_ready_score'], 0) ?? 0
+  const gradeLabel = q['grade'] ?? (score >= 0.8 ? '优秀' : score >= 0.6 ? '良好' : '需检查')
+  if (gradeLabel) rows.push({ label: '质量状态', value: String(gradeLabel) })
+  return rows.length ? rows : Object.entries(q).slice(0, 8).map(([k, v]) => ({ label: k, value: formatValue(v) }))
+})
+
 const summaryEntries = computed(() => Object.entries(project.value?.summary || {}).filter(([k]) => k !== 'analysis_kind' && k !== 'job_id').slice(0, 8))
 const qualityEntries = computed(() => Object.entries(project.value?.quality_summary || {}).slice(0, 8))
 const stageStatuses = computed(() => project.value?.stage_statuses || [])
@@ -541,33 +606,58 @@ onUnmounted(() => {
               <el-icon class="icon-main"><TrendCharts /></el-icon>
               <div>
                 <h3>项目概览</h3>
-                <p>{{ project.error || '后端分析状态与公开结果摘要' }}</p>
+                <p>{{ project.error || '诊断状态与数据集摘要' }}</p>
               </div>
             </div>
           </div>
 
           <div class="overview-grid">
-            <div class="overview-panel">
-              <h4>摘要</h4>
-              <div v-if="summaryEntries.length" class="kv-list">
-                <div v-for="([key, value]) in summaryEntries" :key="key" class="kv-row">
-                  <span>{{ key }}</span>
-                  <strong>{{ formatValue(value) }}</strong>
+            <!-- DP: dataset summary -->
+            <template v-if="isDataProcessingProject">
+              <div class="overview-panel">
+                <h4>数据集摘要</h4>
+                <div v-if="datasetSummaryRows.length" class="kv-list">
+                  <div v-for="row in datasetSummaryRows" :key="row.label" class="kv-row">
+                    <span>{{ row.label }}</span>
+                    <strong>{{ row.value }}</strong>
+                  </div>
                 </div>
+                <el-empty v-else description="暂无摘要" :image-size="56" />
               </div>
-              <el-empty v-else description="暂无摘要" :image-size="56" />
-            </div>
-
-            <div class="overview-panel">
-              <h4>数据质量</h4>
-              <div v-if="qualityEntries.length" class="kv-list">
-                <div v-for="([key, value]) in qualityEntries" :key="key" class="kv-row">
-                  <span>{{ key }}</span>
-                  <strong>{{ formatValue(value) }}</strong>
+              <div class="overview-panel">
+                <h4>数据质量</h4>
+                <div v-if="qualityGridRows.length" class="kv-list">
+                  <div v-for="row in qualityGridRows" :key="row.label" class="kv-row">
+                    <span>{{ row.label }}</span>
+                    <strong>{{ row.value }}</strong>
+                  </div>
                 </div>
+                <el-empty v-else description="暂无质量数据" :image-size="56" />
               </div>
-              <el-empty v-else description="暂无质量数据" :image-size="56" />
-            </div>
+            </template>
+            <!-- Retail: legacy -->
+            <template v-else>
+              <div class="overview-panel">
+                <h4>摘要</h4>
+                <div v-if="summaryEntries.length" class="kv-list">
+                  <div v-for="([key, value]) in summaryEntries" :key="key" class="kv-row">
+                    <span>{{ key }}</span>
+                    <strong>{{ formatValue(value) }}</strong>
+                  </div>
+                </div>
+                <el-empty v-else description="暂无摘要" :image-size="56" />
+              </div>
+              <div class="overview-panel">
+                <h4>数据质量</h4>
+                <div v-if="qualityEntries.length" class="kv-list">
+                  <div v-for="([key, value]) in qualityEntries" :key="key" class="kv-row">
+                    <span>{{ key }}</span>
+                    <strong>{{ formatValue(value) }}</strong>
+                  </div>
+                </div>
+                <el-empty v-else description="暂无质量数据" :image-size="56" />
+              </div>
+            </template>
           </div>
 
           <div class="stage-strip" v-if="stageStatuses.length">
