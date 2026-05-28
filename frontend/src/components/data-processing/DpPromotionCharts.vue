@@ -4,6 +4,10 @@ import { Promotion } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import type { PromotionPayload } from '../../utils/data-processing-charts'
 import { buildPromotionEffectOption, buildDiscountLevelsOption } from '../../utils/data-processing-charts'
+import ReportSectionCard from '../report/ReportSectionCard.vue'
+import ReportSectionHeader from '../report/ReportSectionHeader.vue'
+import ReportPanel from '../report/ReportPanel.vue'
+import ReportBadge from '../report/ReportBadge.vue'
 
 const props = defineProps<{
   payload?: PromotionPayload | null
@@ -69,20 +73,12 @@ const riskNotes = computed((): string[] => {
 </script>
 
 <template>
-  <section class="section-block">
-    <div class="section-header-modern compact">
-      <div class="title-with-icon">
-        <el-icon class="icon-main"><Promotion /></el-icon>
-        <div>
-          <h3>促销分析</h3>
-          <p>评估促销是否带来额外销售增长</p>
-        </div>
-      </div>
-    </div>
+  <ReportSectionCard>
+    <ReportSectionHeader :icon="Promotion" title="促销分析" description="评估促销是否带来额外销售增长" />
 
     <!-- Business conclusion card -->
-    <div v-if="hasAnyData" class="insight-card">
-      <div class="insight-header">促销结论</div>
+    <div v-if="hasAnyData" class="r-insight" :class="'r-insight-' + (effectLabel === '有效' ? 'success' : effectLabel === '不明显' ? 'warning' : 'info')">
+      <div class="r-insight-title">促销结论</div>
       <div class="effect-badge" :class="'effect-' + effectLabel">{{ effectLabel === '有效' ? '有效 — 促销带来正向收益' : effectLabel === '可能有效' ? '可能有效 — 建议小范围验证' : effectLabel === '不明显' ? '效果不明显 — 需进一步观察' : '数据不足' }}</div>
       <div class="insight-body">
         <div v-for="(line, idx) in conclusionLines" :key="idx" class="conclusion-line">{{ line }}</div>
@@ -91,58 +87,53 @@ const riskNotes = computed((): string[] => {
         <div v-for="(note, idx) in riskNotes" :key="idx" class="risk-note">{{ note }}</div>
       </div>
     </div>
-    <div v-else class="insight-card muted">
-      <p>促销数据不足以生成稳定的效果判断。请确保数据包含促销标记字段。</p>
+    <div v-else class="r-insight r-insight-muted">
+      <p class="insight-empty-text">促销数据不足以生成稳定的效果判断。请确保数据包含促销标记字段。</p>
     </div>
 
     <!-- Technical details (foldable) -->
     <details v-if="hasEffect || hasDiscount" class="tech-details">
       <summary>查看技术指标</summary>
       <div class="promo-meta-inner">
-        <span v-if="dmlSignificant !== undefined" class="meta-tag" :class="{ significant: dmlSignificant }">统计显著性: {{ dmlSignificant ? '显著' : '不显著' }}</span>
-        <span v-if="dmlAte !== undefined" class="meta-tag">DML ATE: {{ dmlAte >= 0 ? '+' : '' }}{{ dmlAte.toFixed(2) }}</span>
-        <span v-if="naiveDiff !== undefined" class="meta-tag">简单对比: {{ naiveDiff >= 0 ? '+' : '' }}{{ naiveDiff.toFixed(2) }}</span>
-        <span v-if="profitMargin !== undefined" class="meta-tag">利润率: {{ (profitMargin * 100).toFixed(1) }}%</span>
-        <span v-if="totalProfit !== undefined" class="meta-tag">总利润: ¥{{ totalProfit.toLocaleString('zh-CN') }}</span>
+        <ReportBadge v-if="dmlSignificant !== undefined" :tone="dmlSignificant ? 'success' : 'warning'">统计显著性: {{ dmlSignificant ? '显著' : '不显著' }}</ReportBadge>
+        <ReportBadge v-if="dmlAte !== undefined" tone="neutral">DML ATE: {{ dmlAte >= 0 ? '+' : '' }}{{ dmlAte.toFixed(2) }}</ReportBadge>
+        <ReportBadge v-if="naiveDiff !== undefined" tone="neutral">简单对比: {{ naiveDiff >= 0 ? '+' : '' }}{{ naiveDiff.toFixed(2) }}</ReportBadge>
+        <ReportBadge v-if="profitMargin !== undefined" tone="neutral">利润率: {{ (profitMargin * 100).toFixed(1) }}%</ReportBadge>
+        <ReportBadge v-if="totalProfit !== undefined" tone="neutral">总利润: ¥{{ totalProfit.toLocaleString('zh-CN') }}</ReportBadge>
       </div>
       <div class="promo-charts-grid">
-        <div v-if="hasEffect" class="chart-card">
+        <ReportPanel v-if="hasEffect">
           <h4 class="chart-title">因果效应对比</h4>
           <v-chart :option="effectOption" autoresize class="dp-chart" />
-        </div>
-        <div v-if="hasDiscount" class="chart-card">
+        </ReportPanel>
+        <ReportPanel v-if="hasDiscount">
           <h4 class="chart-title">折扣档位响应</h4>
           <v-chart :option="discountOption" autoresize class="dp-chart" />
-        </div>
+        </ReportPanel>
       </div>
     </details>
-  </section>
+  </ReportSectionCard>
 </template>
 
 <style scoped>
 .promo-charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-.chart-card { background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 20px; padding: 16px; }
 .chart-title { font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); margin: 0 0 12px 0; }
-.dp-chart { height: 280px; width: 100%; }
+.dp-chart { height: var(--r-chart-height); width: 100%; }
 
-.insight-card { background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
-.insight-card.muted { background: transparent; border-style: dashed; }
-.insight-card.muted p { color: var(--text-tertiary); font-size: 0.85rem; margin: 0; }
-.insight-header { font-size: 0.85rem; font-weight: 800; color: var(--text-primary); margin-bottom: 12px; }
+.r-insight-title { font-size: 0.85rem; font-weight: 800; color: var(--text-primary); margin-bottom: 12px; }
 .effect-badge { display: inline-block; font-size: 0.8rem; font-weight: 700; padding: 4px 12px; border-radius: 999px; margin-bottom: 12px; }
 .effect-有效 { background: rgba(16, 185, 129, 0.12); color: #10B981; }
-.effect-可能有效 { background: rgba(245, 158, 11, 0.12); color: #F59E0B; }
-.effect-不明显 { background: rgba(239, 68, 68, 0.12); color: #EF4444; }
-.effect-数据不足 { background: rgba(148, 163, 184, 0.12); color: #94A3B8; }
+.effect-可能有效 { background: rgba(245, 158, 11, 0.12); color: #D97706; }
+.effect-不明显 { background: rgba(239, 68, 68, 0.1); color: #DC2626; }
+.effect-数据不足 { background: rgba(148, 163, 184, 0.1); color: #64748B; }
 .insight-body { display: flex; flex-direction: column; gap: 6px; }
 .conclusion-line { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; }
+.insight-empty-text { color: var(--text-tertiary); font-size: 0.85rem; margin: 0; }
 .risk-notes { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
-.risk-note { font-size: 0.75rem; color: #F59E0B; }
+.risk-note { font-size: 0.75rem; color: #D97706; }
 .risk-note::before { content: '⚠ '; }
 
 .promo-meta-inner { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 16px; }
-.meta-tag { font-size: 0.72rem; padding: 4px 10px; background: var(--color-accent-soft); color: var(--color-accent); border-radius: 999px; font-weight: 700; }
-.meta-tag.significant { background: rgba(16, 185, 129, 0.15); color: #10B981; }
 
 .tech-details { margin-top: 8px; }
 .tech-details summary { cursor: pointer; font-size: 0.78rem; color: var(--text-tertiary); padding: 8px 0; user-select: none; }

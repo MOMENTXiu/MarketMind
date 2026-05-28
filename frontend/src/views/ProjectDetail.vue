@@ -8,6 +8,10 @@ import { LineChart, BarChart, ScatterChart, CustomChart, RadarChart } from 'echa
 import { GridComponent, TooltipComponent, LegendComponent, TitleComponent, RadarComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { ArrowLeft, User, ShoppingCart, TrendCharts, Search, MagicStick, Folder, UploadFilled } from '@element-plus/icons-vue'
+import ReportSectionCard from '../components/report/ReportSectionCard.vue'
+import ReportSectionHeader from '../components/report/ReportSectionHeader.vue'
+import ReportPanel from '../components/report/ReportPanel.vue'
+import '../components/report/report-tokens.css'
 import {
   getAnalysisArtifactPayload,
   getApiErrorMessage,
@@ -611,22 +615,13 @@ onUnmounted(() => {
           style="margin-bottom: 24px; border-radius: 16px;"
         />
 
-        <section class="section-block overview-section">
-          <div class="section-header-modern compact">
-            <div class="title-with-icon">
-              <el-icon class="icon-main"><TrendCharts /></el-icon>
-              <div>
-                <h3>项目概览</h3>
-                <p>数据诊断与业务建议</p>
-              </div>
-            </div>
-          </div>
+        <ReportSectionCard>
+          <ReportSectionHeader :icon="TrendCharts" title="项目概览" description="数据诊断与业务建议" />
 
           <div class="overview-grid">
-            <!-- DP: dataset summary -->
             <template v-if="isDataProcessingProject">
-              <div class="overview-panel">
-                <h4>数据集摘要</h4>
+              <ReportPanel>
+                <h4 class="panel-title">数据集摘要</h4>
                 <div v-if="datasetSummaryRows.length" class="kv-list">
                   <div v-for="row in datasetSummaryRows" :key="row.label" class="kv-row">
                     <span>{{ row.label }}</span>
@@ -634,9 +629,9 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <el-empty v-else description="暂无摘要" :image-size="56" />
-              </div>
-              <div class="overview-panel">
-                <h4>数据质量</h4>
+              </ReportPanel>
+              <ReportPanel>
+                <h4 class="panel-title">数据质量</h4>
                 <div v-if="qualityGridRows.length" class="kv-list">
                   <div v-for="row in qualityGridRows" :key="row.label" class="kv-row">
                     <span>{{ row.label }}</span>
@@ -644,12 +639,11 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <el-empty v-else description="暂无质量数据" :image-size="56" />
-              </div>
+              </ReportPanel>
             </template>
-            <!-- Retail: legacy -->
             <template v-else>
-              <div class="overview-panel">
-                <h4>摘要</h4>
+              <ReportPanel>
+                <h4 class="panel-title">摘要</h4>
                 <div v-if="summaryEntries.length" class="kv-list">
                   <div v-for="([key, value]) in summaryEntries" :key="key" class="kv-row">
                     <span>{{ key }}</span>
@@ -657,9 +651,9 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <el-empty v-else description="暂无摘要" :image-size="56" />
-              </div>
-              <div class="overview-panel">
-                <h4>数据质量</h4>
+              </ReportPanel>
+              <ReportPanel>
+                <h4 class="panel-title">数据质量</h4>
                 <div v-if="qualityEntries.length" class="kv-list">
                   <div v-for="([key, value]) in qualityEntries" :key="key" class="kv-row">
                     <span>{{ key }}</span>
@@ -667,10 +661,10 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <el-empty v-else description="暂无质量数据" :image-size="56" />
-              </div>
+              </ReportPanel>
             </template>
           </div>
-        </section>
+        </ReportSectionCard>
 
         <!-- Data Processing Dashboard -->
         <template v-if="isDataProcessingProject">
@@ -706,18 +700,10 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <section v-if="visibleArtifactRefs.length" class="section-block artifacts-section">
-          <div class="section-header-modern compact">
-            <div class="title-with-icon">
-              <el-icon class="icon-main"><Folder /></el-icon>
-              <div>
-                <h3>{{ isDataProcessingProject ? '诊断信息' : '分析产物' }}</h3>
-                <p>技术详情、处理阶段与原始文件</p>
-              </div>
-            </div>
-          </div>
+        <ReportSectionCard v-if="visibleArtifactRefs.length">
+          <ReportSectionHeader :icon="Folder" title="诊断信息" description="技术详情、处理阶段与原始文件" />
 
-          <div class="stage-strip" v-if="stageStatuses.length">
+          <div v-if="stageStatuses.length" class="stage-strip">
             <div v-for="stage in stageStatuses" :key="stage.stage" class="stage-chip" :class="stage.status">
               <span>{{ STAGE_LABELS[stage.stage] || stage.stage }}</span>
               <strong>{{ STAGE_STATUS_LABELS[stage.status] || stage.status }}</strong>
@@ -725,14 +711,14 @@ onUnmounted(() => {
           </div>
 
           <div class="artifact-grid">
-            <div v-for="ref in visibleArtifactRefs" :key="ref.id" class="artifact-card">
+            <ReportPanel v-for="ref in visibleArtifactRefs" :key="ref.id" class="artifact-card-panel">
               <span class="artifact-type">{{ ref.type || 'artifact' }}</span>
               <strong>{{ ref.name || ref.id }}</strong>
               <small>{{ ref.id }}</small>
               <a v-if="ref.url" :href="ref.url" target="_blank" rel="noreferrer">打开</a>
-            </div>
+            </ReportPanel>
           </div>
-        </section>
+        </ReportSectionCard>
 
         <!-- 2. Association Rules (Retail only) -->
         <section v-if="isRetailProject" class="section-block association-section">
@@ -1027,30 +1013,24 @@ html.dark .mini-divider {
 
 .tag-pill { font-size: 0.7rem; padding: 2px 8px; background: rgba(0,0,0,0.05); border-radius: 10px; color: #666; margin-right: 8px; }
 
-.section-block { background: var(--color-surface); border-radius: 32px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); margin-bottom: 32px; border: 1px solid var(--border-subtle); }
-html.dark .section-block { background: var(--color-surface); border-color: var(--border-subtle); }
-
-.section-header-modern.compact { margin-bottom: 20px; }
-.overview-section { display: flex; flex-direction: column; gap: 24px; }
 .overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
-.overview-panel { background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 20px; padding: 20px; min-height: 180px; }
-.overview-panel h4 { margin: 0 0 14px 0; font-size: 0.9rem; color: var(--text-primary); }
+.panel-title { margin: 0 0 14px 0; font-size: 0.9rem; color: var(--text-primary); font-weight: 700; }
 .kv-list { display: flex; flex-direction: column; gap: 10px; }
 .kv-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 0.82rem; color: var(--text-tertiary); }
 .kv-row strong { color: var(--text-primary); text-align: right; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stage-strip { display: flex; flex-wrap: wrap; gap: 10px; }
-.stage-chip { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: var(--color-bg-base); border: 1px solid var(--border-subtle); font-size: 0.75rem; color: var(--text-tertiary); }
-.stage-chip strong { color: var(--text-primary); }
+.stage-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.stage-chip { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--r-panel-bg); border: var(--r-panel-border); font-size: 0.75rem; color: var(--text-tertiary); }
+.stage-chip strong { color: var(--text-primary); font-weight: 600; }
 .stage-chip.completed strong { color: #10b981; }
 .stage-chip.processing strong { color: #f59e0b; }
 .stage-chip.failed strong { color: #ef4444; }
 .stage-chip.skipped strong { color: #94a3b8; }
 .stage-chip.needs_review strong { color: #f97316; }
 .artifact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
-.artifact-card { display: flex; flex-direction: column; gap: 6px; background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 18px; padding: 16px; min-height: 130px; }
-.artifact-card strong { color: var(--text-primary); font-size: 0.95rem; }
-.artifact-card small { color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.artifact-card a { margin-top: auto; color: var(--color-accent); font-weight: 700; font-size: 0.82rem; }
+.artifact-card-panel { display: flex; flex-direction: column; gap: 6px; min-height: 100px; }
+.artifact-card-panel strong { color: var(--text-primary); font-size: 0.9rem; }
+.artifact-card-panel small { color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.artifact-card-panel a { margin-top: auto; color: var(--color-accent); font-weight: 700; font-size: 0.82rem; }
 .artifact-type { width: fit-content; color: var(--color-accent); background: var(--color-accent-soft); border-radius: 999px; padding: 2px 8px; font-size: 0.7rem; font-weight: 800; }
 
 /* Dashboard Grid */
@@ -1062,12 +1042,6 @@ html.dark .section-block { background: var(--color-surface); border-color: var(-
 .chart-col { display: flex; flex-direction: column; }
 .dashboard-chart { height: 300px; width: 100%; }
 
-/* Headers */
-.section-header-modern { margin-bottom: 32px; }
-.title-with-icon { display: flex; gap: 16px; align-items: center; }
-.icon-main { font-size: 24px; padding: 12px; background: var(--color-accent-soft); color: var(--color-accent); border-radius: 16px; }
-.title-with-icon h3 { font-size: 1.4rem; font-weight: 800; margin: 0; color: var(--text-primary); }
-.title-with-icon p { font-size: 0.9rem; color: var(--text-tertiary); margin: 4px 0 0 0; }
 
 /* Association Lookup Refined */
 .association-lookup-wrapper {

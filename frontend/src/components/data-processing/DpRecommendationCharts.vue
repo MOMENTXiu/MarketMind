@@ -4,6 +4,9 @@ import { Star } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import type { RecommendationPayload } from '../../utils/data-processing-charts'
 import { buildRecommendationMetricsOption, buildReliabilityOption } from '../../utils/data-processing-charts'
+import ReportSectionCard from '../report/ReportSectionCard.vue'
+import ReportSectionHeader from '../report/ReportSectionHeader.vue'
+import ReportPanel from '../report/ReportPanel.vue'
 
 const props = defineProps<{
   payload?: RecommendationPayload | null
@@ -45,20 +48,12 @@ const actionText = computed(() => {
 </script>
 
 <template>
-  <section class="section-block">
-    <div class="section-header-modern compact">
-      <div class="title-with-icon">
-        <el-icon class="icon-main"><Star /></el-icon>
-        <div>
-          <h3>个性化推荐</h3>
-          <p>根据用户行为生成可执行的商品推荐建议</p>
-        </div>
-      </div>
-    </div>
+  <ReportSectionCard>
+    <ReportSectionHeader :icon="Star" title="个性化推荐" description="根据用户行为生成可执行的商品推荐建议" />
 
     <!-- Business insight card -->
-    <div v-if="hasAnyData" class="insight-card">
-      <div class="insight-header">推荐建议</div>
+    <div v-if="hasAnyData" class="r-insight r-insight-info">
+      <div class="r-insight-title">推荐建议</div>
       <div class="insight-body">
         <div class="insight-row" v-if="modelName">
           <span class="insight-label">推荐策略</span>
@@ -75,41 +70,38 @@ const actionText = computed(() => {
         <p class="insight-body-text">{{ actionText }}</p>
       </div>
     </div>
-    <div v-else class="insight-card muted">
-      <p>{{ actionText }}</p>
+    <div v-else class="r-insight r-insight-muted">
+      <p class="insight-empty-text">{{ actionText }}</p>
     </div>
 
     <!-- Technical charts (foldable) -->
     <details v-if="hasEvaluation || hasReliability" class="tech-details">
       <summary>查看技术指标</summary>
       <div class="rec-charts-grid">
-        <div v-if="hasEvaluation" class="chart-card">
+        <ReportPanel v-if="hasEvaluation">
           <h4 class="chart-title">模型指标对比</h4>
           <v-chart :option="metricsOption" autoresize class="dp-chart" />
-        </div>
-        <div v-if="hasReliability" class="chart-card">
+        </ReportPanel>
+        <ReportPanel v-if="hasReliability">
           <h4 class="chart-title">信号可靠性</h4>
           <v-chart :option="reliabilityOption" autoresize class="dp-chart" />
-        </div>
+        </ReportPanel>
       </div>
     </details>
-  </section>
+  </ReportSectionCard>
 </template>
 
 <style scoped>
 .rec-charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-.chart-card { background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 20px; padding: 16px; }
 .chart-title { font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); margin: 0 0 12px 0; }
-.dp-chart { height: 280px; width: 100%; }
+.dp-chart { height: var(--r-chart-height); width: 100%; }
 
-.insight-card { background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
-.insight-card.muted { background: transparent; border-style: dashed; }
-.insight-card.muted p { color: var(--text-tertiary); font-size: 0.85rem; margin: 0; }
-.insight-header { font-size: 0.85rem; font-weight: 800; color: var(--text-primary); margin-bottom: 12px; }
+.r-insight-title { font-size: 0.85rem; font-weight: 800; color: var(--text-primary); margin-bottom: 12px; }
 .insight-body { display: flex; flex-direction: column; gap: 8px; }
 .insight-row { display: flex; gap: 12px; font-size: 0.85rem; color: var(--text-secondary); }
 .insight-label { font-weight: 700; color: var(--text-primary); min-width: 80px; flex-shrink: 0; }
 .insight-body-text { font-size: 0.82rem; color: var(--text-tertiary); margin: 4px 0 0 0; line-height: 1.5; }
+.insight-empty-text { color: var(--text-tertiary); font-size: 0.85rem; margin: 0; }
 .strength-高 { color: #10B981; font-weight: 600; }
 .strength-中 { color: #F59E0B; font-weight: 600; }
 .strength-低 { color: #EF4444; font-weight: 600; }

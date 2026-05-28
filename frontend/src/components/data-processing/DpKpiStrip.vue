@@ -3,6 +3,8 @@ import { computed } from 'vue'
 import { TrendCharts } from '@element-plus/icons-vue'
 import type { SummaryPayload } from '../../utils/data-processing-charts'
 import { buildKpiTiles } from '../../utils/data-processing-charts'
+import ReportSectionCard from '../report/ReportSectionCard.vue'
+import ReportSectionHeader from '../report/ReportSectionHeader.vue'
 
 const props = defineProps<{
   summary?: SummaryPayload | null
@@ -17,16 +19,8 @@ const hasAnySkipped = computed(() => {
 </script>
 
 <template>
-  <section class="section-block kpi-section">
-    <div class="section-header-modern compact">
-      <div class="title-with-icon">
-        <el-icon class="icon-main"><TrendCharts /></el-icon>
-        <div>
-          <h3>分析概览</h3>
-          <!-- no subtitle -->
-        </div>
-      </div>
-    </div>
+  <ReportSectionCard>
+    <ReportSectionHeader :icon="TrendCharts" title="分析概览" />
 
     <div v-if="tiles.length" class="kpi-grid">
       <div v-for="tile in tiles" :key="tile.label" class="kpi-tile">
@@ -40,15 +34,14 @@ const hasAnySkipped = computed(() => {
     <div v-if="hasAnySkipped" class="skipped-hint">
       <span>部分模块因数据条件不足已跳过</span>
     </div>
-  </section>
+  </ReportSectionCard>
 </template>
 
 <style scoped>
-.kpi-section { padding: 24px 32px; }
 .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; }
-.kpi-tile { background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow: hidden; }
-.kpi-label { font-size: 0.72rem; color: var(--text-tertiary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-.kpi-value { font-size: clamp(18px, 2.5vw, 26px); font-weight: 800; color: var(--text-primary); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
+.kpi-tile { background: var(--r-panel-bg); border: var(--r-panel-border); border-radius: var(--r-panel-radius); padding: 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow: hidden; }
+.kpi-label { font-size: var(--r-kpi-label-size); color: var(--text-tertiary); font-weight: 600; letter-spacing: 0.03em; }
+.kpi-value { font-size: var(--r-kpi-value-size); font-weight: 800; color: var(--text-primary); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
 .kpi-sub { font-size: 0.72rem; color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .skipped-hint { margin-top: 12px; font-size: 0.75rem; color: #94a3b8; }
 </style>

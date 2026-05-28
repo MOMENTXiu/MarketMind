@@ -4,6 +4,10 @@ import { ShoppingCart } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import type { AssociationPayload } from '../../utils/data-processing-charts'
 import { buildAssociationBubbleOption, buildHuimBarOption } from '../../utils/data-processing-charts'
+import ReportSectionCard from '../report/ReportSectionCard.vue'
+import ReportSectionHeader from '../report/ReportSectionHeader.vue'
+import ReportPanel from '../report/ReportPanel.vue'
+import ReportBadge from '../report/ReportBadge.vue'
 
 const props = defineProps<{
   payload?: AssociationPayload | null
@@ -36,23 +40,16 @@ const topRules = computed(() => {
 </script>
 
 <template>
-  <section class="section-block">
-    <div class="section-header-modern compact">
-      <div class="title-with-icon">
-        <el-icon class="icon-main"><ShoppingCart /></el-icon>
-        <div>
-          <h3>关联分析</h3>
-          <p>发现常被一起购买的商品组合，用于陈列和捆绑销售</p>
-        </div>
-      </div>
-      <div v-if="nRules !== undefined || avgLift !== undefined" class="assoc-meta">
-        <span v-if="nRules !== undefined" class="meta-tag">规则数: {{ nRules }}</span>
-        <span v-if="avgLift !== undefined" class="meta-tag">平均提升度: {{ avgLift.toFixed(2) }}</span>
-      </div>
-    </div>
+  <ReportSectionCard>
+    <ReportSectionHeader :icon="ShoppingCart" title="关联分析" description="发现常被一起购买的商品组合，用于陈列和捆绑销售">
+      <template v-if="nRules !== undefined || avgLift !== undefined">
+        <ReportBadge v-if="nRules !== undefined" tone="info">规则数: {{ nRules }}</ReportBadge>
+        <ReportBadge v-if="avgLift !== undefined" tone="info">平均提升度: {{ avgLift.toFixed(2) }}</ReportBadge>
+      </template>
+    </ReportSectionHeader>
 
     <div class="assoc-charts-grid">
-      <div v-if="hasRules" class="chart-card">
+      <ReportPanel v-if="hasRules">
         <h4 class="chart-title">置信度-提升度-支持度</h4>
         <v-chart :option="bubbleOption" autoresize class="dp-chart" />
         <div v-if="bubbleLegend.length" class="custom-legend">
@@ -61,18 +58,18 @@ const topRules = computed(() => {
             <span class="legend-name">{{ item.name }}</span>
           </div>
         </div>
-      </div>
-      <div v-else class="chart-card empty">
+      </ReportPanel>
+      <ReportPanel v-else class="chart-empty">
         <el-empty description="暂无关联规则" :image-size="56" />
-      </div>
+      </ReportPanel>
 
-      <div v-if="hasHuim" class="chart-card">
+      <ReportPanel v-if="hasHuim">
         <h4 class="chart-title">Top 组合效用</h4>
         <v-chart :option="huimOption" autoresize class="dp-chart" />
-      </div>
-      <div v-else class="chart-card empty">
+      </ReportPanel>
+      <ReportPanel v-else class="chart-empty">
         <el-empty description="暂无组合效用数据" :image-size="56" />
-      </div>
+      </ReportPanel>
     </div>
 
     <div v-if="topRules.length" class="rules-preview">
@@ -92,21 +89,18 @@ const topRules = computed(() => {
         </div>
       </div>
     </div>
-  </section>
+  </ReportSectionCard>
 </template>
 
 <style scoped>
 .assoc-charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-.chart-card { background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 20px; padding: 16px; }
-.chart-card.empty { display: flex; align-items: center; justify-content: center; min-height: 280px; }
 .chart-title { font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); margin: 0 0 12px 0; }
-.dp-chart { height: 280px; width: 100%; }
-.assoc-meta { display: flex; gap: 8px; }
-.meta-tag { font-size: 0.72rem; padding: 4px 10px; background: var(--color-accent-soft); color: var(--color-accent); border-radius: 999px; font-weight: 700; }
+.chart-empty { display: flex; align-items: center; justify-content: center; min-height: var(--r-chart-height); }
+.dp-chart { height: var(--r-chart-height); width: 100%; }
 .rules-preview { margin-top: 20px; }
 .preview-title { font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); margin: 0 0 12px 0; }
 .rules-table { display: flex; flex-direction: column; gap: 8px; }
-.rule-row { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; background: var(--color-bg-base); border: 1px solid var(--border-subtle); border-radius: 12px; font-size: 0.82rem; }
+.rule-row { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background: var(--r-panel-bg); border: var(--r-panel-border); border-radius: var(--r-panel-radius); font-size: 0.82rem; }
 .rule-main { display: flex; align-items: center; gap: 12px; }
 .rule-ant { color: var(--text-primary); font-weight: 600; }
 .rule-arrow { color: var(--color-accent); font-weight: 700; }
