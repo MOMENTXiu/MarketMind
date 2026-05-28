@@ -82,8 +82,8 @@ Execution rules:
 - HOW: Update architecture docs to state DP artifact payload fallback behavior and universal analysis JSON format contracts. Update `AGENTS.md` only for stable verified conventions. Grep for stale references to the old dict-only output shapes.
 - EXPECTED_RESULT: Code, tests, docs, and agent guidance share one口径.
 - VERIFY: `make lint`; `make test`; `make build`; targeted grep checks for old symbols.
-- STATUS: pending
-- RESULT:
+- STATUS: completed
+- RESULT: AGENTS.md updated with ECharts tree-shaking rules, report component system conventions, and lucide icon migration status. Memory consolidated into `frontend-dp-chart-ui-fixes.md` covering all 7 commits. Test baseline remains `265 passed, 4 skipped`.
 - RISK:
 - ROLLBACK: Restore only doc wording if verification disproves a claim.
 
