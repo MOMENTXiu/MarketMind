@@ -92,8 +92,6 @@ cleanup() {
 
     report_port_if_busy "5173" "Frontend"
     report_port_if_busy "8000" "Backend API"
-    report_port_if_busy "9000" "MinIO API"
-    report_port_if_busy "9001" "MinIO Console"
 
     if [ "${MARKETMIND_KEEP_INFRA:-0}" != "1" ]; then
         echo -e "${YELLOW}Stopping Docker infrastructure...${NC}"
@@ -165,20 +163,42 @@ check_service_running() {
     return 1
 }
 
+wait_for_infra() {
+    local service_name="$1"
+    local max_attempts="${2:-30}"
+    local attempt=1
+
+    while [ "$attempt" -le "$max_attempts" ]; do
+        local status
+        status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "marketmind-${service_name}-dev" 2>/dev/null || true)"
+        if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+            echo -e "${GREEN}  ${service_name} is ${status}${NC}"
+            return 0
+        fi
+        echo -e "${YELLOW}  Waiting for ${service_name} (${attempt}/${max_attempts})...${NC}"
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+
+    echo -e "${RED}Error: ${service_name} did not become healthy${NC}"
+    docker compose -f docker-compose.dev.yml ps
+    exit 1
+}
+
 INFRA_READY=true
 for svc in postgres redis minio; do
     if ! check_service_running "$svc"; then
         INFRA_READY=false
-        echo -e "${RED}  ${svc} is not running${NC}"
     fi
 done
 
 if [ "$INFRA_READY" != "true" ]; then
     echo ""
-    echo -e "${RED}Error: Docker infrastructure is not ready.${NC}"
-    echo -e "${YELLOW}Run the deploy script first:${NC}"
-    echo -e "  ${CYAN}./scripts/deploy-project.sh${NC}"
-    exit 1
+    echo -e "${YELLOW}  Docker infrastructure not running, starting it...${NC}"
+    docker compose -f docker-compose.dev.yml up -d postgres redis minio minio-init
+    for svc in postgres redis minio; do
+        wait_for_infra "$svc"
+    done
 fi
 echo ""
 
@@ -201,8 +221,6 @@ ensure_port_free() {
 
 ensure_port_free "8000" "Backend API"
 ensure_port_free "5173" "Frontend"
-ensure_port_free "9000" "MinIO API"
-ensure_port_free "9001" "MinIO Console"
 echo -e "${GREEN}  All ports are free${NC}"
 echo ""
 

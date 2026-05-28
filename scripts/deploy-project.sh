@@ -129,14 +129,7 @@ echo ""
 # Frontend dependencies
 echo -e "${YELLOW}[5/6] Installing frontend dependencies...${NC}"
 cd frontend
-if [ ! -d "node_modules" ]; then
-    if [ -f "init-vue.sh" ]; then
-        chmod +x init-vue.sh
-        ./init-vue.sh
-    else
-        npm install
-    fi
-fi
+npm install --registry https://registry.npmmirror.com/
 cd "$ROOT_DIR"
 echo -e "${GREEN}  Frontend dependencies installed${NC}"
 echo ""
@@ -164,15 +157,17 @@ mkdir -p data/projects
 echo -e "${GREEN}  Local directories ready${NC}"
 echo ""
 
+# Stop Docker infrastructure — deploy is a one-time setup script
+echo -e "${YELLOW}  Stopping Docker infrastructure (deploy is one-time)...${NC}"
+docker compose -f docker-compose.dev.yml stop postgres redis minio minio-init >/dev/null 2>&1 || true
+echo -e "${GREEN}  Docker infrastructure stopped${NC}"
+echo ""
+
 echo -e "${CYAN}╔════════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║   MarketMind deploy complete!          ║${NC}"
 echo -e "${CYAN}╚════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${GREEN}Infrastructure is ready:${NC}"
-echo -e "  Postgres:     ${BLUE}localhost:5432${NC}"
-echo -e "  Redis:        ${BLUE}localhost:6379${NC}"
-echo -e "  MinIO API:    ${BLUE}http://localhost:9000${NC}"
-echo -e "  MinIO Console:${BLUE}http://localhost:9001${NC}"
+echo -e "${GREEN}Environment prepared. Infrastructure will be started by start-project.sh.${NC}"
 echo ""
 echo -e "${GREEN}Next step:${NC}"
 echo -e "  ${CYAN}./scripts/start-project.sh${NC}"
