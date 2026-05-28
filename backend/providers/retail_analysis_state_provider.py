@@ -86,7 +86,7 @@ def _summary_from_state(state: RetailAnalysisProjectStateDTO) -> RetailAnalysisP
         description=state.description,
         status=state.status,
         dataset_ref=state.dataset_ref,
-        dataset_filename=_dataset_filename(state.dataset_ref),
+        dataset_filename=_dataset_filename_from_state(state),
         quality_summary=state.quality_summary,
         artifact_refs=state.artifact_refs,
         recommendations=state.recommendations,
@@ -107,3 +107,17 @@ def _dataset_filename(dataset_ref: dict[str, object] | None) -> str | None:
         return None
     name = dataset_ref.get("name")
     return str(name) if name else None
+
+
+def _dataset_filename_from_state(state: RetailAnalysisProjectStateDTO) -> str | None:
+    ref = state.dataset_ref
+    if isinstance(ref, dict):
+        name = ref.get("name")
+        if name:
+            return str(name)
+    summary = state.summary
+    if isinstance(summary, dict):
+        name = summary.get("dataset_filename")
+        if name:
+            return str(name)
+    return None

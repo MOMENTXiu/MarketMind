@@ -166,10 +166,16 @@ def build_analysis_state_event(
 
 def _dataset_filename(state: dict[str, Any]) -> str | None:
     ref = state.get("dataset_ref")
-    if not isinstance(ref, dict):
-        return None
-    name = ref.get("name")
-    return str(name) if name else None
+    if isinstance(ref, dict):
+        name = ref.get("name")
+        if name:
+            return str(name)
+    summary = state.get("summary")
+    if isinstance(summary, dict):
+        name = summary.get("dataset_filename")
+        if name:
+            return str(name)
+    return None
 
 
 def empty_marketer_insights() -> dict[str, list[dict[str, Any]]]:
