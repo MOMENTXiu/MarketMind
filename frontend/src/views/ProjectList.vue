@@ -73,10 +73,7 @@ const formatDate = (dateStr?: string | null) => {
   })
 }
 
-// Status Styling
-const getStatusConfig = (status: string) => {
-  return getRetailProjectStatusConfig(status)
-}
+const getStatusConfig = (status: string) => getRetailProjectStatusConfig(status)
 
 onMounted(() => {
   loadProjects()
@@ -85,280 +82,175 @@ onMounted(() => {
 
 <template>
   <div class="container-breath">
-    <!-- Header -->
     <header class="page-header">
       <div>
-        <h1 class="text-display" style="font-size: 2rem; margin-bottom: 8px;">项目空间</h1>
-        <p class="text-subtitle">管理您的所有分析任务</p>
+        <h1 class="page-title">项目空间</h1>
+        <p class="page-sub">管理您的所有分析任务</p>
       </div>
-
       <div class="header-actions">
-        <!-- Search Pill -->
-        <div class="search-pill">
-          <Search />
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="搜索项目..."
-            class="search-input"
-          >
+        <div class="search-box">
+          <Search class="h-3.5 w-3.5" />
+          <input v-model="searchQuery" type="text" placeholder="搜索项目..." />
         </div>
-
-        <el-button type="primary" class="btn-create" @click="createProject" round>
-          <Plus /> 新建项目
-        </el-button>
+        <button class="btn-create" @click="createProject">
+          <Plus class="h-3.5 w-3.5" />新建项目
+        </button>
       </div>
     </header>
 
-    <!-- Project Grid -->
-    <div v-if="loading" class="loading-state">
-      <div class="spinner"></div>
-    </div>
+    <div v-if="loading" class="loading-state"><div class="spinner"></div></div>
 
     <div v-else-if="projects.length > 0" class="project-grid">
-      <div
+      <article
         v-for="project in projects"
         :key="project.id"
-        class="project-card"
+        class="project-card group"
         @click="viewProject(project.id)"
       >
-        <!-- Card Header -->
         <div class="card-top">
-          <div class="status-badge" :style="{ backgroundColor: getStatusConfig(project.status).color + '20', color: getStatusConfig(project.status).color }">
-            <span class="status-dot" :style="{ backgroundColor: getStatusConfig(project.status).color }"></span>
-            {{ getStatusConfig(project.status).label }}
+          <div class="card-badges">
+            <span class="status-badge" :style="{ backgroundColor: getStatusConfig(project.status).color + '18', color: getStatusConfig(project.status).color }">
+              <span class="status-dot" :style="{ backgroundColor: getStatusConfig(project.status).color }"></span>
+              {{ getStatusConfig(project.status).label }}
+            </span>
+            <span v-if="project.analysis_kind === 'data_processing'" class="kind-badge kind-dp">通用诊断</span>
+            <span v-else class="kind-badge kind-retail">零售分析</span>
           </div>
-          <button class="btn-icon-only" @click="(e) => deleteProject(e, project.id, project.name)">
-            <Trash2 />
-          </button>
+          <div class="action-slot">
+            <button class="btn-delete" @click="(e) => deleteProject(e, project.id, project.name)">
+              <Trash2 class="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
 
-        <!-- Card Body -->
         <div class="card-body">
-          <h3 class="project-title">{{ project.name }}</h3>
-          <p class="project-meta">
-            <Folder />
-            {{ project.dataset_filename || project.dataset_ref?.name || '无数据集' }}
-          </p>
+          <h3 class="card-title">{{ project.name }}</h3>
+          <p v-if="project.description" class="card-desc">{{ project.description }}</p>
+          <div class="card-meta">
+            <Folder class="h-3.5 w-3.5" />
+            <span>{{ project.dataset_filename || project.dataset_ref?.name || '暂无数据文件' }}</span>
+          </div>
         </div>
 
-        <!-- Card Footer -->
         <div class="card-footer">
-          <span class="time-tag">{{ formatDate(project.created_at) }}</span>
-          <ArrowRight />
+          <span>{{ formatDate(project.created_at) }}</span>
+          <div class="arrow-slot">
+            <ArrowRight class="h-3.5 w-3.5" />
+          </div>
         </div>
-      </div>
+      </article>
     </div>
 
-    <!-- Empty State -->
     <div v-else class="empty-state">
-      <FolderOpen />
+      <FolderOpen class="empty-icon" />
       <h3>暂无项目</h3>
       <p>开始您的第一个数据分析任务吧</p>
-      <el-button type="primary" @click="createProject" style="margin-top: 24px;">创建项目</el-button>
+      <el-button type="primary" @click="createProject" style="margin-top: 24px">创建项目</el-button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: 48px;
-  flex-wrap: wrap;
-  gap: 24px;
-}
+/* ─── header ─── */
+.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px; flex-wrap: wrap; gap: 20px; }
+.page-title { font-size: 1.75rem; font-weight: 800; color: var(--text-primary); margin: 0 0 4px 0; }
+.page-sub { font-size: 0.9rem; color: var(--text-tertiary); margin: 0; }
+.header-actions { display: flex; align-items: center; gap: 16px; }
 
-.header-actions {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-
-.search-pill {
-  background: var(--color-surface);
-  border-radius: var(--radius-pill);
-  padding: 8px 16px;
-  display: flex;
-  align-items: center;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border-subtle);
-  transition: all 0.2s ease;
-  width: 240px;
-}
-
-.search-pill:focus-within {
-  box-shadow: var(--shadow-glow);
-  border-color: var(--color-accent);
-  width: 280px;
-}
-
-.search-icon {
-  opacity: 0.5;
-  margin-right: 10px;
-  font-size: 1.1rem;
+/* ─── search box ─── */
+.search-box {
+  display: flex; align-items: center; gap: 10px;
+  height: 48px; width: 320px;
+  padding: 0 16px;
+  border-radius: 20px;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--border-subtle, rgba(15,23,42,0.06));
   color: var(--text-secondary);
+  box-shadow: 0 8px 24px rgba(15,23,42,0.03);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-
-.search-input {
-  border: none;
-  background: transparent;
-  outline: none;
-  font-family: inherit;
-  font-size: 0.95rem;
-  width: 100%;
-  color: var(--text-primary);
+.search-box:focus-within { border-color: rgba(99,102,241,0.4); box-shadow: 0 12px 32px rgba(99,102,241,0.08); }
+.search-box input {
+  border: none; background: transparent; outline: none;
+  flex: 1; min-width: 0;
+  font-size: 0.9rem; color: var(--text-primary);
 }
+.search-box input::placeholder { color: var(--text-tertiary); }
 
-.project-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 24px;
+/* ─── create button ─── */
+.btn-create {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 48px; padding: 0 20px;
+  border-radius: 20px; border: none;
+  background: #6366F1; color: #fff;
+  font-size: 0.9rem; font-weight: 600;
+  box-shadow: 0 10px 24px rgba(99,102,241,0.22);
+  cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
 }
+.btn-create:hover { transform: translateY(-1px); box-shadow: 0 14px 32px rgba(99,102,241,0.28); }
 
+/* ─── grid ─── */
+.project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+
+/* ─── card ─── */
 .project-card {
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  position: relative;
-  transition: all 0.3s var(--ease-spring);
-  border: 1px solid var(--border-subtle);
+  display: flex; flex-direction: column;
+  min-height: 240px; padding: 28px;
+  border-radius: 28px;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--border-subtle, rgba(15,23,42,0.06));
+  box-shadow: 0 12px 32px rgba(15,23,42,0.03);
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  height: 200px;
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
-
 .project-card:hover {
-  transform: translateY(-8px);
-  box-shadow: var(--shadow-md);
-  z-index: 5;
+  transform: translateY(-2px);
+  border-color: rgba(99,102,241,0.25);
+  box-shadow: 0 20px 48px rgba(15,23,42,0.07);
 }
 
-.card-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 16px;
-}
+/* top row */
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.card-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.status-badge { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.kind-badge { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+.kind-dp { background: rgba(99,102,241,0.07); color: #6366F1; }
+.kind-retail { background: rgba(15,23,42,0.04); color: var(--text-tertiary); }
 
-.status-badge {
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  font-size: 0.75rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+/* action slot (always occupies space) */
+.action-slot { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; }
+.btn-delete {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 8px; border: none;
+  background: transparent; color: var(--text-tertiary);
+  cursor: pointer; opacity: 0; transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
+.project-card:hover .btn-delete { opacity: 0.5; }
+.btn-delete:hover { background: rgba(239,68,68,0.08); color: #EF4444; opacity: 1 !important; }
 
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
+/* body */
+.card-body { flex: 1; padding-top: 28px; min-height: 82px; }
+.card-title { font-size: 1.2rem; font-weight: 700; color: var(--text-primary); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25; }
+.card-desc { font-size: 0.82rem; color: var(--text-tertiary); margin: 6px 0 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-meta { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 0.82rem; color: var(--text-tertiary); }
+.card-meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.btn-icon-only {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  font-size: 1rem;
-  padding: 4px;
-  border-radius: 4px;
-}
-
-.btn-icon-only:hover {
-  background: rgba(0,0,0,0.05);
-}
-
-.project-card:hover .btn-icon-only {
-  opacity: 0.4;
-}
-.project-card:hover .btn-icon-only:hover {
-  opacity: 1;
-}
-
-.card-body {
-  flex: 1;
-}
-
-.project-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0 0 8px 0;
-  color: var(--text-primary);
-}
-
-.project-meta {
-  font-size: 0.9rem;
-  color: var(--text-tertiary);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.meta-icon {
-  opacity: 0.7;
-}
-
+/* footer */
 .card-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-subtle);
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: auto; padding-top: 16px;
+  border-top: 1px solid var(--border-subtle, rgba(15,23,42,0.06));
+  font-size: 0.82rem; color: var(--text-tertiary);
 }
+.arrow-slot { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; }
+.arrow-slot svg { opacity: 0; transition: opacity 0.2s, transform 0.2s; color: var(--text-tertiary); }
+.project-card:hover .arrow-slot svg { opacity: 0.5; transform: translateX(2px); }
 
-.time-tag {
-  font-size: 0.8rem;
-  color: var(--text-tertiary);
-}
-
-.arrow-icon {
-  color: var(--color-accent);
-  opacity: 0;
-  transform: translateX(-10px);
-  transition: all 0.3s ease;
-  font-weight: bold;
-}
-
-.project-card:hover .arrow-icon {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.empty-state {
-  text-align: center;
-  padding: 80px 0;
-  opacity: 0.6;
-}
-
-.empty-icon {
-  font-size: 4rem;
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-
-.loading-state {
-  display: flex;
-  justify-content: center;
-  padding: 40px;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid rgba(0,0,0,0.1);
-  border-radius: 50%;
-  border-top-color: var(--color-accent);
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+/* ─── empty & loading ─── */
+.empty-state { text-align: center; padding: 80px 0; color: var(--text-tertiary); }
+.empty-icon { width: 40px; height: 40px; margin: 0 auto 12px; opacity: 0.35; }
+.loading-state { display: flex; justify-content: center; padding: 60px 0; }
+.spinner { width: 36px; height: 36px; border: 3px solid var(--border-subtle); border-radius: 50%; border-top-color: #6366F1; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>

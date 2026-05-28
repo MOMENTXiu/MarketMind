@@ -50,6 +50,11 @@ const router = createRouter({
       component: () => import('@/views/CustomerAnalysis.vue')
     },
     {
+      path: '/project-intro',
+      name: 'project-intro',
+      component: () => import('@/views/ProjectIntro.vue')
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/Settings.vue')

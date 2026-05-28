@@ -73,11 +73,9 @@ onMounted(() => {
           <!-- Service Status Component -->
           <ServiceStatus />
 
-          <RouterLink to="/projects/new">
-            <el-button type="primary" round>
-              <Plus />
-              <span>新建项目</span>
-            </el-button>
+          <RouterLink to="/projects/new" class="btn-new-project">
+            <Plus />
+            <span>新建项目</span>
           </RouterLink>
         </div>
       </div>
@@ -105,7 +103,7 @@ onMounted(() => {
   top: 0;
   left: 0;
   right: 0;
-  height: 64px;
+  height: 72px;
   z-index: 100;
   display: flex;
   align-items: center;
@@ -114,10 +112,14 @@ onMounted(() => {
 }
 
 .navbar.glass {
-  border-bottom: 1px solid var(--navbar-border);
-  background: var(--navbar-bg);
-  backdrop-filter: blur(16px);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03); /* Subtle separation shadow */
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px);
+}
+
+html.dark .navbar.glass {
+  background: rgba(15, 15, 20, 0.78);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* Removed transparent class to enforce glass effect everywhere */
@@ -143,51 +145,69 @@ onMounted(() => {
 }
 
 .brand-logo {
-  width: 24px;
-  height: 24px;
-  background: var(--text-primary);
-  color: var(--color-bg-base);
-  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  background: #111827;
+  color: #fff;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 800;
+}
+
+.brand-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.02em;
+}
+
+html.dark .brand-text {
+  color: #f1f5f9;
 }
 
 .nav-links {
   display: flex;
-  gap: 8px;
-  background: var(--nav-pill-bg);
+  gap: 4px;
   padding: 4px;
-  border-radius: var(--radius-pill);
 }
 
 .on-home .nav-links {
-  background: var(--nav-pill-bg);
+  background: transparent;
 }
 
 .nav-item {
-  color: var(--text-secondary);
+  color: #475569;
   font-size: 0.9rem;
   font-weight: 500;
-  transition: all 0.3s var(--ease-smooth);
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease, color 160ms ease;
   padding: 8px 20px;
-  border-radius: var(--radius-pill);
+  border-radius: 14px;
   position: relative;
   text-decoration: none !important;
 }
 
+html.dark .nav-item {
+  color: #94a3b8;
+}
+
 .nav-item:hover {
-  color: var(--text-primary);
-  background: var(--nav-pill-hover);
+  color: #111827;
+  background: rgba(15, 23, 42, 0.04);
+}
+
+html.dark .nav-item:hover {
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .nav-item.active {
-  color: var(--text-primary);
-  background: var(--color-surface);
-  font-weight: 700;
-  box-shadow: var(--shadow-sm);
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.10);
+  font-weight: 600;
+  box-shadow: none;
 }
 
 .nav-actions {
@@ -197,22 +217,35 @@ onMounted(() => {
 }
 
 .theme-toggle {
-  background: transparent;
-  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 1.2rem;
-  padding: 8px;
-  border-radius: 50%;
+  color: #475569;
+  font-size: 1rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+html.dark .theme-toggle {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
 }
 
 .theme-toggle:hover {
-  background: rgba(0,0,0,0.05);
-  color: var(--text-primary);
+  background: #fff;
+  border-color: rgba(99, 102, 241, 0.26);
+  color: #111827;
+}
+
+html.dark .theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #f1f5f9;
 }
 
 .status-pill {
@@ -247,8 +280,33 @@ onMounted(() => {
   background-color: #EF4444;
 }
 
+.btn-new-project {
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.28);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none !important;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.btn-new-project:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 34px rgba(99, 102, 241, 0.36);
+}
+
+.btn-new-project:active {
+  transform: translateY(0);
+}
+
 .main-view {
-  padding-top: 80px;
+  padding-top: 88px;
   flex: 1;
   width: 100%;
 }
