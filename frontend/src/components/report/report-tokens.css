@@ -28,6 +28,14 @@
 
   --r-kpi-label-size: 0.78rem;
   --r-kpi-value-size: clamp(1.1rem, 2.5vw, 1.5rem);
+
+  /* icon colors — neutral, not brand */
+  --r-icon-color: #475569;
+  --r-icon-bg: rgba(71, 85, 105, 0.08);
+}
+html.dark {
+  --r-icon-color: #e2e8f0;
+  --r-icon-bg: rgba(226, 232, 240, 0.1);
 }
 
 /* semantic badge tones */

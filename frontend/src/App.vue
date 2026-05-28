@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { computed, ref, onMounted } from 'vue'
-import { Moon, Sunny, Plus } from '@element-plus/icons-vue'
+import { Moon, Sun, Plus } from 'lucide-vue-next'
 import ServiceStatus from '@/components/ServiceStatus.vue'
 
 const route = useRoute()
@@ -67,7 +67,7 @@ onMounted(() => {
 
         <div class="nav-actions">
           <button class="theme-toggle" @click="toggleTheme" :title="isDark ? '切换亮色' : '切换暗色'">
-            <el-icon><Sunny v-if="isDark" /><Moon v-else /></el-icon>
+            <Sun v-if="isDark" /><Moon v-else />
           </button>
 
           <!-- Service Status Component -->
@@ -75,7 +75,7 @@ onMounted(() => {
 
           <RouterLink to="/projects/new">
             <el-button type="primary" round>
-              <el-icon style="margin-right: 4px"><Plus /></el-icon>
+              <Plus />
               <span>新建项目</span>
             </el-button>
           </RouterLink>

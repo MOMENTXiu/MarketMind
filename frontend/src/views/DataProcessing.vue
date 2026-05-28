@@ -3,7 +3,7 @@ import { computed, ref, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { UploadProps, UploadUserFile } from 'element-plus'
-import { ArrowLeft, UploadFilled, Refresh, VideoPlay, Document, Warning, View } from '@element-plus/icons-vue'
+import { ArrowLeft, Upload, RefreshCw, Play, AlertTriangle, Eye } from 'lucide-vue-next'
 import {
   createDataProcessingJob,
   getApiErrorMessage,
@@ -343,14 +343,14 @@ onUnmounted(() => {
     <div class="container-breath-fixed">
       <header class="dp-header">
         <button class="btn-back-round" @click="router.push('/projects')">
-          <el-icon><ArrowLeft /></el-icon>
+          <ArrowLeft />
         </button>
         <div>
           <h1 class="dp-title">Data Processing</h1>
           <p class="dp-subtitle">通用 CSV / Excel 标准化与分析链路</p>
         </div>
         <div class="dp-header-actions">
-          <el-button :icon="Refresh" plain round :loading="loadingJob" :disabled="!job" @click="refreshJob">刷新</el-button>
+          <el-button   plain round :loading="loadingJob" :disabled="!job" @click="refreshJob"><RefreshCw class="h-4 w-4 mr-1" />刷新</el-button>
         </div>
       </header>
 
@@ -398,7 +398,7 @@ onUnmounted(() => {
             class="dp-upload"
           >
             <div class="upload-placeholder">
-              <el-icon class="upload-icon"><UploadFilled /></el-icon>
+              <Upload />
               <div class="upload-text">选择通用数据文件</div>
               <div class="upload-hint">CSV / Excel，最大 100MB</div>
             </div>
@@ -409,11 +409,11 @@ onUnmounted(() => {
           </el-button>
 
           <div class="action-row">
-            <el-button :icon="Document" :loading="regularizing" :disabled="!job" @click="regularizeJob">
+            <el-button   :loading="regularizing" :disabled="!job" @click="regularizeJob">
               标准化
             </el-button>
-            <el-button type="primary" :icon="VideoPlay" :loading="running || isJobProcessing" :disabled="!canRunAnalysis" @click="runJob">
-              运行分析
+            <el-button type="primary"   :loading="running || isJobProcessing" :disabled="!canRunAnalysis" @click="runJob">
+              <Play class="h-4 w-4 mr-1" />运行分析
             </el-button>
           </div>
 
@@ -457,7 +457,7 @@ onUnmounted(() => {
           </div>
 
           <div v-if="job?.skipped_reasons && Object.keys(job.skipped_reasons).length" class="skipped-box">
-            <div class="mini-title"><el-icon><Warning /></el-icon> Skipped Reasons</div>
+            <div class="mini-title"><AlertTriangle /> Skipped Reasons</div>
             <div v-for="([stage, reason]) in Object.entries(job.skipped_reasons)" :key="stage" class="skip-row">
               <span>{{ stage }}</span><strong>{{ reason }}</strong>
             </div>
@@ -497,7 +497,7 @@ onUnmounted(() => {
                 <small>{{ ref.id }}</small>
               </div>
               <a v-if="ref.url" :href="ref.url" target="_blank" rel="noreferrer">
-                <el-icon><View /></el-icon>
+                <Eye />
               </a>
             </div>
             <el-empty v-if="!outputs.length" description="暂无输出" :image-size="56" />

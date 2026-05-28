@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { UploadInstance, UploadProps, UploadUserFile } from 'element-plus'
-import { UploadFilled, ArrowLeft } from '@element-plus/icons-vue'
+import { Upload, ArrowLeft } from 'lucide-vue-next'
 import {
   createRetailProject,
   getApiErrorMessage,
@@ -116,7 +116,7 @@ const createProject = async () => {
     <!-- Header -->
     <div class="focus-header">
       <button class="btn-back" @click="$router.push('/projects')">
-        <el-icon><ArrowLeft /></el-icon>
+        <ArrowLeft />
       </button>
       <h1 class="text-display" style="font-size: 1.8rem;">新建项目</h1>
     </div>
@@ -181,7 +181,7 @@ const createProject = async () => {
               class="full-width-upload"
             >
               <div class="upload-placeholder">
-                <el-icon class="upload-icon"><UploadFilled /></el-icon>
+                <Upload />
                 <div class="upload-text">点击或拖拽上传数据集</div>
                 <div class="upload-hint">支持 .csv / .xls / .xlsx (Max 100MB)</div>
               </div>

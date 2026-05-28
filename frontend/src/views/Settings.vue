@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Cpu } from '@element-plus/icons-vue'
+import { Cpu } from 'lucide-vue-next'
 import { generateCustomerSuggestion, getApiErrorMessage } from '../api'
 
 // LLM Configuration
@@ -119,7 +119,7 @@ onMounted(() => {
           <div class="card-header-minimal">
             <div class="header-info">
               <h3 class="card-title" style="display: flex; align-items: center; gap: 10px">
-                <el-icon><Cpu /></el-icon> AI 模型设置
+                <Cpu /> AI 模型设置
               </h3>
               <p class="card-desc">配置 LLM 服务，用于生成智能营销建议</p>
             </div>

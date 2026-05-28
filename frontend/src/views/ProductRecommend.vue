@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Goods, Loading, Search, ArrowLeft, Refresh } from '@element-plus/icons-vue'
+import { Package, Loader2, Search, ArrowLeft, RefreshCw } from 'lucide-vue-next'
 import { useRoute } from 'vue-router'
 import {
   generateCustomerSuggestion,
@@ -35,7 +35,7 @@ const displayedText = ref('')
 const insightLoading = ref(false)
 const typewriterActive = ref(false)
 let typewriterTimer: number | undefined
-const coreIconComponent = computed(() => loading.value ? Loading : Goods)
+const coreIconComponent = computed(() => loading.value ? Loader2 : Package)
 
 // UI Refs for SVG drawing
 const centerNodeRef = ref<HTMLElement | null>(null)
@@ -271,7 +271,7 @@ onUnmounted(() => {
             class="header-search"
             @keyup.enter="search()"
           >
-            <template #prefix><el-icon><Search /></el-icon></template>
+            <template #prefix><Search /></template>
           </el-input>
           <el-button type="primary" :loading="loading" @click="search()">分析</el-button>
         </div>
@@ -320,9 +320,9 @@ onUnmounted(() => {
             <div class="topo-col center">
               <div class="center-glow-wrap">
                 <div class="core-node" ref="centerNodeRef">
-                  <el-icon class="core-icon" :class="{ 'is-loading': loading }">
+                  
                     <component :is="coreIconComponent" />
-                  </el-icon>
+                  
                   <span class="core-name">{{ loading ? '分析中...' : data?.item }}</span>
                 </div>
                 <div class="breathing-ring" v-if="!loading"></div>
@@ -369,7 +369,7 @@ onUnmounted(() => {
         </div>
 
         <div v-else-if="!loading" class="empty-state-canvas">
-          <el-icon class="huge-icon"><Refresh /></el-icon>
+          <RefreshCw />
           <p>输入商品名称以开启双向关联分析</p>
         </div>
       </main>

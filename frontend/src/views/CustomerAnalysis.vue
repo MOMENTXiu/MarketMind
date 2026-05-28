@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, User, ShoppingCart, MagicStick } from '@element-plus/icons-vue'
+import { ArrowLeft, User, ShoppingCart, Wand2 } from 'lucide-vue-next'
 import {
   generateCustomerSuggestion,
   getApiErrorMessage,
@@ -146,7 +146,7 @@ onMounted(async () => {
         <!-- 2. Marketing AI Section -->
         <section class="section-block ai-suggestion-card">
           <div class="card-header-iconic">
-            <h3 class="suggestion-title"><el-icon><MagicStick /></el-icon> 营销建议</h3>
+            <h3 class="suggestion-title"><Wand2 /> 营销建议</h3>
             <div class="action-buttons">
               <el-button
                 round
@@ -175,7 +175,7 @@ onMounted(async () => {
         <!-- 3. Two Columns: Purchased vs Potential -->
         <div class="dual-columns">
           <section class="section-block column-card">
-            <h3 class="col-title"><el-icon><ShoppingCart /></el-icon> 已购商品分析</h3>
+            <h3 class="col-title"><ShoppingCart /> 已购商品分析</h3>
             <div class="item-list-modern">
               <div
                 v-for="item in purchasedItems"
@@ -193,7 +193,7 @@ onMounted(async () => {
           </section>
 
           <section class="section-block column-card highlight-border">
-            <h3 class="col-title"><el-icon><User /></el-icon> 潜在需求预测</h3>
+            <h3 class="col-title"><User /> 潜在需求预测</h3>
             <div class="item-list-modern">
               <div
                 v-for="rec in recommendations"

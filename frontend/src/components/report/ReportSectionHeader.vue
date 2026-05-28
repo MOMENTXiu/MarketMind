@@ -32,13 +32,10 @@ defineProps<{ icon?: any; title: string; description?: string }>()
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  background: rgba(99, 102, 241, 0.08);
-  color: #6366F1;
+  background: var(--r-icon-bg);
+  color: var(--r-icon-color);
   font-size: 1rem;
   margin-top: 2px;
-}
-html.dark .r-header-icon {
-  background: rgba(99, 102, 241, 0.15);
 }
 .r-header-title {
   font-size: var(--r-header-title-size);

@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Delete, Folder, Plus, FolderOpened, ArrowRight } from '@element-plus/icons-vue'
+import { Search, Trash2, Folder, Plus, FolderOpen, ArrowRight } from 'lucide-vue-next'
 import {
   deleteRetailProject,
   getApiErrorMessage,
@@ -95,7 +95,7 @@ onMounted(() => {
       <div class="header-actions">
         <!-- Search Pill -->
         <div class="search-pill">
-          <el-icon class="search-icon"><Search /></el-icon>
+          <Search />
           <input
             v-model="searchQuery"
             type="text"
@@ -105,7 +105,7 @@ onMounted(() => {
         </div>
 
         <el-button type="primary" class="btn-create" @click="createProject" round>
-          <el-icon style="margin-right: 4px"><Plus /></el-icon> 新建项目
+          <Plus /> 新建项目
         </el-button>
       </div>
     </header>
@@ -129,7 +129,7 @@ onMounted(() => {
             {{ getStatusConfig(project.status).label }}
           </div>
           <button class="btn-icon-only" @click="(e) => deleteProject(e, project.id, project.name)">
-            <el-icon><Delete /></el-icon>
+            <Trash2 />
           </button>
         </div>
 
@@ -137,7 +137,7 @@ onMounted(() => {
         <div class="card-body">
           <h3 class="project-title">{{ project.name }}</h3>
           <p class="project-meta">
-            <el-icon class="meta-icon"><Folder /></el-icon>
+            <Folder />
             {{ project.dataset_filename || project.dataset_ref?.name || '无数据集' }}
           </p>
         </div>
@@ -145,14 +145,14 @@ onMounted(() => {
         <!-- Card Footer -->
         <div class="card-footer">
           <span class="time-tag">{{ formatDate(project.created_at) }}</span>
-          <el-icon class="arrow-icon"><ArrowRight /></el-icon>
+          <ArrowRight />
         </div>
       </div>
     </div>
 
     <!-- Empty State -->
     <div v-else class="empty-state">
-      <el-icon class="empty-icon"><FolderOpened /></el-icon>
+      <FolderOpen />
       <h3>暂无项目</h3>
       <p>开始您的第一个数据分析任务吧</p>
       <el-button type="primary" @click="createProject" style="margin-top: 24px;">创建项目</el-button>
