@@ -39,6 +39,9 @@ dependencies = [
     "alembic>=1.13.2",
     "redis>=7.4.0",
     "rq>=2.9.0",
+    "python-jose[cryptography]>=3.5.0",
+    "passlib[bcrypt]>=1.7.4",
+    "pydantic[email]>=2.12.5",
 ]
 
 [dependency-groups]

@@ -74,6 +74,16 @@ class Settings(BaseSettings):
     OBJECT_STORAGE_PRESIGNED_URL_TTL_SECONDS: int = 900
     OBJECT_STORAGE_FORCE_PATH_STYLE: bool = True
 
+    # Auth / JWT
+    AUTH_SECRET_KEY: str = "dev-secret-change-in-production"
+    AUTH_ALGORITHM: str = "HS256"
+    AUTH_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    AUTH_SSE_TICKET_EXPIRE_MINUTES: int = 5
+    AUTH_TOKEN_AUDIENCE: str = "marketmind-api"
+    AUTH_TOKEN_ISSUER: str = "marketmind"
+    AUTH_PASSWORD_HASH_ROUNDS: int = 12
+    AUTH_ENFORCE_ANALYSIS_AUTH: bool = False  # staged rollout flag
+
     model_config = ConfigDict(env_file=".env", case_sensitive=True)
 
 
