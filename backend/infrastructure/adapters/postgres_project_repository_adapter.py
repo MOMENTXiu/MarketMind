@@ -45,23 +45,30 @@ class PostgresProjectRepositoryAdapter:
         except SQLAlchemyError as exc:
             raise InfrastructureError("Failed to create project metadata") from exc
 
-    def get_project(self, project_id: str) -> Project | None:
+    def get_project(self, project_id: str, owner_user_id: str | None = None) -> Project | None:
         try:
             with self._session_factory() as session:
                 record = session.get(ProjectRecord, project_id)
-                return self._project_from_record(record) if record is not None else None
+                if record is None:
+                    return None
+                if owner_user_id is not None and record.owner_user_id != owner_user_id:
+                    return None
+                return self._project_from_record(record)
         except SQLAlchemyError as exc:
             raise InfrastructureError(f"Failed to get project metadata: {project_id}") from exc
 
-    def list_projects(self, skip: int = 0, limit: int = 100) -> list[Project]:
+    def list_projects(self, skip: int = 0, limit: int = 100, owner_user_id: str | None = None) -> list[Project]:
         try:
             with self._session_factory() as session:
-                records = session.scalars(
+                stmt = (
                     select(ProjectRecord)
                     .order_by(ProjectRecord.created_at.desc())
                     .offset(skip)
                     .limit(limit)
-                ).all()
+                )
+                if owner_user_id is not None:
+                    stmt = stmt.where(ProjectRecord.owner_user_id == owner_user_id)
+                records = session.scalars(stmt).all()
                 return [self._project_from_record(record) for record in records]
         except SQLAlchemyError as exc:
             raise InfrastructureError("Failed to list project metadata") from exc
@@ -119,22 +126,27 @@ class PostgresProjectRepositoryAdapter:
         except SQLAlchemyError as exc:
             raise InfrastructureError(f"Failed to fail project analysis: {project_id}") from exc
 
-    def delete_project(self, project_id: str) -> bool:
+    def delete_project(self, project_id: str, owner_user_id: str | None = None) -> bool:
         try:
             with self._session_factory() as session:
                 with session.begin():
                     record = session.get(ProjectRecord, project_id)
                     if record is None:
                         return False
+                    if owner_user_id is not None and record.owner_user_id != owner_user_id:
+                        return False
                     session.delete(record)
                     return True
         except SQLAlchemyError as exc:
             raise InfrastructureError(f"Failed to delete project metadata: {project_id}") from exc
 
-    def count_projects(self) -> int:
+    def count_projects(self, owner_user_id: str | None = None) -> int:
         try:
             with self._session_factory() as session:
-                return session.scalar(select(func.count()).select_from(ProjectRecord)) or 0
+                stmt = select(func.count()).select_from(ProjectRecord)
+                if owner_user_id is not None:
+                    stmt = stmt.where(ProjectRecord.owner_user_id == owner_user_id)
+                return session.scalar(stmt) or 0
         except SQLAlchemyError as exc:
             raise InfrastructureError("Failed to count project metadata") from exc
 

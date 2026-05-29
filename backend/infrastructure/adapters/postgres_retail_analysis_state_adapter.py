@@ -82,11 +82,18 @@ class PostgresRetailAnalysisStateAdapter:
                 f"Failed to persist Retail Analysis state: {state.id}"
             ) from exc
 
-    def get_state(self, project_id: str) -> RetailAnalysisProjectStateDTO | None:
+    def get_state(self, project_id: str, owner_user_id: str | None = None) -> RetailAnalysisProjectStateDTO | None:
         try:
             with self._session_factory() as session:
                 project = session.get(ProjectRecord, project_id)
                 if project is None:
+                    return None
+                # Allow access if project has no owner (legacy/anon projects) or matches
+                if (
+                    owner_user_id is not None
+                    and project.owner_user_id is not None
+                    and project.owner_user_id != owner_user_id
+                ):
                     return None
 
                 latest_run = self._latest_run(session, project_id)
@@ -125,12 +132,16 @@ class PostgresRetailAnalysisStateAdapter:
         )
         return self.save_state(updated)
 
-    def list_projects(self) -> list[RetailAnalysisProjectSummaryDTO]:
+    def list_projects(self, owner_user_id: str | None = None) -> list[RetailAnalysisProjectSummaryDTO]:
         try:
             with self._session_factory() as session:
-                projects = session.scalars(
-                    select(ProjectRecord).order_by(ProjectRecord.created_at.desc())
-                ).all()
+                stmt = select(ProjectRecord).order_by(ProjectRecord.created_at.desc())
+                if owner_user_id is not None:
+                    stmt = stmt.where(
+                        (ProjectRecord.owner_user_id == owner_user_id)
+                        | (ProjectRecord.owner_user_id.is_(None))
+                    )
+                projects = session.scalars(stmt).all()
                 summaries: list[RetailAnalysisProjectSummaryDTO] = []
                 for project in projects:
                     latest_run = self._latest_run(session, project.id)
@@ -151,12 +162,18 @@ class PostgresRetailAnalysisStateAdapter:
         except SQLAlchemyError as exc:
             raise InfrastructureError("Failed to list Retail Analysis state") from exc
 
-    def delete_project(self, project_id: str) -> bool:
+    def delete_project(self, project_id: str, owner_user_id: str | None = None) -> bool:
         try:
             with self._session_factory() as session:
                 with session.begin():
                     project = session.get(ProjectRecord, project_id)
                     if project is None:
+                        return False
+                    if (
+                        owner_user_id is not None
+                        and project.owner_user_id is not None
+                        and project.owner_user_id != owner_user_id
+                    ):
                         return False
                     session.delete(project)
                     return True
@@ -177,6 +194,7 @@ class PostgresRetailAnalysisStateAdapter:
         project.name = state.name
         project.description = state.description
         project.status = state.status
+        project.owner_user_id = state.owner_user_id
         project.metadata_json = metadata
         project.created_at = _parse_datetime(state.created_at)
         project.updated_at = _parse_datetime(state.updated_at, state.created_at)

@@ -106,6 +106,7 @@ def state_from_provider_dto(state: RetailAnalysisProjectStateDTO) -> dict[str, A
         job_id=state.run_info.job_id if state.run_info is not None else None,
         trace_id=state.run_info.trace_id if state.run_info is not None else None,
         error=state.error,
+        owner_user_id=state.owner_user_id,
         created_at=state.created_at,
         updated_at=state.updated_at,
     )
@@ -126,6 +127,7 @@ def state_to_provider_dto(state: dict[str, Any]) -> RetailAnalysisProjectStateDT
         marketer_insights=sanitize(state.get("marketer_insights", empty_marketer_insights())),
         run_info=_run_info_dto_from_state(state),
         error=_optional_str(state.get("error")),
+        owner_user_id=_optional_str(state.get("owner_user_id")),
         created_at=_optional_str(state.get("created_at")),
         updated_at=_optional_str(state.get("updated_at")),
     )
@@ -305,6 +307,7 @@ def _state_payload(
     job_id: str | None,
     trace_id: str | None,
     error: str | None,
+    owner_user_id: str | None = None,
     created_at: str | None,
     updated_at: str | None,
 ) -> dict[str, Any]:
@@ -328,6 +331,7 @@ def _state_payload(
         ),
         "error": _optional_str(error)
         or (run_info_payload.get("error") if run_info_payload else None),
+        "owner_user_id": _optional_str(owner_user_id),
         "created_at": _optional_str(created_at),
         "updated_at": _optional_str(updated_at),
     }

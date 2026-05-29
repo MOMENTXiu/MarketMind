@@ -25,11 +25,19 @@ class JsonProjectRepositoryAdapter:
         )
         return self._storage.create_project(project)
 
-    def get_project(self, project_id: str) -> Project | None:
-        return self._storage.get_project(project_id)
+    def get_project(self, project_id: str, owner_user_id: str | None = None) -> Project | None:
+        project = self._storage.get_project(project_id)
+        if project is None:
+            return None
+        if owner_user_id is not None and project.owner_user_id != owner_user_id:
+            return None
+        return project
 
-    def list_projects(self, skip: int = 0, limit: int = 100) -> list[Project]:
-        return self._storage.list_projects(skip=skip, limit=limit)
+    def list_projects(self, skip: int = 0, limit: int = 100, owner_user_id: str | None = None) -> list[Project]:
+        projects = self._storage.list_projects(skip=skip, limit=limit)
+        if owner_user_id is not None:
+            projects = [p for p in projects if p.owner_user_id == owner_user_id]
+        return projects
 
     def update_project(self, project_id: str, update_data: ProjectUpdate) -> Project | None:
         return self._storage.update_project(project_id, update_data.model_dump(exclude_none=True))
@@ -53,8 +61,14 @@ class JsonProjectRepositoryAdapter:
             },
         )
 
-    def delete_project(self, project_id: str) -> bool:
+    def delete_project(self, project_id: str, owner_user_id: str | None = None) -> bool:
+        if owner_user_id is not None:
+            project = self.get_project(project_id, owner_user_id=owner_user_id)
+            if project is None:
+                return False
         return self._storage.delete_project(project_id)
 
-    def count_projects(self) -> int:
+    def count_projects(self, owner_user_id: str | None = None) -> int:
+        if owner_user_id is not None:
+            return len(self.list_projects(owner_user_id=owner_user_id))
         return self._storage.count_projects()
