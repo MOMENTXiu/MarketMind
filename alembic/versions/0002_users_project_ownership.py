@@ -101,8 +101,8 @@ def upgrade() -> None:
         "ix_projects_owner_user_id_updated_at", "projects", ["owner_user_id", "updated_at"]
     )
 
-    # 7. Make owner_user_id non-null
-    op.alter_column("projects", "owner_user_id", nullable=False)
+    # 7. owner_user_id remains nullable to support anonymous projects
+    # when AUTH_ENFORCE_ANALYSIS_AUTH=False.
 
 
 def downgrade() -> None:
