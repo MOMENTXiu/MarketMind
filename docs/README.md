@@ -5,6 +5,8 @@
 | 文档 | 适用场景 |
 | --- | --- |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 理解当前 Vue 3 + FastAPI runtime、分层架构、双分析链路、存储边界。 |
+| [requirements-analysis.md](requirements-analysis.md) | 面向课程/项目材料的需求分析书，汇总背景、范围、功能、非功能、验收和约束。 |
+| [project-solution-design.md](project-solution-design.md) | 面向课程/项目材料的方案设计书，汇总总体架构、功能方案、接口、部署、质量保障和风险。 |
 | [backend-api.md](backend-api.md) | 前端、脚本、测试或第三方调用后端 HTTP 接口。 |
 | [frontend-api-integration-plan.md](frontend-api-integration-plan.md) | 了解前端 API 接入现状、已完成项和后续补强计划。 |
 | [QUICKSTART.md](QUICKSTART.md) | 本地启动、运行基础设施、执行质量门。 |
