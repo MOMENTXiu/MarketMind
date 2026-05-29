@@ -1,7 +1,6 @@
 """Verify SSE ticket business pipeline."""
 
 from backend.abilities.auth.verify_sse_ticket import verify_sse_ticket
-from backend.core.errors import InvalidSseTicketError
 from backend.providers.auth_dtos import SseTicketDTO
 from backend.providers.container import ProvidersContainer
 

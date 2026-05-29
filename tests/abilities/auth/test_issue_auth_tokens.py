@@ -1,7 +1,6 @@
 """Tests for issue_auth_tokens ability atom."""
 
 from backend.abilities.auth.issue_auth_tokens import issue_access_token, issue_auth_token_pair
-from backend.providers.auth_dtos import AuthTokenClaimsDTO
 from tests.fakes.auth_providers import FakeAuthTokenProvider
 
 

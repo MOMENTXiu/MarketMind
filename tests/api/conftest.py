@@ -132,6 +132,7 @@ def isolated_env(tmp_path: Path) -> Iterator[IsolatedEnv]:
 def auth_client(isolated_env: IsolatedEnv) -> Iterator[tuple[TestClient, str, str]]:
     """Return a tuple of (client, access_token, user_id) for an authenticated test user."""
     from fastapi.testclient import TestClient
+
     from backend.main import app
 
     client = TestClient(app)

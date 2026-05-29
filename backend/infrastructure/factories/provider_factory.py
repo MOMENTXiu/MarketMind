@@ -8,6 +8,9 @@ from fastapi import BackgroundTasks
 from backend.core.config import Settings
 from backend.core.errors import InfrastructureError
 from backend.infrastructure.adapters.anthropic_llm_adapter import AnthropicLLMAdapter
+from backend.infrastructure.adapters.composite_infrastructure_health_adapter import (
+    CompositeInfrastructureHealthAdapter,
+)
 from backend.infrastructure.adapters.console_telemetry_adapter import ConsoleTelemetryAdapter
 from backend.infrastructure.adapters.csv_dataset_adapter import CsvDatasetAdapter
 from backend.infrastructure.adapters.csv_retail_dataset_adapter import CsvRetailDatasetAdapter
@@ -17,6 +20,7 @@ from backend.infrastructure.adapters.fastapi_background_analysis_job_adapter imp
 from backend.infrastructure.adapters.json_project_repository_adapter import (
     JsonProjectRepositoryAdapter,
 )
+from backend.infrastructure.adapters.jwt_auth_token_adapter import JwtAuthTokenAdapter
 from backend.infrastructure.adapters.local_analysis_artifact_adapter import (
     LocalAnalysisArtifactAdapter,
 )
@@ -32,9 +36,6 @@ from backend.infrastructure.adapters.local_project_file_storage_adapter import (
 )
 from backend.infrastructure.adapters.local_recommendation_model_store_adapter import (
     LocalRecommendationModelStoreAdapter,
-)
-from backend.infrastructure.adapters.composite_infrastructure_health_adapter import (
-    CompositeInfrastructureHealthAdapter,
 )
 from backend.infrastructure.adapters.local_regularized_dataset_adapter import (
     LocalRegularizedDatasetAdapter,
@@ -54,13 +55,6 @@ from backend.infrastructure.adapters.minio_regularized_dataset_adapter import (
 from backend.infrastructure.adapters.openai_compatible_llm_adapter import (
     OpenAICompatibleLLMAdapter,
 )
-from backend.infrastructure.adapters.redis_analysis_event_stream_adapter import (
-    RedisAnalysisEventStreamAdapter,
-)
-from backend.infrastructure.adapters.redis_analysis_job_queue_adapter import (
-    RedisAnalysisJobQueueAdapter,
-)
-from backend.infrastructure.adapters.jwt_auth_token_adapter import JwtAuthTokenAdapter
 from backend.infrastructure.adapters.passlib_password_hasher_adapter import (
     PasslibPasswordHasherAdapter,
 )
@@ -69,6 +63,12 @@ from backend.infrastructure.adapters.postgres_sse_ticket_adapter import (
 )
 from backend.infrastructure.adapters.postgres_user_directory_adapter import (
     PostgresUserDirectoryAdapter,
+)
+from backend.infrastructure.adapters.redis_analysis_event_stream_adapter import (
+    RedisAnalysisEventStreamAdapter,
+)
+from backend.infrastructure.adapters.redis_analysis_job_queue_adapter import (
+    RedisAnalysisJobQueueAdapter,
 )
 from backend.infrastructure.db.session import create_db_engine, create_session_factory
 from backend.providers.analysis_event_stream_provider import InMemoryAnalysisEventStreamProvider

@@ -8,8 +8,8 @@ from fastapi.testclient import TestClient
 from backend.api.dependencies import get_providers
 from backend.business.pipelines.login_user_pipeline import LoginUserPipeline
 from backend.business.pipelines.register_user_pipeline import RegisterUserPipeline
-from backend.business.pipelines.resolve_current_user_pipeline import ResolveCurrentUserPipeline
-from backend.providers.auth_dtos import AuthenticatedUserContext, UserRegistrationInputDTO
+from backend.main import app
+from backend.providers.auth_dtos import UserRegistrationInputDTO
 from backend.providers.container import ProvidersContainer
 from tests.fakes.auth_providers import (
     FakeAuthTokenProvider,
@@ -18,7 +18,6 @@ from tests.fakes.auth_providers import (
     FakeUserDirectoryProvider,
 )
 from tests.fakes.providers import FakeProjectRepositoryProvider
-from backend.main import app
 
 
 @pytest.fixture()

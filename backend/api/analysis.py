@@ -18,7 +18,6 @@ from backend.api.dependencies import (
     get_retail_analysis_flow,
 )
 from backend.api.error_mapping import map_internal_error
-from backend.providers.auth_dtos import AuthenticatedUserContext
 from backend.business.flows.data_processing_analysis_flow import DataProcessingAnalysisFlow
 from backend.business.flows.retail_analysis_flow import RetailAnalysisFlow
 from backend.business.pipelines.customer_text_suggestion_pipeline import (
@@ -27,6 +26,7 @@ from backend.business.pipelines.customer_text_suggestion_pipeline import (
 from backend.business.pipelines.verify_sse_ticket_pipeline import VerifySseTicketPipeline
 from backend.core.errors import AuthError, MarketMindError, ValidationError
 from backend.providers.analysis_event_stream_provider import job_channel, project_channel
+from backend.providers.auth_dtos import AuthenticatedUserContext
 from backend.providers.dtos import AnalysisEventSubscriptionItemDTO
 
 router = APIRouter()

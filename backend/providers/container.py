@@ -17,6 +17,7 @@ from backend.providers.association_rule_store_provider import AssociationRuleSto
 from backend.providers.auth_token_provider import AuthTokenProvider
 from backend.providers.dataset_provider import DatasetProvider
 from backend.providers.generated_asset_provider import GeneratedAssetProvider
+from backend.providers.infrastructure_health_provider import InfrastructureHealthProvider
 from backend.providers.llm_provider import LLMProvider
 from backend.providers.password_hasher_provider import PasswordHasherProvider
 from backend.providers.project_file_storage_provider import ProjectFileStorageProvider
@@ -30,7 +31,6 @@ from backend.providers.retail_analysis_state_provider import (
 from backend.providers.retail_dataset_provider import RetailDatasetProvider
 from backend.providers.sse_ticket_provider import SseTicketProvider
 from backend.providers.telemetry_provider import TelemetryProvider
-from backend.providers.infrastructure_health_provider import InfrastructureHealthProvider
 from backend.providers.user_directory_provider import UserDirectoryProvider
 
 

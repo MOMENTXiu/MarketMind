@@ -20,17 +20,12 @@ from backend.core.errors import (
     AuthError,
     DisabledUserError,
     DuplicateEmailError,
-    ExpiredTokenError,
     InvalidCredentialsError,
-    InvalidTokenError,
     NotFoundError,
 )
 from backend.models.auth import (
     SseTicketRequest,
-    SseTicketResponse,
-    TokenResponse,
     UserLoginRequest,
-    UserMeResponse,
     UserRegisterRequest,
 )
 from backend.providers.auth_dtos import AuthenticatedUserContext, UserRegistrationInputDTO
@@ -129,6 +124,8 @@ async def create_sse_ticket(
             stream_type=payload.stream_type,
         )
     except AuthError as exc:
+        raise map_internal_error(exc) from exc
+    except NotFoundError as exc:
         raise map_internal_error(exc) from exc
     return {
         "success": True,

@@ -1,7 +1,7 @@
 """Resolve current user from access token ability atom."""
 
-from backend.core.errors import DisabledUserError, InvalidTokenError, NotFoundError
-from backend.providers.auth_dtos import AuthenticatedUserContext, AuthTokenClaimsDTO
+from backend.core.errors import DisabledUserError, NotFoundError
+from backend.providers.auth_dtos import AuthenticatedUserContext
 from backend.providers.auth_token_provider import AuthTokenProvider
 from backend.providers.user_directory_provider import UserDirectoryProvider
 

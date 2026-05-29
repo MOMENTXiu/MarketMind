@@ -7,7 +7,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.core.errors import DuplicateEmailError, InfrastructureError, NotFoundError
+from backend.core.errors import DuplicateEmailError
 from backend.infrastructure.db.models.user import UserRecord
 from backend.providers.auth_dtos import UserIdentityDTO, UserRegistrationInputDTO
 from backend.providers.user_directory_provider import UserDirectoryProvider

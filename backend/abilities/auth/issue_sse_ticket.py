@@ -1,6 +1,6 @@
 """Issue SSE ticket ability atom."""
 
-from backend.core.errors import NotFoundError, OwnerMismatchError
+from backend.core.errors import NotFoundError
 from backend.providers.auth_dtos import AuthenticatedUserContext, SseTicketDTO
 from backend.providers.project_repository_provider import ProjectRepositoryProvider
 from backend.providers.sse_ticket_provider import SseTicketProvider

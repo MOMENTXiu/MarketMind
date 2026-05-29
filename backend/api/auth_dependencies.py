@@ -5,19 +5,18 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from backend.api.dependencies import get_providers, get_settings
+from backend.core.config import Settings
+from backend.business.pipelines.issue_sse_ticket_pipeline import IssueSseTicketPipeline
 from backend.business.pipelines.login_user_pipeline import LoginUserPipeline
 from backend.business.pipelines.register_user_pipeline import RegisterUserPipeline
 from backend.business.pipelines.resolve_current_user_pipeline import ResolveCurrentUserPipeline
-from backend.business.pipelines.issue_sse_ticket_pipeline import IssueSseTicketPipeline
 from backend.core.errors import (
     AuthError,
     DisabledUserError,
-    DuplicateEmailError,
     ExpiredTokenError,
-    InvalidCredentialsError,
     InvalidTokenError,
     NotFoundError,
 )
@@ -60,7 +59,7 @@ async def get_current_user_optional(
 async def get_current_user_or_enforce(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_http_bearer)],
     providers: ProvidersContainer = Depends(get_providers),
-    settings: _Settings = Depends(get_settings),
+    settings: Settings = Depends(get_settings),
 ) -> AuthenticatedUserContext | None:
     user = await get_current_user_optional(credentials, providers)
     if user is None and settings.AUTH_ENFORCE_ANALYSIS_AUTH:

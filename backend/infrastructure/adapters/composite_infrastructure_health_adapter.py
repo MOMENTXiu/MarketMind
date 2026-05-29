@@ -5,8 +5,6 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from backend.core.errors import InfrastructureError
-
 
 class CompositeInfrastructureHealthAdapter:
     """Probes Postgres, Redis, MinIO and reports per-component status."""

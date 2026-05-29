@@ -19,13 +19,19 @@ def main() -> int:
     from backend.infrastructure.factories.provider_factory import _build_minio_storage
 
     if settings.OBJECT_STORAGE_BACKEND != "minio":
-        print(f"OBJECT_STORAGE_BACKEND={settings.OBJECT_STORAGE_BACKEND}, skipping MinIO sample upload.")
+        print(
+            f"OBJECT_STORAGE_BACKEND={settings.OBJECT_STORAGE_BACKEND}, skipping MinIO sample upload."
+        )
         return 0
 
     storage = _build_minio_storage(settings)
 
     samples = [
-        ("data/samples/marketmind_sample_analysis_data.csv", "samples/marketmind-sample-analysis-data/marketmind_sample_analysis_data.csv", "text/csv"),
+        (
+            "data/samples/marketmind_sample_analysis_data.csv",
+            "samples/marketmind-sample-analysis-data/marketmind_sample_analysis_data.csv",
+            "text/csv",
+        ),
     ]
 
     ok = 0

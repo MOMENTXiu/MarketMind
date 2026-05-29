@@ -3,7 +3,12 @@
 import pytest
 
 from backend.abilities.auth.resolve_current_user import resolve_current_user
-from backend.core.errors import DisabledUserError, ExpiredTokenError, InvalidTokenError, NotFoundError
+from backend.core.errors import (
+    DisabledUserError,
+    ExpiredTokenError,
+    InvalidTokenError,
+    NotFoundError,
+)
 from backend.providers.auth_dtos import AuthTokenClaimsDTO, UserRegistrationInputDTO
 from tests.fakes.auth_providers import FakeAuthTokenProvider, FakeUserDirectoryProvider
 

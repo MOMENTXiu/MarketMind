@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from uuid import uuid4
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0002_users_project_ownership"

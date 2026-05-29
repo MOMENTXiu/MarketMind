@@ -8,7 +8,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.core.errors import InfrastructureError, InvalidSseTicketError
+from backend.core.errors import InvalidSseTicketError
 from backend.infrastructure.db.models.sse_ticket import SseTicketRecord
 from backend.providers.auth_dtos import SseTicketDTO
 from backend.providers.sse_ticket_provider import SseTicketProvider

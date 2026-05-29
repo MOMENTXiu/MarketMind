@@ -9,7 +9,6 @@ from jose import jwt
 from backend.core.errors import ExpiredTokenError, InvalidSseTicketError, InvalidTokenError
 from backend.providers.auth_dtos import (
     AuthTokenClaimsDTO,
-    AuthTokenPairDTO,
     SseTicketDTO,
     UserIdentityDTO,
     UserRegistrationInputDTO,

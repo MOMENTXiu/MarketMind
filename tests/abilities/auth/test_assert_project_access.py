@@ -4,9 +4,9 @@ import pytest
 
 from backend.abilities.auth.assert_project_access import assert_project_access
 from backend.core.errors import NotFoundError
+from backend.models.project import ProjectCreate
 from backend.providers.auth_dtos import AuthenticatedUserContext
 from tests.fakes.providers import FakeProjectRepositoryProvider
-from backend.models.project import ProjectCreate
 
 
 def test_assert_project_access_success():
