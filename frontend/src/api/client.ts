@@ -17,6 +17,35 @@ export const apiClient = axios.create({
   timeout: readTimeout()
 })
 
+let _getToken: (() => string | null) | null = null
+let _onUnauthorized: (() => void) | null = null
+
+export function installAuthInterceptors(
+  getToken: () => string | null,
+  onUnauthorized: () => void,
+): void {
+  _getToken = getToken
+  _onUnauthorized = onUnauthorized
+}
+
+apiClient.interceptors.request.use((config) => {
+  const token = _getToken?.()
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      _onUnauthorized?.()
+    }
+    return Promise.reject(error)
+  }
+)
+
 export function createApiEventSource(path: string, params: Record<string, string> = {}): EventSource {
   const configuredBase = String(apiClient.defaults.baseURL || '')
   const baseURL = configuredBase.startsWith('http')
@@ -27,6 +56,15 @@ export function createApiEventSource(path: string, params: Record<string, string
     url.searchParams.set(key, value)
   })
   return new EventSource(url.toString())
+}
+
+export async function createEventSourceWithTicket(
+  path: string,
+  ticketData: { resource_type: string; resource_id: string; project_id?: string; job_id?: string; stream_type?: string },
+): Promise<EventSource> {
+  const { issueSseTicket } = await import('./auth')
+  const ticket = await issueSseTicket(ticketData)
+  return createApiEventSource(path, { event_token: ticket.ticket })
 }
 
 export async function unwrapApiEnvelope<T>(request: Promise<AxiosResponse<ApiEnvelope<T>>>): Promise<T> {
