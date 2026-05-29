@@ -34,6 +34,7 @@ from backend.core.errors import (
     NotFoundError,
     ValidationError,
 )
+from backend.providers.auth_dtos import AuthenticatedUserContext
 from backend.providers.container import ProvidersContainer
 from backend.providers.dtos import AnalysisJobDTO
 
@@ -53,7 +54,8 @@ class DataProcessingAnalysisFlow:
     def __init__(self, providers: ProvidersContainer) -> None:
         self.providers = providers
 
-    def create_job(self, project_id: str, name: str) -> dict[str, Any]:
+    def create_job(self, project_id: str, name: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+        self._assert_project_access(project_id, user_context)
         clean_name = name.strip()
         if not clean_name:
             raise ValidationError("Analysis job name is required")
@@ -62,8 +64,9 @@ class DataProcessingAnalysisFlow:
         return job_view(state)
 
     def upload_raw_dataset(
-        self, project_id: str, job_id: str, filename: str, content: bytes
+        self, project_id: str, job_id: str, filename: str, content: bytes, user_context: AuthenticatedUserContext | None = None
     ) -> dict[str, Any]:
+        self._assert_project_access(project_id, user_context)
         self._validate_upload(filename, content)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
@@ -78,7 +81,8 @@ class DataProcessingAnalysisFlow:
         self._save_state(state)
         return job_view(state)
 
-    def regularize(self, project_id: str, job_id: str) -> dict[str, Any]:
+    def regularize(self, project_id: str, job_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+        self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
             raise ValidationError("Job does not belong to project")
@@ -138,7 +142,8 @@ class DataProcessingAnalysisFlow:
         self._save_state(state)
         return job_view(state)
 
-    def run_analysis(self, project_id: str, job_id: str) -> dict[str, Any]:
+    def run_analysis(self, project_id: str, job_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+        self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
             raise ValidationError("Job does not belong to project")
@@ -244,7 +249,8 @@ class DataProcessingAnalysisFlow:
         state["error"] = None
         self._save_state(state)
 
-    def get_dataset_ref(self, project_id: str, job_id: str, dataset_id: str) -> dict[str, Any]:
+    def get_dataset_ref(self, project_id: str, job_id: str, dataset_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+        self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
             raise ValidationError("Job does not belong to project")
@@ -253,7 +259,8 @@ class DataProcessingAnalysisFlow:
             raise NotFoundError(f"Dataset ref not found: {dataset_id}")
         return self._public_ref(ref)
 
-    def get_sidecar_ref(self, project_id: str, job_id: str, sidecar_id: str) -> dict[str, Any]:
+    def get_sidecar_ref(self, project_id: str, job_id: str, sidecar_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+        self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
             raise ValidationError("Job does not belong to project")
@@ -262,7 +269,8 @@ class DataProcessingAnalysisFlow:
             raise NotFoundError(f"Sidecar ref not found: {sidecar_id}")
         return self._public_ref(ref)
 
-    def load_sidecar(self, project_id: str, job_id: str, sidecar_id: str) -> dict[str, Any]:
+    def load_sidecar(self, project_id: str, job_id: str, sidecar_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+        self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
             raise ValidationError("Job does not belong to project")
@@ -272,13 +280,15 @@ class DataProcessingAnalysisFlow:
         payload = self.providers.regularized_dataset.load_sidecar(project_id, job_id, ref)
         return dict(payload) if isinstance(payload, dict) else {"payload": payload}
 
-    def get_job(self, project_id: str, job_id: str) -> dict[str, Any]:
+    def get_job(self, project_id: str, job_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+        self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
             raise ValidationError("Job does not belong to project")
         return job_view(state)
 
-    def list_outputs(self, project_id: str, job_id: str) -> dict[str, Any]:
+    def list_outputs(self, project_id: str, job_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+        self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
             raise ValidationError("Job does not belong to project")
@@ -287,6 +297,13 @@ class DataProcessingAnalysisFlow:
             "job_id": job_id,
             "outputs": list(state.get("output_refs", [])),
         }
+
+    def _assert_project_access(self, project_id: str, user_context: AuthenticatedUserContext | None = None) -> None:
+        if user_context is None:
+            return
+        project = self.providers.repository.get_project(project_id, owner_user_id=user_context.user_id)
+        if project is None:
+            raise NotFoundError("Project not found")
 
     def _run_stage(
         self,
