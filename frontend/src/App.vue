@@ -85,6 +85,11 @@ onMounted(() => {
             <div class="user-avatar">{{ (authStore.user?.display_name || authStore.user?.email || 'U').charAt(0).toUpperCase() }}</div>
             <span class="user-name">{{ authStore.user?.display_name || authStore.user?.email || '用户' }}</span>
           </RouterLink>
+
+          <div v-else class="auth-buttons">
+            <RouterLink to="/login" class="btn-auth btn-auth-login">登录</RouterLink>
+            <RouterLink to="/register" class="btn-auth btn-auth-register">注册</RouterLink>
+          </div>
         </div>
       </div>
     </nav>
@@ -375,6 +380,61 @@ html.dark .user-pill:hover {
 
 html.dark .user-name {
   color: #e2e8f0;
+}
+
+.auth-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-auth {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none !important;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.btn-auth-login {
+  color: #475569;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+html.dark .btn-auth-login {
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.btn-auth-login:hover {
+  background: #fff;
+  border-color: rgba(99, 102, 241, 0.26);
+  color: #111827;
+  transform: translateY(-1px);
+}
+
+html.dark .btn-auth-login:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #f1f5f9;
+}
+
+.btn-auth-register {
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+  border: none;
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.24);
+}
+
+.btn-auth-register:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.32);
 }
 
 .main-view {
