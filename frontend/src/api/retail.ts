@@ -1,4 +1,4 @@
-import { apiClient, createApiEventSource, unwrapApiEnvelope } from './client'
+import { apiClient, createEventSourceWithTicket, unwrapApiEnvelope } from './client'
 import type {
   AnalysisArtifactPayload,
   ApiRef,

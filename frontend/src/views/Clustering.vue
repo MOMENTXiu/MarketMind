@@ -1,10 +1,12 @@
 <script setup lang="ts">
-// 客户聚类分析页面 - 待实现
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 </script>
 
 <template>
   <div class="page-container">
-    <el-page-header @back="$router.back()" title="返回">
+    <el-page-header @back="router.back()" title="返回">
       <template #content>
         <span class="page-title">👥 客户聚类分析</span>
       </template>

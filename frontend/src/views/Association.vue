@@ -1,10 +1,12 @@
 <script setup lang="ts">
-// 关联规则分析页面 - 待实现
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 </script>
 
 <template>
   <div class="page-container">
-    <el-page-header @back="$router.back()" title="返回">
+    <el-page-header @back="router.back()" title="返回">
       <template #content>
         <span class="page-title">📊 关联规则分析</span>
       </template>

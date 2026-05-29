@@ -570,7 +570,7 @@ onUnmounted(() => {
       <!--Navbar -->
       <header class="detail-navbar">
         <div class="header-left-aligned">
-          <button class="btn-back-round" @click="$router.push('/projects')">
+          <button class="btn-back-round" @click="router.push('/projects')">
             <ArrowLeft class="h-5 w-5" />
           </button>
 
@@ -600,7 +600,7 @@ onUnmounted(() => {
             <Upload class="h-4 w-4 mr-1" />重新上传数据
           </el-button>
           <el-button v-if="!isDataProcessingProject" @click="reanalyze" :loading="isProjectRunning" plain round>重新分析</el-button>
-          <el-button v-if="!isDataProcessingProject" type="primary" round @click="$router.push(`/projects/${project?.id}/recommend`)">智能查询</el-button>
+          <el-button v-if="!isDataProcessingProject" type="primary" round @click="router.push(`/projects/${project?.id}/recommend`)">智能查询</el-button>
         </div>
       </header>
 

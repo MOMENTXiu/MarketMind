@@ -2,7 +2,7 @@
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Package, Loader2, Search, ArrowLeft, RefreshCw } from 'lucide-vue-next'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   generateCustomerSuggestion,
   getApiErrorMessage,
@@ -11,6 +11,7 @@ import {
 } from '../api'
 
 const route = useRoute()
+const router = useRouter()
 const projectId = () => String(route.params.id)
 
 interface RelationNode {
@@ -261,7 +262,7 @@ onUnmounted(() => {
     <div class="container-breath-fixed">
       <header class="page-navbar">
         <div class="nav-left">
-          <el-button circle :icon="ArrowLeft" @click="$router.back()" class="btn-back" />
+          <el-button circle :icon="ArrowLeft" @click="router.back()" class="btn-back" />
           <h1 class="text-display" style="font-size: 1.75rem;">商品关联思维导图</h1>
         </div>
         <div class="search-bar-inline">

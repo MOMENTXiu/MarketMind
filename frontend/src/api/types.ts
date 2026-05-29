@@ -208,10 +208,17 @@ export interface CustomerSuggestionResponse {
   metadata?: Record<string, unknown>
 }
 
+export interface HealthComponent {
+  status: 'healthy' | 'degraded' | 'down'
+  latency_ms?: number | null
+  detail?: string | null
+}
+
 export interface HealthResponse {
   status: string
   service?: string
   version?: string
+  components?: Record<string, HealthComponent>
   [key: string]: unknown
 }
 

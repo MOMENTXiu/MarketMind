@@ -230,7 +230,7 @@ const loadJob = async (jobId: string, projectId: string, silent = false) => {
   }
 }
 
-const startPolling = () => {
+const startPolling = async () => {
   stopPolling()
   await startJobEvents()
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { getHealth } from '../api'
+import type { HealthComponent } from '../api/types'
 
 // --- 1. 类型定义 ---
 type StatusLevel = 'healthy' | 'degraded' | 'down'
@@ -12,9 +13,16 @@ interface ServiceNode {
   latency?: number // ms
 }
 
+const NAME_MAP: Record<string, string> = {
+  backend: '后端服务',
+  postgres: 'PostgreSQL',
+  redis: 'Redis',
+  minio: 'MinIO',
+}
+
 // --- 2. 状态聚合逻辑 (纯函数) ---
 const calcOverallStatus = (services: ServiceNode[]): StatusLevel => {
-  const core = services.find(s => s.id === 'core')
+  const core = services.find(s => s.id === 'backend')
 
   // Rule 1: Core API is the red line
   if (!core || core.status === 'down') {
@@ -25,7 +33,7 @@ const calcOverallStatus = (services: ServiceNode[]): StatusLevel => {
   }
 
   // Filter out core to check sub-services
-  const subServices = services.filter(s => s.id !== 'core')
+  const subServices = services.filter(s => s.id !== 'backend')
   if (subServices.length === 0) return core.status
 
   // Rule 2: Core is healthy/degraded
@@ -39,10 +47,16 @@ const calcOverallStatus = (services: ServiceNode[]): StatusLevel => {
   return 'degraded'
 }
 
-// --- 3. 模拟数据与逻辑 ---
+// --- 3. 数据逻辑 ---
 const loading = ref(false)
 const services = ref<ServiceNode[]>([])
 let statusTimer: number | undefined
+
+const toStatusLevel = (raw: string | undefined): StatusLevel => {
+  if (raw === 'healthy') return 'healthy'
+  if (raw === 'degraded') return 'degraded'
+  return 'down'
+}
 
 const fetchStatus = async () => {
   loading.value = true
@@ -50,17 +64,34 @@ const fetchStatus = async () => {
   try {
     const health = await getHealth()
     const latency = Math.round(performance.now() - startedAt)
-    services.value = [
-      {
-        id: 'core',
-        name: health.service || 'Core API',
-        status: health.status === 'healthy' ? 'healthy' : 'degraded',
-        latency
+    const nodes: ServiceNode[] = []
+
+    if (health.components && typeof health.components === 'object') {
+      for (const [key, info] of Object.entries(health.components)) {
+        const comp = info as HealthComponent
+        nodes.push({
+          id: key,
+          name: NAME_MAP[key] || key,
+          status: toStatusLevel(comp.status),
+          latency: comp.latency_ms ?? undefined,
+        })
       }
-    ]
+    }
+
+    // Fallback: if backend is not in components, add it from top-level
+    if (!nodes.find(n => n.id === 'backend')) {
+      nodes.unshift({
+        id: 'backend',
+        name: health.service || '后端服务',
+        status: toStatusLevel(health.status),
+        latency,
+      })
+    }
+
+    services.value = nodes
   } catch {
     services.value = [
-      { id: 'core', name: 'Core API', status: 'down' }
+      { id: 'backend', name: '后端服务', status: 'down' }
     ]
   } finally {
     loading.value = false
