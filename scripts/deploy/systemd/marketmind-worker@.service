@@ -1,0 +1,37 @@
+[Unit]
+Description=MarketMind RQ Analysis Worker %i
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=marketmind
+Group=marketmind
+WorkingDirectory=/opt/marketmind
+
+EnvironmentFile=/opt/marketmind/.env.production
+Environment=PYTHONPATH=/opt/marketmind
+Environment=PYTHONUNBUFFERED=1
+
+# RQ Worker：带 scheduler，实例编号 %i
+ExecStart=/home/marketmind/.local/bin/uv run python -m rq.cli worker \
+    retail-analysis \
+    --url $REDIS_URL \
+    --with-scheduler \
+    --name worker-%i \
+    --verbose
+
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=60s
+StartLimitBurst=3
+
+TimeoutStopSec=60
+KillSignal=SIGTERM
+
+# 每个实例独立日志文件
+StandardOutput=append:/var/log/marketmind/worker-%i.log
+StandardError=append:/var/log/marketmind/worker-%i.log
+
+[Install]
+WantedBy=multi-user.target

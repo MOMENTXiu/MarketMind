@@ -1,0 +1,39 @@
+[Unit]
+Description=MarketMind FastAPI Backend API
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=marketmind
+Group=marketmind
+WorkingDirectory=/opt/marketmind
+
+# 加载生产环境变量
+EnvironmentFile=/opt/marketmind/.env.production
+Environment=PYTHONPATH=/opt/marketmind
+Environment=PYTHONUNBUFFERED=1
+
+# FastAPI 生产启动：多 worker，不启用 reload
+ExecStart=/home/marketmind/.local/bin/uv run python -m uvicorn backend.main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --workers 4 \
+    --proxy-headers \
+    --forwarded-allow-ips=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+
+Restart=on-failure
+RestartSec=5
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# 优雅停止
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+# 日志输出到文件（配合 logrotate）
+StandardOutput=append:/var/log/marketmind/api.log
+StandardError=append:/var/log/marketmind/api.log
+
+[Install]
+WantedBy=multi-user.target

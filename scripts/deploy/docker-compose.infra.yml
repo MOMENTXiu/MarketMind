@@ -1,0 +1,100 @@
+# MarketMind 生产基础设施 —— 机器 02（后端+Infra）
+# 所有端口只绑定 127.0.0.1，不暴露到外网
+#
+# 使用方式：
+#   cd /opt/marketmind
+#   docker compose -f scripts/deploy/docker-compose.infra.yml --env-file .env.production up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: marketmind-postgres
+    restart: always
+    env_file: .env.production
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - marketmind_postgres_data:/var/lib/postgresql/data
+    command: >
+      postgres
+        -c max_connections=200
+        -c shared_buffers=256MB
+        -c effective_cache_size=768MB
+        -c maintenance_work_mem=64MB
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=16MB
+        -c default_statistics_target=100
+        -c random_page_cost=1.1
+        -c effective_io_concurrency=200
+        -c work_mem=6553kB
+        -c min_wal_size=1GB
+        -c max_wal_size=4GB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: marketmind-redis
+    restart: always
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - marketmind_redis_data:/data
+    command: >
+      redis-server
+        --appendonly yes
+        --appendfsync everysec
+        --maxmemory 512mb
+        --maxmemory-policy allkeys-lru
+        --save 900 1
+        --save 300 10
+        --save 60 10000
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: marketmind-minio
+    restart: always
+    env_file: .env.production
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - marketmind_minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: marketmind-minio-init
+    restart: "no"
+    env_file: .env.production
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+        mc mb local/$${MINIO_BUCKET} --ignore-existing || true
+      "
+
+volumes:
+  marketmind_postgres_data:
+    driver: local
+  marketmind_redis_data:
+    driver: local
+  marketmind_minio_data:
+    driver: local
