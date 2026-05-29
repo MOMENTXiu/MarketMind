@@ -354,6 +354,26 @@ const stopProjectPolling = () => {
   }
 }
 
+const startProjectHttpPolling = () => {
+  stopProjectPolling()
+  pollingTimer = window.setInterval(async () => {
+    try {
+      await refreshProject()
+      if (!isProjectRunning.value) {
+        stopProjectPolling()
+        await loadArtifacts()
+        if (isDataProcessingProject.value) {
+          await loadDataProcessingPayloads()
+        } else {
+          await loadDetailPayloads()
+        }
+      }
+    } catch {
+      stopProjectPolling()
+    }
+  }, 3000)
+}
+
 const stopProjectEvents = () => {
   if (projectEventSource) {
     projectEventSource.close()
@@ -372,7 +392,13 @@ const parseAnalysisEvent = (event: MessageEvent<string>): AnalysisSseEvent | nul
 const startProjectEvents = async () => {
   stopProjectPolling()
   stopProjectEvents()
-  projectEventSource = await openRetailProjectEvents(projectId.value)
+  try {
+    projectEventSource = await openRetailProjectEvents(projectId.value)
+  } catch {
+    // SSE 连接失败，回退到 HTTP 轮询
+    if (isProjectRunning.value) startProjectHttpPolling()
+    return
+  }
   projectEventSource.onmessage = async (event) => {
     const payload = parseAnalysisEvent(event)
     if (payload?.heartbeat) return
@@ -395,6 +421,8 @@ const startProjectEvents = async () => {
     } catch (error) {
       ElMessage.error(`刷新项目状态失败: ${getApiErrorMessage(error)}`)
     }
+    // SSE 连接断开，若项目仍在运行，回退到 HTTP 轮询
+    if (isProjectRunning.value) startProjectHttpPolling()
   }
 }
 
@@ -403,7 +431,14 @@ const loadProject = async () => {
   loading.value = true
   try {
     await refreshProject()
-    if (isProjectRunning.value) await startProjectEvents()
+    if (isProjectRunning.value) {
+      try {
+        await startProjectEvents()
+      } catch {
+        // SSE 启动失败，回退到 HTTP 轮询
+        startProjectHttpPolling()
+      }
+    }
   } catch (error) {
     ElMessage.error(`加载项目失败: ${getApiErrorMessage(error)}`)
     router.push('/projects')
@@ -419,7 +454,12 @@ const reanalyze = async () => {
     )
     project.value = await runRetailAnalysis(projectId.value) as Project
     ElMessage.success('重新分析任务已启动')
-    await startProjectEvents()
+    try {
+      await startProjectEvents()
+    } catch {
+      // SSE 启动失败，回退到 HTTP 轮询
+      startProjectHttpPolling()
+    }
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
       ElMessage.error(`启动失败: ${getApiErrorMessage(error)}`)

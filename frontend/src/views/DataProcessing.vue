@@ -154,13 +154,29 @@ const parseAnalysisEvent = (event: MessageEvent<string>): AnalysisSseEvent | nul
   }
 }
 
+const startHttpPolling = (projectId: string, jobId: string) => {
+  stopPolling()
+  pollingTimer = window.setInterval(async () => {
+    await loadJob(jobId, projectId, true)
+  }, 2500)
+}
+
 const startJobEvents = async () => {
   if (!job.value) return
   stopPolling()
   stopJobEvents()
   const projectId = job.value.project_id
   const jobId = job.value.job_id
-  jobEventSource = await openDataProcessingJobEvents(projectId, jobId)
+  try {
+    jobEventSource = await openDataProcessingJobEvents(projectId, jobId)
+  } catch {
+    // SSE 连接失败，回退到 HTTP 轮询
+    if (job.value && !isTerminalDataProcessingStatus(job.value.status)) {
+      startHttpPolling(projectId, jobId)
+    }
+    return
+  }
+
   jobEventSource.addEventListener('state_changed', async (event) => {
     const payload = parseAnalysisEvent(event as MessageEvent<string>)
     await loadJob(jobId, projectId, true)
@@ -172,7 +188,15 @@ const startJobEvents = async () => {
   jobEventSource.onerror = async () => {
     stopJobEvents()
     await loadJob(jobId, projectId, true)
+    // SSE 连接断开，若 job 仍在处理中，回退到 HTTP 轮询
+    if (job.value && !isTerminalDataProcessingStatus(job.value.status)) {
+      startHttpPolling(projectId, jobId)
+    }
   }
+}
+
+const startPolling = async () => {
+  await startJobEvents()
 }
 
 const loadSidecars = async () => {
@@ -219,7 +243,7 @@ const loadJob = async (jobId: string, projectId: string, silent = false) => {
     if (isTerminalDataProcessingStatus(job.value.status) || job.value.status !== 'processing') {
       stopJobEvents()
       stopPolling()
-    } else if (!jobEventSource) {
+    } else if (!jobEventSource && pollingTimer === undefined) {
       await startJobEvents()
     }
   } catch (error) {
@@ -228,11 +252,6 @@ const loadJob = async (jobId: string, projectId: string, silent = false) => {
   } finally {
     if (!silent) loadingJob.value = false
   }
-}
-
-const startPolling = async () => {
-  stopPolling()
-  await startJobEvents()
 }
 
 const createJob = async () => {
@@ -303,7 +322,7 @@ const runJob = async () => {
   try {
     job.value = await runDataProcessingJob(job.value.project_id, job.value.job_id)
     ElMessage.success('通用分析已启动')
-    startPolling()
+    await startPolling()
   } catch (error) {
     ElMessage.error(`启动失败: ${getApiErrorMessage(error)}`)
   } finally {
