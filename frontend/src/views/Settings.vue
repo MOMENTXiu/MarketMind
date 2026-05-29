@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Cpu } from 'lucide-vue-next'
+import { Cpu, ArrowLeft } from 'lucide-vue-next'
 import { generateCustomerSuggestion, getApiErrorMessage } from '../api'
+
+const router = useRouter()
 
 // LLM Configuration
 interface LLMConfig {
@@ -108,6 +111,12 @@ onMounted(() => {
 <template>
   <div class="settings-page-wrapper">
     <div class="settings-focus-container">
+      <nav class="settings-breadcrumb">
+        <button class="breadcrumb-back" @click="router.push('/me/profile')">
+          <ArrowLeft /> 返回个人信息
+        </button>
+      </nav>
+
       <header class="settings-hero">
         <h1 class="slogan-display" style="font-size: 3rem; margin-bottom: 8px;">系统设置</h1>
         <p class="text-subtitle">管理您的服务连接与偏好</p>
@@ -202,6 +211,29 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.settings-breadcrumb {
+  display: flex;
+  align-items: center;
+}
+
+.breadcrumb-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px 0;
+  transition: color 160ms ease;
+}
+
+.breadcrumb-back:hover {
+  color: #6366f1;
+}
+
 .settings-page-wrapper {
   min-height: 100vh;
   display: flex;

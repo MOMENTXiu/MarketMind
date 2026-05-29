@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { computed, ref, onMounted } from 'vue'
-import { Moon, Sun, Plus } from 'lucide-vue-next'
+import { Moon, Sun } from 'lucide-vue-next'
 import ServiceStatus from '@/components/ServiceStatus.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const authStore = useAuthStore()
+
 const isHome = computed(() => route.path === '/')
 const isProjectsActive = computed(() => route.path.startsWith('/projects') || route.path.startsWith('/me/projects'))
+const isProfileActive = computed(() => route.path.startsWith('/me'))
 
 const isDark = ref(false)
 
@@ -62,7 +66,6 @@ onMounted(() => {
         <div class="nav-links">
           <RouterLink to="/" class="nav-item" :class="{ active: isHome }">主页</RouterLink>
           <RouterLink to="/projects" class="nav-item" :class="{ active: isProjectsActive }">我的项目</RouterLink>
-          <RouterLink to="/settings" class="nav-item" active-class="active">设置</RouterLink>
         </div>
 
         <div class="nav-actions">
@@ -73,9 +76,14 @@ onMounted(() => {
           <!-- Service Status Component -->
           <ServiceStatus />
 
-          <RouterLink to="/projects/new" class="btn-new-project">
-            <Plus />
-            <span>新建项目</span>
+          <RouterLink
+            v-if="authStore.isAuthenticated"
+            to="/me/profile"
+            class="user-pill"
+            :class="{ active: isProfileActive }"
+          >
+            <div class="user-avatar">{{ (authStore.user?.display_name || authStore.user?.email || 'U').charAt(0).toUpperCase() }}</div>
+            <span class="user-name">{{ authStore.user?.display_name || authStore.user?.email || '用户' }}</span>
           </RouterLink>
         </div>
       </div>
@@ -303,6 +311,70 @@ html.dark .theme-toggle:hover {
 
 .btn-new-project:active {
   transform: translateY(0);
+}
+
+.user-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 14px 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  text-decoration: none !important;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+  cursor: pointer;
+}
+
+html.dark .user-pill {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.user-pill:hover {
+  background: #fff;
+  border-color: rgba(99, 102, 241, 0.26);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.14);
+}
+
+html.dark .user-pill:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.user-pill.active {
+  background: rgba(99, 102, 241, 0.10);
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
+}
+
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.user-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.dark .user-name {
+  color: #e2e8f0;
 }
 
 .main-view {

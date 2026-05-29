@@ -78,10 +78,20 @@ const router = createRouter({
       meta: { public: true }
     },
     {
-      path: '/settings',
-      name: 'settings',
+      path: '/me/profile',
+      name: 'user-profile',
+      component: () => import('@/views/UserProfile.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/me/settings',
+      name: 'user-settings',
       component: () => import('@/views/Settings.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/settings',
+      redirect: '/me/settings'
     }
   ]
 })
