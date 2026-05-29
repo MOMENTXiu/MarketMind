@@ -43,6 +43,7 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "pydantic[email]>=2.12.5",
     "bcrypt<5.0",
+    "minio>=7.2.20",
 ]
 
 [dependency-groups]

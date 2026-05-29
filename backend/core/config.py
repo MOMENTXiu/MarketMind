@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     ANALYSIS_EVENT_RETRY_MS: int = 3000
 
     # Object Storage (MinIO / S3-compatible)
-    OBJECT_STORAGE_BACKEND: Literal["local", "minio"] = "local"
+    OBJECT_STORAGE_BACKEND: Literal["local", "minio"] = "minio"
     OBJECT_STORAGE_BUCKET: str = "marketmind-dev"
     OBJECT_STORAGE_ENDPOINT: str = "http://localhost:9000"
     OBJECT_STORAGE_PUBLIC_ENDPOINT: str = "http://localhost:9000"
