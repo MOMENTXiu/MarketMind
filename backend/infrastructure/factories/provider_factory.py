@@ -61,6 +61,13 @@ from backend.infrastructure.adapters.jwt_auth_token_adapter import JwtAuthTokenA
 from backend.infrastructure.adapters.passlib_password_hasher_adapter import (
     PasslibPasswordHasherAdapter,
 )
+from backend.infrastructure.adapters.postgres_sse_ticket_adapter import (
+    PostgresSseTicketAdapter,
+)
+from backend.infrastructure.adapters.postgres_user_directory_adapter import (
+    PostgresUserDirectoryAdapter,
+)
+from backend.infrastructure.db.session import create_db_engine, create_session_factory
 from backend.providers.analysis_event_stream_provider import InMemoryAnalysisEventStreamProvider
 from backend.providers.analysis_job_queue_provider import InMemoryAnalysisJobQueueProvider
 from backend.providers.container import ProvidersContainer
@@ -103,6 +110,13 @@ def create_providers(
         audience=settings.AUTH_TOKEN_AUDIENCE,
     )
 
+    engine = create_db_engine(settings)
+    session_factory = create_session_factory(engine)
+    user_directory = PostgresUserDirectoryAdapter(session_factory)
+    sse_ticket = PostgresSseTicketAdapter(
+        session_factory, expire_minutes=settings.AUTH_SSE_TICKET_EXPIRE_MINUTES
+    )
+
     return ProvidersContainer(
         repository=JsonProjectRepositoryAdapter("data"),
         storage=LocalProjectFileStorageAdapter("data"),
@@ -123,10 +137,10 @@ def create_providers(
         retail_analysis_state=retail_analysis_state,
         analysis_job_queue=analysis_job_queue,
         analysis_event_stream=analysis_event_stream,
-        user_directory=None,
+        user_directory=user_directory,
         password_hasher=password_hasher,
         auth_token=auth_token,
-        sse_ticket=None,
+        sse_ticket=sse_ticket,
     )
 
 

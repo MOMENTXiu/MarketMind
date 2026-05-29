@@ -31,6 +31,21 @@ def test_get_missing_sample() -> None:
     assert response.status_code == 404
 
 
-def test_download_sample_local_not_implemented() -> None:
+def test_download_sample_local() -> None:
     response = client.get("/api/samples/order-sample/download")
-    assert response.status_code == 501
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/csv; charset=utf-8"
+    assert "attachment" in response.headers["content-disposition"]
+
+
+def test_download_order_sample_2() -> None:
+    response = client.get("/api/samples/order-sample-2")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == "order-sample-2"
+    assert "download_url" in data
+
+    dl = client.get("/api/samples/order-sample-2/download")
+    assert dl.status_code == 200
+    assert dl.headers["content-type"] == "text/csv; charset=utf-8"
+    assert "attachment" in dl.headers["content-disposition"]

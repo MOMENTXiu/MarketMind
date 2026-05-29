@@ -1,6 +1,7 @@
 """PostgreSQL user directory adapter."""
 
 from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -86,4 +87,3 @@ def _to_dto(record: UserRecord) -> UserIdentityDTO:
         updated_at=record.updated_at.isoformat() if record.updated_at else None,
     )
 
-from typing import Any  # noqa: E402

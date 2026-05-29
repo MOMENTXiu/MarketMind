@@ -7,6 +7,7 @@ bucket or object keys.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,6 +25,13 @@ _SAMPLE_CATALOG: list[dict[str, Any]] = [
         "description": "Data-processing sample order dataset",
         "content_type": "text/csv",
         "storage_key": "samples/order-sample/order_1.csv",
+    },
+    {
+        "id": "order-sample-2",
+        "name": "order_2.csv",
+        "description": "Extended sample order dataset with more records",
+        "content_type": "text/csv",
+        "storage_key": "samples/order-sample-2/order_2.csv",
     },
 ]
 
@@ -79,4 +87,15 @@ async def download_sample(
             },
         )
 
-    raise HTTPException(status_code=501, detail="Sample download not implemented for local backend")
+    # local backend: serve from project data/samples directory
+    sample_path = Path("data") / "samples" / item["name"]
+    if not sample_path.exists():
+        raise HTTPException(status_code=404, detail="Sample file not found")
+    data = sample_path.read_bytes()
+    return StreamingResponse(
+        iter([data]),
+        media_type=item["content_type"],
+        headers={
+            "Content-Disposition": f'attachment; filename="{item["name"]}"',
+        },
+    )
