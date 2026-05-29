@@ -4,12 +4,14 @@ FastAPI 主应用入口
 
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.api import analysis, auth, samples
+from backend.api.dependencies import get_providers
 from backend.core.config import settings
+from backend.providers.container import ProvidersContainer
 
 # 创建 FastAPI 应用
 app = FastAPI(
@@ -47,9 +49,30 @@ async def root():
 
 
 @app.get("/api/health/")
-async def health_check():
-    """健康检查接口"""
-    return {"status": "healthy", "service": "MarketMind Backend"}
+async def health_check(providers: ProvidersContainer = Depends(get_providers)):
+    """健康检查接口 - 探测后端、Postgres、Redis、MinIO 状态"""
+    if providers.health is None:
+        return {"status": "healthy", "service": "MarketMind Backend"}
+
+    components = providers.health.check_all()
+    overall = "healthy"
+    for name, info in components.items():
+        if info.get("status") == "down":
+            overall = "degraded" if overall == "healthy" else overall
+        elif info.get("status") == "degraded" and overall == "healthy":
+            overall = "degraded"
+
+    # If any core infra is down, mark as degraded at minimum
+    core = ["postgres", "redis"]
+    if any(components.get(c, {}).get("status") == "down" for c in core):
+        overall = "degraded"
+
+    return {
+        "status": overall,
+        "service": "MarketMind Backend",
+        "version": "1.0.0",
+        "components": components,
+    }
 
 
 if __name__ == "__main__":

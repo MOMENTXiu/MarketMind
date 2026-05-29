@@ -30,6 +30,7 @@ from backend.providers.retail_analysis_state_provider import (
 from backend.providers.retail_dataset_provider import RetailDatasetProvider
 from backend.providers.sse_ticket_provider import SseTicketProvider
 from backend.providers.telemetry_provider import TelemetryProvider
+from backend.providers.infrastructure_health_provider import InfrastructureHealthProvider
 from backend.providers.user_directory_provider import UserDirectoryProvider
 
 
@@ -61,3 +62,4 @@ class ProvidersContainer:
     password_hasher: PasswordHasherProvider | None = None
     auth_token: AuthTokenProvider | None = None
     sse_ticket: SseTicketProvider | None = None
+    health: InfrastructureHealthProvider | None = None

@@ -163,5 +163,15 @@ class MinioObjectStorageAdapter:
         if not key or key.startswith("/") or ".." in key:
             raise ValidationError(f"Invalid object key: {key}")
 
+    def health_check(self) -> None:
+        """Raise on connectivity or bucket absence so caller can map to degraded/down."""
+        try:
+            if not self.client.bucket_exists(self.bucket):
+                raise InfrastructureError(f"MinIO bucket missing: {self.bucket}")
+        except S3Error as exc:
+            raise InfrastructureError(f"MinIO health check failed: {exc}") from exc
+        except Exception as exc:
+            raise InfrastructureError(f"MinIO health check failed: {exc}") from exc
+
     def _proxy_url(self, key: str) -> str:
         return f"/api/storage/proxy/{key}"

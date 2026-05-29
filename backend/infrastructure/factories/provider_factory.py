@@ -33,6 +33,9 @@ from backend.infrastructure.adapters.local_project_file_storage_adapter import (
 from backend.infrastructure.adapters.local_recommendation_model_store_adapter import (
     LocalRecommendationModelStoreAdapter,
 )
+from backend.infrastructure.adapters.composite_infrastructure_health_adapter import (
+    CompositeInfrastructureHealthAdapter,
+)
 from backend.infrastructure.adapters.local_regularized_dataset_adapter import (
     LocalRegularizedDatasetAdapter,
 )
@@ -117,6 +120,22 @@ def create_providers(
         session_factory, expire_minutes=settings.AUTH_SSE_TICKET_EXPIRE_MINUTES
     )
 
+    # Resolve raw infra clients for health probes
+    redis_client_for_health: Any | None = None
+    minio_for_health: Any | None = None
+    if settings.TASK_QUEUE_BACKEND == "redis" and settings.REDIS_ENABLED:
+        from redis import Redis
+
+        redis_client_for_health = Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    if settings.OBJECT_STORAGE_BACKEND == "minio":
+        minio_for_health = _build_minio_storage(settings)
+
+    health = CompositeInfrastructureHealthAdapter(
+        engine=engine,
+        redis_client=redis_client_for_health,
+        minio_storage=minio_for_health,
+    )
+
     return ProvidersContainer(
         repository=JsonProjectRepositoryAdapter("data"),
         storage=LocalProjectFileStorageAdapter("data"),
@@ -141,6 +160,7 @@ def create_providers(
         password_hasher=password_hasher,
         auth_token=auth_token,
         sse_ticket=sse_ticket,
+        health=health,
     )
 
 
