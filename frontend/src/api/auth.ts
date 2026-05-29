@@ -38,21 +38,21 @@ export interface SseTicketResponse {
 }
 
 export function register(data: RegisterRequest): Promise<{ id: string; email: string; display_name: string | null }> {
-  return unwrapApiEnvelope(apiClient.post('/auth/register', data))
+  return unwrapApiEnvelope(apiClient.post('/api/auth/register', data))
 }
 
 export function login(data: LoginRequest): Promise<LoginResponse> {
-  return unwrapApiEnvelope(apiClient.post('/auth/login', data))
+  return unwrapApiEnvelope(apiClient.post('/api/auth/login', data))
 }
 
 export function me(): Promise<UserResponse> {
-  return unwrapApiEnvelope(apiClient.get('/auth/me'))
+  return unwrapApiEnvelope(apiClient.get('/api/auth/me'))
 }
 
 export function logout(): Promise<Record<string, unknown>> {
-  return unwrapApiEnvelope(apiClient.post('/auth/logout'))
+  return unwrapApiEnvelope(apiClient.post('/api/auth/logout'))
 }
 
 export function issueSseTicket(data: SseTicketRequest): Promise<SseTicketResponse> {
-  return unwrapApiEnvelope(apiClient.post('/auth/sse-ticket', data))
+  return unwrapApiEnvelope(apiClient.post('/api/auth/sse-ticket', data))
 }
