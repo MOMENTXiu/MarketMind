@@ -22,7 +22,7 @@ The root `.env.example` mirrors backend `Settings` fields in `backend/core/confi
 | `DATABASE_URL` | PostgreSQL development database | Retail V2 state is PostgreSQL-backed; used by DB infrastructure and migrations. |
 | `TEST_DATABASE_URL` | Isolated PostgreSQL test database | Required for live DB adapter and Alembic roundtrip tests. |
 | `REDIS_URL`, `REDIS_ENABLED`, `TASK_QUEUE_BACKEND` | Redis/queue configuration | Redis/RQ worker is the default async backend; `TASK_QUEUE_BACKEND=redis`, `REDIS_ENABLED=true`. |
-| `OBJECT_STORAGE_BACKEND` | Object storage backend selection | `local` (default, filesystem) or `minio` (S3-compatible). |
+| `OBJECT_STORAGE_BACKEND` | Object storage backend selection | `minio` (default, uses docker-compose MinIO); `local` for filesystem-only. |
 | `OBJECT_STORAGE_BUCKET` | MinIO bucket name | `marketmind-dev` for local dev. |
 | `OBJECT_STORAGE_ENDPOINT` | MinIO API endpoint | `http://localhost:9000` for local dev. |
 | `OBJECT_STORAGE_PUBLIC_ENDPOINT` | Public-facing MinIO endpoint | Same as endpoint unless behind a proxy. |

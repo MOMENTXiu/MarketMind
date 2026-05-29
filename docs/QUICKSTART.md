@@ -42,6 +42,7 @@ scripts\start-project.bat
 - Backend API: `http://localhost:8000/api`
 - Swagger: `http://localhost:8000/api/docs`
 - ReDoc: `http://localhost:8000/api/redoc`
+- Health: `http://localhost:8000/api/health/`（返回 backend / postgres / redis / minio 状态）
 - MinIO API: `http://localhost:9000`
 - MinIO Console: `http://localhost:9001`
 
