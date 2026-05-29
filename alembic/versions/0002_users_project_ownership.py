@@ -9,7 +9,7 @@ from uuid import uuid4
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0002_add_users_and_project_ownership"
+revision: str = "0002_users_project_ownership"
 down_revision: str | None = "0001_initial_schema"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
