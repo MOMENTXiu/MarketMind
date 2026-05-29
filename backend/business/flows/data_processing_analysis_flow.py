@@ -301,9 +301,15 @@ class DataProcessingAnalysisFlow:
     def _assert_project_access(self, project_id: str, user_context: AuthenticatedUserContext | None = None) -> None:
         if user_context is None:
             return
+        # V1 repository path (legacy JSON/Postgres metadata)
         project = self.providers.repository.get_project(project_id, owner_user_id=user_context.user_id)
-        if project is None:
-            raise NotFoundError("Project not found")
+        if project is not None:
+            return
+        # V2 retail analysis state path (in-memory / Postgres state adapter)
+        state = self.providers.retail_analysis_state.get_state(project_id, owner_user_id=user_context.user_id)
+        if state is not None:
+            return
+        raise NotFoundError("Project not found")
 
     def _run_stage(
         self,

@@ -313,8 +313,12 @@ async def regularize_project_dataset(
     project_id: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
     dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
-    project = flow.get_project(project_id)
+    try:
+        project = flow.get_project(project_id, user_context=user)
+    except MarketMindError as exc:
+        raise map_internal_error(exc) from exc
     if not _is_dp_project(project):
         raise map_internal_error(
             ValidationError("Regularization is only available for Data Processing projects")
@@ -323,7 +327,7 @@ async def regularize_project_dataset(
     if not job_id:
         raise map_internal_error(ValidationError("No linked Data Processing job found"))
     try:
-        result = dp_flow.regularize(project_id, str(job_id))
+        result = dp_flow.regularize(project_id, str(job_id), user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -334,19 +338,23 @@ async def run_analysis(
     project_id: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
     dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
-    project = flow.get_project(project_id)
+    try:
+        project = flow.get_project(project_id, user_context=user)
+    except MarketMindError as exc:
+        raise map_internal_error(exc) from exc
     if _is_dp_project(project):
         job_id = project.get("job_id")
         if not job_id:
             raise map_internal_error(ValidationError("No linked Data Processing job found"))
         try:
-            result = dp_flow.run_analysis(project_id, str(job_id))
+            result = dp_flow.run_analysis(project_id, str(job_id), user_context=user)
         except MarketMindError as exc:
             raise map_internal_error(exc) from exc
         return _success(result)
     try:
-        result = flow.start_analysis(project_id)
+        result = flow.start_analysis(project_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -380,6 +388,7 @@ async def stream_project_events(
     event_token: str | None = None,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
     dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
     last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
 ) -> StreamingResponse:
     if event_token:
@@ -395,7 +404,7 @@ async def stream_project_events(
             raise map_internal_error(exc) from exc
 
     try:
-        project = flow.get_project(project_id)
+        project = flow.get_project(project_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
 
@@ -619,6 +628,7 @@ async def stream_data_processing_job_events(
     project_id: str,
     event_token: str | None = None,
     flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
     last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
 ) -> StreamingResponse:
     if event_token:
@@ -635,7 +645,7 @@ async def stream_data_processing_job_events(
             raise map_internal_error(exc) from exc
 
     try:
-        job = flow.get_job(project_id, job_id)
+        job = flow.get_job(project_id, job_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
 
