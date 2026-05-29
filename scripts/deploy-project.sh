@@ -149,6 +149,10 @@ echo -e "${BLUE}  Applying database migrations...${NC}"
 uv run python -m alembic upgrade head
 echo -e "${GREEN}  Database schema is ready${NC}"
 
+echo -e "${BLUE}  Uploading sample files to MinIO...${NC}"
+uv run python scripts/init-samples-to-minio.py || echo -e "${YELLOW}  Sample upload failed or skipped${NC}"
+echo -e "${GREEN}  Sample files ready${NC}"
+
 # Create required local directories
 mkdir -p logs
 mkdir -p outputs/charts

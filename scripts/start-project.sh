@@ -200,6 +200,10 @@ if [ "$INFRA_READY" != "true" ]; then
         wait_for_infra "$svc"
     done
 fi
+
+echo -e "${BLUE}  Ensuring sample files in MinIO...${NC}"
+uv run python scripts/init-samples-to-minio.py >/dev/null 2>&1 || true
+echo -e "${GREEN}  Sample files ready${NC}"
 echo ""
 
 # Ensure ports are free
