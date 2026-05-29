@@ -18,6 +18,8 @@ EXPECTED_TABLES = {
     "processing_runs",
     "artifacts",
     "analysis_results",
+    "users",
+    "sse_tickets",
 }
 FORBIDDEN_MIGRATION_TOKENS = (
     "pgcrypto",
