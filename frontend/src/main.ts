@@ -6,7 +6,7 @@ import 'element-plus/theme-chalk/dark/css-vars.css'
 import './styles/main.css'
 import App from './App.vue'
 import router from './router'
-import { installAuthInterceptors } from './api/client'
+import { installAuthInterceptors, setTokenGetter } from './api/client'
 import { useAuthStore } from './stores/auth'
 
 async function bootstrap() {
@@ -14,10 +14,17 @@ async function bootstrap() {
   const pinia = createPinia()
 
   app.use(pinia)
-  app.use(router)
-  app.use(ElementPlus)
 
   const authStore = useAuthStore()
+
+  // 先设置 token getter，让 loadMe() 的请求能带上 Authorization header
+  setTokenGetter(() => authStore.accessToken)
+
+  await authStore.loadMe().catch(() => {
+    // ignore
+  })
+
+  app.use(router)
 
   installAuthInterceptors(
     () => authStore.accessToken,
@@ -30,10 +37,7 @@ async function bootstrap() {
     }
   )
 
-  await authStore.loadMe().catch(() => {
-    // ignore
-  })
-
+  app.use(ElementPlus)
   app.mount('#app')
 }
 

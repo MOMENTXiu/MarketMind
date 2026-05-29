@@ -20,6 +20,10 @@ export const apiClient = axios.create({
 let _getToken: (() => string | null) | null = null
 let _onUnauthorized: (() => void) | null = null
 
+export function setTokenGetter(getToken: () => string | null): void {
+  _getToken = getToken
+}
+
 export function installAuthInterceptors(
   getToken: () => string | null,
   onUnauthorized: () => void,
