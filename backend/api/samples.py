@@ -20,18 +20,11 @@ router = APIRouter()
 
 _SAMPLE_CATALOG: list[dict[str, Any]] = [
     {
-        "id": "order-sample",
-        "name": "order_1.csv",
-        "description": "Data-processing sample order dataset",
+        "id": "marketmind-sample-analysis-data",
+        "name": "marketmind_sample_analysis_data.csv",
+        "description": "MarketMind 示例销售分析数据集",
         "content_type": "text/csv",
-        "storage_key": "samples/order-sample/order_1.csv",
-    },
-    {
-        "id": "order-sample-2",
-        "name": "order_2.csv",
-        "description": "Extended sample order dataset with more records",
-        "content_type": "text/csv",
-        "storage_key": "samples/order-sample-2/order_2.csv",
+        "storage_key": "samples/marketmind-sample-analysis-data/marketmind_sample_analysis_data.csv",
     },
 ]
 

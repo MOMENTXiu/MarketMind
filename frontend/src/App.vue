@@ -63,7 +63,7 @@ onMounted(() => {
           <span class="brand-text">MarketMind</span>
         </RouterLink>
 
-        <div class="nav-links">
+        <div v-if="authStore.isAuthenticated" class="nav-links">
           <RouterLink to="/" class="nav-item" :class="{ active: isHome }">主页</RouterLink>
           <RouterLink to="/projects" class="nav-item" :class="{ active: isProjectsActive }">我的项目</RouterLink>
         </div>

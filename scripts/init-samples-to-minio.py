@@ -25,8 +25,7 @@ def main() -> int:
     storage = _build_minio_storage(settings)
 
     samples = [
-        ("data/samples/order_1.csv", "samples/order-sample/order_1.csv", "text/csv"),
-        ("data/samples/order_2.csv", "samples/order-sample-2/order_2.csv", "text/csv"),
+        ("data/samples/marketmind_sample_analysis_data.csv", "samples/marketmind-sample-analysis-data/marketmind_sample_analysis_data.csv", "text/csv"),
     ]
 
     ok = 0

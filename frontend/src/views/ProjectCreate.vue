@@ -317,7 +317,7 @@ const createProject = async () => {
         <div class="footer-left">
           <a
             v-if="currentStep === 1"
-            href="/api/samples/order-sample-2/download"
+            href="/api/samples/marketmind-sample-analysis-data/download"
             download
             class="sample-link"
           >
