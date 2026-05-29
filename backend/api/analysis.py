@@ -24,7 +24,8 @@ from backend.business.flows.retail_analysis_flow import RetailAnalysisFlow
 from backend.business.pipelines.customer_text_suggestion_pipeline import (
     CustomerTextSuggestionPipeline,
 )
-from backend.core.errors import MarketMindError, ValidationError
+from backend.business.pipelines.verify_sse_ticket_pipeline import VerifySseTicketPipeline
+from backend.core.errors import AuthError, MarketMindError, ValidationError
 from backend.providers.analysis_event_stream_provider import job_channel, project_channel
 from backend.providers.dtos import AnalysisEventSubscriptionItemDTO
 
@@ -376,10 +377,23 @@ async def get_project(
 @router.get("/projects/{project_id}/events")
 async def stream_project_events(
     project_id: str,
+    event_token: str | None = None,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
     dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
     last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
 ) -> StreamingResponse:
+    if event_token:
+        try:
+            VerifySseTicketPipeline(flow.providers).execute(
+                ticket=event_token,
+                resource_type="project",
+                resource_id=project_id,
+                project_id=project_id,
+                stream_type="retail-analysis",
+            )
+        except AuthError as exc:
+            raise map_internal_error(exc) from exc
+
     try:
         project = flow.get_project(project_id)
     except MarketMindError as exc:
@@ -419,22 +433,23 @@ async def list_artifacts(
     project_id: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
     dp_flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        project = flow.get_project(project_id)
+        project = flow.get_project(project_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     if _is_dp_project(project):
         job_id = project.get("job_id")
         if job_id:
             try:
-                outputs = dp_flow.list_outputs(project_id, str(job_id))
+                outputs = dp_flow.list_outputs(project_id, str(job_id), user_context=user)
                 return _success(outputs)
             except MarketMindError:
                 pass
         return _success({"project_id": project_id, "artifacts": []})
     try:
-        result = flow.list_artifacts(project_id)
+        result = flow.list_artifacts(project_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -445,9 +460,10 @@ async def get_dataset_ref(
     project_id: str,
     dataset_id: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.get_dataset_ref(project_id, dataset_id)
+        result = flow.get_dataset_ref(project_id, dataset_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -458,9 +474,10 @@ async def get_artifact_payload(
     project_id: str,
     artifact_id: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.get_artifact_payload(project_id, artifact_id)
+        result = flow.get_artifact_payload(project_id, artifact_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -471,9 +488,10 @@ async def get_artifact_ref(
     project_id: str,
     artifact_id: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.get_artifact_ref(project_id, artifact_id)
+        result = flow.get_artifact_ref(project_id, artifact_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -485,9 +503,10 @@ async def get_model_ref(
     model_type: str,
     version: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.get_model_ref(project_id, model_type, version)
+        result = flow.get_model_ref(project_id, model_type, version, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -499,9 +518,10 @@ async def list_recommendations(
     customer_id: str | None = None,
     top_k: int = Query(default=10, ge=1, le=100),
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.list_recommendations(project_id, customer_id=customer_id, top_k=top_k)
+        result = flow.list_recommendations(project_id, customer_id=customer_id, top_k=top_k, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -511,9 +531,10 @@ async def list_recommendations(
 async def get_marketer_insights(
     project_id: str,
     flow: RetailAnalysisFlow = Depends(get_retail_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.get_marketer_insights(project_id)
+        result = flow.get_marketer_insights(project_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -526,9 +547,10 @@ async def get_marketer_insights(
 async def create_data_processing_job(
     payload: DataProcessingJobCreate,
     flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.create_job(payload.project_id, payload.name)
+        result = flow.create_job(payload.project_id, payload.name, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -540,9 +562,10 @@ async def upload_raw_dataset(
     project_id: str,
     file: Annotated[UploadFile, File(...)],
     flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.upload_raw_dataset(project_id, job_id, file.filename or "", await file.read())
+        result = flow.upload_raw_dataset(project_id, job_id, file.filename or "", await file.read(), user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -553,9 +576,10 @@ async def regularize_dataset(
     job_id: str,
     project_id: str,
     flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.regularize(project_id, job_id)
+        result = flow.regularize(project_id, job_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -566,9 +590,10 @@ async def run_data_processing_analysis(
     job_id: str,
     project_id: str,
     flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.run_analysis(project_id, job_id)
+        result = flow.run_analysis(project_id, job_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -579,9 +604,10 @@ async def get_data_processing_job(
     job_id: str,
     project_id: str,
     flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.get_job(project_id, job_id)
+        result = flow.get_job(project_id, job_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -591,9 +617,23 @@ async def get_data_processing_job(
 async def stream_data_processing_job_events(
     job_id: str,
     project_id: str,
+    event_token: str | None = None,
     flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
     last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
 ) -> StreamingResponse:
+    if event_token:
+        try:
+            VerifySseTicketPipeline(flow.providers).execute(
+                ticket=event_token,
+                resource_type="job",
+                resource_id=job_id,
+                project_id=project_id,
+                job_id=job_id,
+                stream_type="data-processing",
+            )
+        except AuthError as exc:
+            raise map_internal_error(exc) from exc
+
     try:
         job = flow.get_job(project_id, job_id)
     except MarketMindError as exc:
@@ -614,9 +654,10 @@ async def list_data_processing_outputs(
     job_id: str,
     project_id: str,
     flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.list_outputs(project_id, job_id)
+        result = flow.list_outputs(project_id, job_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -628,9 +669,10 @@ async def get_data_processing_dataset(
     dataset_id: str,
     project_id: str,
     flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.get_dataset_ref(project_id, job_id, dataset_id)
+        result = flow.get_dataset_ref(project_id, job_id, dataset_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -642,9 +684,10 @@ async def get_data_processing_sidecar(
     sidecar_id: str,
     project_id: str,
     flow: DataProcessingAnalysisFlow = Depends(get_data_processing_analysis_flow),
+    user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.load_sidecar(project_id, job_id, sidecar_id)
+        result = flow.load_sidecar(project_id, job_id, sidecar_id, user_context=user)
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
