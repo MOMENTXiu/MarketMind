@@ -89,26 +89,8 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   const authStore = useAuthStore()
 
-  // Wait for auth initialization on first load
-  if (authStore.status === 'idle' && authStore.accessToken) {
-    authStore.loadMe().finally(() => {
-      next({ ...to, replace: true })
-    })
-    return
-  }
-
-  const requiresAuth = to.meta.requiresAuth
-  const guestOnly = to.meta.guestOnly
-
-  if (requiresAuth && !authStore.isAuthenticated) {
-    authStore.setReturnTo(to.fullPath)
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ path: '/login', query: { redirect: to.fullPath } })
-    return
-  }
-
-  if (guestOnly && authStore.isAuthenticated) {
-    const redirect = (to.query.redirect as string) || '/projects'
-    next({ path: redirect })
     return
   }
 
