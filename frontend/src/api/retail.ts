@@ -45,8 +45,13 @@ export function runRetailAnalysis(projectId: string): Promise<RetailProject> {
   return unwrapApiEnvelope(apiClient.post(`/api/analysis/projects/${encodeURIComponent(projectId)}/run`))
 }
 
-export function openRetailProjectEvents(projectId: string): EventSource {
-  return createApiEventSource(`/api/analysis/projects/${encodeURIComponent(projectId)}/events`)
+export async function openRetailProjectEvents(projectId: string): Promise<EventSource> {
+  return createEventSourceWithTicket(`/api/analysis/projects/${encodeURIComponent(projectId)}/events`, {
+    resource_type: 'project',
+    resource_id: projectId,
+    project_id: projectId,
+    stream_type: 'retail-analysis',
+  })
 }
 
 export function listRetailArtifacts(projectId: string): Promise<{ artifacts: ApiRef[] } | ApiRef[]> {

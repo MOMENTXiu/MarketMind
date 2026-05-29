@@ -154,13 +154,13 @@ const parseAnalysisEvent = (event: MessageEvent<string>): AnalysisSseEvent | nul
   }
 }
 
-const startJobEvents = () => {
+const startJobEvents = async () => {
   if (!job.value) return
   stopPolling()
   stopJobEvents()
   const projectId = job.value.project_id
   const jobId = job.value.job_id
-  jobEventSource = openDataProcessingJobEvents(projectId, jobId)
+  jobEventSource = await openDataProcessingJobEvents(projectId, jobId)
   jobEventSource.addEventListener('state_changed', async (event) => {
     const payload = parseAnalysisEvent(event as MessageEvent<string>)
     await loadJob(jobId, projectId, true)
@@ -220,7 +220,7 @@ const loadJob = async (jobId: string, projectId: string, silent = false) => {
       stopJobEvents()
       stopPolling()
     } else if (!jobEventSource) {
-      startJobEvents()
+      await startJobEvents()
     }
   } catch (error) {
     if (!silent) ElMessage.error(`加载 Job 失败: ${getApiErrorMessage(error)}`)
@@ -232,7 +232,7 @@ const loadJob = async (jobId: string, projectId: string, silent = false) => {
 
 const startPolling = () => {
   stopPolling()
-  startJobEvents()
+  await startJobEvents()
 }
 
 const createJob = async () => {

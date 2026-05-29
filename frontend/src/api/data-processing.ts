@@ -41,9 +41,13 @@ export function runDataProcessingJob(projectId: string, jobId: string): Promise<
   )
 }
 
-export function openDataProcessingJobEvents(projectId: string, jobId: string): EventSource {
-  return createApiEventSource(`/api/analysis/jobs/${encodeURIComponent(jobId)}/events`, {
-    project_id: projectId
+export async function openDataProcessingJobEvents(projectId: string, jobId: string): Promise<EventSource> {
+  return createEventSourceWithTicket(`/api/analysis/jobs/${encodeURIComponent(jobId)}/events`, {
+    resource_type: 'job',
+    resource_id: jobId,
+    project_id: projectId,
+    job_id: jobId,
+    stream_type: 'data-processing',
   })
 }
 

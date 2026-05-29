@@ -369,10 +369,10 @@ const parseAnalysisEvent = (event: MessageEvent<string>): AnalysisSseEvent | nul
   }
 }
 
-const startProjectEvents = () => {
+const startProjectEvents = async () => {
   stopProjectPolling()
   stopProjectEvents()
-  projectEventSource = openRetailProjectEvents(projectId.value)
+  projectEventSource = await openRetailProjectEvents(projectId.value)
   projectEventSource.onmessage = async (event) => {
     const payload = parseAnalysisEvent(event)
     if (payload?.heartbeat) return
@@ -403,7 +403,7 @@ const loadProject = async () => {
   loading.value = true
   try {
     await refreshProject()
-    if (isProjectRunning.value) startProjectEvents()
+    if (isProjectRunning.value) await startProjectEvents()
   } catch (error) {
     ElMessage.error(`加载项目失败: ${getApiErrorMessage(error)}`)
     router.push('/projects')
@@ -419,7 +419,7 @@ const reanalyze = async () => {
     )
     project.value = await runRetailAnalysis(projectId.value) as Project
     ElMessage.success('重新分析任务已启动')
-    startProjectEvents()
+    await startProjectEvents()
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
       ElMessage.error(`启动失败: ${getApiErrorMessage(error)}`)
@@ -538,7 +538,7 @@ const handleReupload = async (event: Event) => {
       ElMessage.success('标准化完成')
       await runRetailAnalysis(projectId.value)
       ElMessage.success('分析已启动')
-      startProjectEvents()
+      await startProjectEvents()
     }
     await refreshProject()
   } catch (error) {
