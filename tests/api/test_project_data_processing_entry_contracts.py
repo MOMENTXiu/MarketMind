@@ -222,3 +222,84 @@ def test_non_dp_project_upload_still_uses_retail_v2_path(client: TestClient) -> 
     assert upload_response.status_code == 400
     error_payload = upload_response.json()
     assert "detail" in error_payload or "error" in error_payload
+
+
+def _register_and_login_dp(client: TestClient, email: str) -> tuple[str, str]:
+    r = client.post("/api/auth/register", json={"email": email, "password": "password123"})
+    assert r.status_code == 201
+    r = client.post("/api/auth/login", json={"email": email, "password": "password123"})
+    assert r.status_code == 200
+    data = r.json()["data"]
+    return data["access_token"], data["user"]["id"]
+
+
+def test_authenticated_dp_project_entry_flow(client: TestClient) -> None:
+    """Logged-in user must complete the project-facing DP entry flow."""
+    token, user_id = _register_and_login_dp(client, "dp-entry-auth@test.com")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create
+    r = client.post(
+        "/api/analysis/projects",
+        json={"name": "Auth DP Entry", "analysis_kind": "data_processing"},
+        headers=headers,
+    )
+    assert r.status_code == 201
+    project = assert_success_payload(r.json())
+    project_id = project["id"]
+    assert project.get("analysis_kind") == "data_processing"
+
+    # Upload
+    fixture_path = Path("tests/fixtures/data_processing/mini_retail.csv")
+    with fixture_path.open("rb") as dataset_file:
+        r = client.post(
+            f"/api/analysis/projects/{project_id}/dataset",
+            files={"file": (fixture_path.name, dataset_file, "text/csv")},
+            headers=headers,
+        )
+    assert r.status_code == 200
+    upload_data = assert_success_payload(r.json())
+    job_id = upload_data.get("job_id")
+    assert job_id
+
+    # Regularize (project-facing)
+    r = client.post(f"/api/analysis/projects/{project_id}/regularize", headers=headers)
+    assert r.status_code == 200
+    reg_data = assert_success_payload(r.json())
+    assert reg_data["status"] in VALID_JOB_STATUSES
+
+    # Run (project-facing)
+    if reg_data["status"] != "needs_review":
+        r = client.post(f"/api/analysis/projects/{project_id}/run", headers=headers)
+        assert r.status_code in {200, 202}
+
+    # Detail reflects job state
+    r = client.get(f"/api/analysis/projects/{project_id}", headers=headers)
+    assert r.status_code == 200
+    detail = assert_success_payload(r.json())
+    assert detail["job_id"] == job_id
+
+
+def test_cross_user_isolation_dp_project(client: TestClient) -> None:
+    """User B must not access User A's DP project via project-facing endpoints."""
+    token_a, _ = _register_and_login_dp(client, "dp-a@test.com")
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+
+    r = client.post(
+        "/api/analysis/projects",
+        json={"name": "DP A", "analysis_kind": "data_processing"},
+        headers=headers_a,
+    )
+    project_id = assert_success_payload(r.json())["id"]
+
+    token_b, _ = _register_and_login_dp(client, "dp-b@test.com")
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+
+    r = client.get(f"/api/analysis/projects/{project_id}", headers=headers_b)
+    assert r.status_code == 404
+
+    r = client.post(f"/api/analysis/projects/{project_id}/regularize", headers=headers_b)
+    assert r.status_code == 404
+
+    r = client.post(f"/api/analysis/projects/{project_id}/run", headers=headers_b)
+    assert r.status_code == 404

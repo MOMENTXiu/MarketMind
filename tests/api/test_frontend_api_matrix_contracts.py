@@ -161,3 +161,69 @@ def test_customer_text_suggestion_fields_used_by_frontend(client: TestClient) ->
         assert "audio_url" not in payload
     finally:
         app.dependency_overrides.pop(get_customer_text_suggestion_pipeline, None)
+
+
+def _register_and_login(client: TestClient, email: str) -> tuple[str, str]:
+    r = client.post("/api/auth/register", json={"email": email, "password": "password123"})
+    assert r.status_code == 201
+    r = client.post("/api/auth/login", json={"email": email, "password": "password123"})
+    assert r.status_code == 200
+    data = r.json()["data"]
+    return data["access_token"], data["user"]["id"]
+
+
+def test_authenticated_analysis_project_matrix(client: TestClient) -> None:
+    """Authenticated user must see consistent project fields across create/list/detail/delete."""
+    token, user_id = _register_and_login(client, "matrix-auth@test.com")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    project_id = _create_analysis_project_with_auth(client, headers)
+
+    list_response = client.get("/api/analysis/projects", headers=headers)
+    assert list_response.status_code == 200
+    list_data = list_response.json()["data"]
+    assert list_data["total"] == 1
+    assert {"id", "name", "status", "created_at", "updated_at"}.issubset(list_data["projects"][0])
+
+    detail_response = client.get(f"/api/analysis/projects/{project_id}", headers=headers)
+    assert detail_response.status_code == 200
+    detail_data = detail_response.json()["data"]
+    assert detail_data["id"] == project_id
+    assert {"stage_statuses", "summary", "quality_summary", "artifact_refs"}.issubset(detail_data)
+
+    delete_response = client.delete(f"/api/analysis/projects/{project_id}", headers=headers)
+    assert delete_response.status_code == 200
+    assert delete_response.json()["data"]["deleted"] is True
+
+
+def test_analysis_dataset_result_with_auth(client: TestClient) -> None:
+    """Authenticated upload must return the same field contracts."""
+    token, user_id = _register_and_login(client, "matrix-ds-auth@test.com")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    project_id = _create_analysis_project_with_auth(client, headers)
+    fixture_path = Path("tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv")
+    with fixture_path.open("rb") as dataset_file:
+        upload_response = client.post(
+            f"/api/analysis/projects/{project_id}/dataset",
+            files={"file": ("retail.csv", dataset_file, "text/csv")},
+            headers=headers,
+        )
+    assert upload_response.status_code == 200
+    upload_data = upload_response.json()["data"]
+    assert {"project_id", "status", "dataset_ref", "quality_summary"}.issubset(upload_data)
+    assert upload_data["dataset_ref"]["url"].startswith("/api/analysis/projects/")
+    assert "path" not in upload_data["dataset_ref"]
+
+
+def _create_analysis_project_with_auth(client: TestClient, headers: dict[str, str]) -> str:
+    response = client.post(
+        "/api/analysis/projects",
+        json={"name": "Frontend Matrix Auth", "description": "auth matrix test"},
+        headers=headers,
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["data"]["id"]
+    return str(payload["data"]["id"])

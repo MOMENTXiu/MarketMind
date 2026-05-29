@@ -347,6 +347,91 @@ def test_result_endpoint_contracts(client: TestClient) -> None:
     }.issubset(insights_data)
 
 
+def _register_user(client: TestClient, email: str, password: str = "password123") -> str:
+    r = client.post("/api/auth/register", json={"email": email, "password": password})
+    assert r.status_code == 201
+    return r.json()["data"]["id"]
+
+
+def _login_user(client: TestClient, email: str, password: str = "password123") -> tuple[str, str]:
+    r = client.post("/api/auth/login", json={"email": email, "password": password})
+    assert r.status_code == 200
+    data = r.json()["data"]
+    return data["access_token"], data["user"]["id"]
+
+
+def test_authenticated_retail_project_lifecycle(client: TestClient) -> None:
+    """Logged-in user must be able to create, list, get, and delete their own project."""
+    _register_user(client, "retail-auth@test.com")
+    token, user_id = _login_user(client, "retail-auth@test.com")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create
+    r = client.post("/api/analysis/projects", json={"name": "Auth Retail", "description": "auth test"}, headers=headers)
+    assert r.status_code == 201
+    project = assert_success_payload(r.json())
+    project_id = project["id"]
+
+    # List
+    r = client.get("/api/analysis/projects", headers=headers)
+    assert r.status_code == 200
+    list_data = assert_success_payload(r.json())
+    assert list_data["total"] == 1
+    assert list_data["projects"][0]["id"] == project_id
+
+    # Get
+    r = client.get(f"/api/analysis/projects/{project_id}", headers=headers)
+    assert r.status_code == 200
+    detail = assert_success_payload(r.json())
+    assert detail["id"] == project_id
+
+    # Upload
+    fixture_path = Path("tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv")
+    with fixture_path.open("rb") as dataset_file:
+        r = client.post(
+            f"/api/analysis/projects/{project_id}/dataset",
+            files={"file": (fixture_path.name, dataset_file, "text/csv")},
+            headers=headers,
+        )
+    assert r.status_code == 200
+
+    # Run
+    r = client.post(f"/api/analysis/projects/{project_id}/run", headers=headers)
+    assert r.status_code == 202
+
+    # Delete
+    r = client.delete(f"/api/analysis/projects/{project_id}", headers=headers)
+    assert r.status_code == 200
+
+    # Verify gone
+    r = client.get(f"/api/analysis/projects/{project_id}", headers=headers)
+    assert r.status_code == 404
+
+
+def test_cross_user_isolation_retail_project(client: TestClient) -> None:
+    """User B must not be able to access User A's project."""
+    _register_user(client, "user-a@test.com")
+    token_a, _ = _login_user(client, "user-a@test.com")
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+
+    r = client.post("/api/analysis/projects", json={"name": "User A Project"}, headers=headers_a)
+    project_id = assert_success_payload(r.json())["id"]
+
+    _register_user(client, "user-b@test.com")
+    token_b, _ = _login_user(client, "user-b@test.com")
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+
+    # User B cannot see User A's project
+    r = client.get(f"/api/analysis/projects/{project_id}", headers=headers_b)
+    assert r.status_code == 404
+
+    r = client.delete(f"/api/analysis/projects/{project_id}", headers=headers_b)
+    assert r.status_code == 404
+
+    r = client.post(f"/api/analysis/projects/{project_id}/run", headers=headers_b)
+    assert r.status_code == 404
+
+
 def test_error_contracts(client: TestClient) -> None:
     invalid_create = client.post("/api/analysis/projects", json={"name": ""})
     assert invalid_create.status_code in {400, 422}

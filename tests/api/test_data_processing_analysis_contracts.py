@@ -331,6 +331,75 @@ def test_artifact_payload_for_dp_project_contract(isolated_env_real_adapter: Any
     pytest.fail("No JSON artifact payload returned 200")
 
 
+def _register_and_login(client: TestClient) -> str:
+    """Register a test user and return the access token."""
+    r = client.post("/api/auth/register", json={
+        "email": "dp-test@example.com",
+        "password": "password123",
+    })
+    assert r.status_code == 201
+    r = client.post("/api/auth/login", json={
+        "email": "dp-test@example.com",
+        "password": "password123",
+    })
+    assert r.status_code == 200
+    return r.json()["data"]["access_token"]
+
+
+def test_logged_in_user_dp_chain_native_flow(client: TestClient) -> None:
+    """Authenticated user must be able to use chain-native DP endpoints without 500."""
+    token = _register_and_login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Create project
+    r = client.post("/api/analysis/projects", json={
+        "name": "Auth DP Flow",
+        "analysis_kind": "data_processing",
+    }, headers=headers)
+    assert r.status_code == 201
+    project_id = assert_success_payload(r.json())["id"]
+
+    # 2. Upload dataset (project-facing)
+    fixture_path = Path("tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv")
+    with fixture_path.open("rb") as dataset_file:
+        r = client.post(
+            f"/api/analysis/projects/{project_id}/dataset",
+            files={"file": (fixture_path.name, dataset_file, "text/csv")},
+            headers=headers,
+        )
+    assert r.status_code == 200
+    upload_data = assert_success_payload(r.json())
+    job_id = upload_data.get("job_id")
+    assert job_id
+
+    # 3. Regularize (chain-native) — previously would 500 due to TypeError
+    r = client.post(
+        f"/api/analysis/jobs/{job_id}/regularize?project_id={project_id}",
+        headers=headers,
+    )
+    assert r.status_code == 200
+    reg_data = assert_success_payload(r.json())
+    assert reg_data["job_id"] == job_id
+
+    # 4. Run analysis (chain-native) — previously would 500 due to TypeError
+    if reg_data["status"] != "needs_review":
+        r = client.post(
+            f"/api/analysis/jobs/{job_id}/run?project_id={project_id}",
+            headers=headers,
+        )
+        assert r.status_code in {200, 202}
+        run_data = assert_success_payload(r.json())
+        assert run_data["job_id"] == job_id
+
+    # 5. Get job detail
+    r = client.get(f"/api/analysis/jobs/{job_id}?project_id={project_id}", headers=headers)
+    assert r.status_code == 200
+
+    # 6. List outputs
+    r = client.get(f"/api/analysis/jobs/{job_id}/outputs?project_id={project_id}", headers=headers)
+    assert r.status_code == 200
+
+
 def test_error_contracts(client: TestClient) -> None:
     invalid_create = client.post("/api/analysis/jobs", json={"project_id": "", "name": ""})
     assert invalid_create.status_code in {400, 422}

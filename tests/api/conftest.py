@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fastapi.testclient import TestClient
 
 from backend.api.dependencies import get_providers
 from backend.core.storage import ProjectStorage
@@ -36,6 +37,12 @@ from backend.infrastructure.adapters.local_regularized_dataset_adapter import (
 from backend.main import app
 from backend.providers.container import ProvidersContainer
 from backend.providers.dtos import AnalysisJobDTO
+from tests.fakes.auth_providers import (
+    FakeAuthTokenProvider,
+    FakePasswordHasherProvider,
+    FakeSseTicketProvider,
+    FakeUserDirectoryProvider,
+)
 from tests.fakes.providers import (
     FakeLLMProvider,
     FakeRecommendationModelStoreProvider,
@@ -100,6 +107,10 @@ def isolated_env(tmp_path: Path) -> Iterator[IsolatedEnv]:
         analysis_jobs=jobs,
         telemetry=ConsoleTelemetryAdapter(),
         regularized_dataset=FakeRegularizedDatasetProvider(),
+        user_directory=FakeUserDirectoryProvider(),
+        password_hasher=FakePasswordHasherProvider(),
+        auth_token=FakeAuthTokenProvider(),
+        sse_ticket=FakeSseTicketProvider(),
     )
 
     app.dependency_overrides[get_providers] = lambda: container
@@ -115,6 +126,29 @@ def isolated_env(tmp_path: Path) -> Iterator[IsolatedEnv]:
         )
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def auth_client(isolated_env: IsolatedEnv) -> Iterator[tuple[TestClient, str, str]]:
+    """Return a tuple of (client, access_token, user_id) for an authenticated test user."""
+    from fastapi.testclient import TestClient
+    from backend.main import app
+
+    client = TestClient(app)
+    r = client.post("/api/auth/register", json={
+        "email": "test-user@example.com",
+        "password": "password123",
+    })
+    assert r.status_code == 201
+    r = client.post("/api/auth/login", json={
+        "email": "test-user@example.com",
+        "password": "password123",
+    })
+    assert r.status_code == 200
+    data = r.json()["data"]
+    token = data["access_token"]
+    user_id = data["user"]["id"]
+    yield client, token, user_id
 
 
 @pytest.fixture()
@@ -147,6 +181,10 @@ def isolated_env_real_adapter(tmp_path: Path) -> Iterator[IsolatedEnv]:
         analysis_jobs=jobs,
         telemetry=ConsoleTelemetryAdapter(),
         regularized_dataset=LocalRegularizedDatasetAdapter(str(data_dir)),
+        user_directory=FakeUserDirectoryProvider(),
+        password_hasher=FakePasswordHasherProvider(),
+        auth_token=FakeAuthTokenProvider(),
+        sse_ticket=FakeSseTicketProvider(),
     )
 
     app.dependency_overrides[get_providers] = lambda: container
