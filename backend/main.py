@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from backend.api import admin as admin_api
 from backend.api import analysis, auth, samples
 from backend.api.dependencies import get_providers
 from backend.core.config import settings
@@ -40,6 +41,12 @@ app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 app.include_router(auth.router, prefix="/api", tags=["Authentication"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["Retail Analysis V2"])
 app.include_router(samples.router, prefix="/api", tags=["Sample Files"])
+
+# Admin Console routes
+app.include_router(admin_api.status.router, prefix="/api/admin", tags=["Admin - Status"])
+app.include_router(admin_api.settings.router, prefix="/api/admin", tags=["Admin - Settings"])
+app.include_router(admin_api.logs.router, prefix="/api/admin", tags=["Admin - Logs"])
+app.include_router(admin_api.users.router, prefix="/api/admin", tags=["Admin - Users"])
 
 
 @app.get("/")
