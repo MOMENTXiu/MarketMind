@@ -64,88 +64,16 @@ Admin 用户设置：
 ./scripts/setup-admin.sh  # 交互式创建管理员账号
 ```
 
-## 手动启动
-
-后端：
-
-```bash
-uv sync
-uv run python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-前端：
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-前端默认通过 `frontend/vite.config.ts` 将 `/api` 与 `/outputs` 代理到 `http://localhost:8000`。需自定义 base URL 时可设置 `VITE_API_BASE_URL`。
-
-## 本地基础设施
-
-```bash
-make infra-up
-make db-migrate
-```
-
-常用 Makefile 命令：
-
-- `make infra-down`：停止基础设施服务。
-- `make infra-reset`：删除 named volumes 后重启。
-- `make infra-logs`：查看服务日志。
-- `make db-downgrade`：Alembic downgrade 到 base。
-- `make db-revision DB_REVISION_MESSAGE="describe change"`：生成迁移草稿。
-
-## 使用流程
-
-### Retail Analysis V2
-
-1. 打开 `/projects`，创建项目。
-2. 上传 Retail V2 CSV（字段以 `backend/providers/dtos.py` 的 `RETAIL_RAW_SALES_COLUMNS` 为准）。
-3. 启动分析；详情页通过 SSE 接收状态，REST snapshot 兜底。
-4. 查看 summary、quality、stage status、artifact refs、推荐与营销洞察。
-
-冒烟数据：`tests/fixtures/analysis_v2/retail_sales_raw_gbk.csv`
-
-### Data Processing
-
-1. 打开 `/data-processing`，填写 `project_id` 与 Job 名称。
-2. 上传 `.csv`、`.xls` 或 `.xlsx`。
-3. 执行标准化，查看 quality / capability / sidecars。
-4. 若状态为 `needs_review`，复核 mapping 与 quality 后继续。
-5. 标准化通过后运行分析，页面通过 SSE 接收状态。
-
-## 目录结构
-
-```
-backend/      FastAPI 后端、业务编排、能力原子、Provider 边界、Infrastructure adapters
-frontend/     Vue 3 前端、typed API client、PPT 式项目介绍页、Retail/Data Processing 页面
-docs/         架构文档、需求规格、API 参考、项目 intro 内容蓝本
-analysis/     离线实验蓝本和源材料归档；runtime 不直接 import
-data/         本地项目状态和 runtime 数据
-outputs/      静态输出文件挂载目录
-scripts/      一键部署与启动脚本
-tests/        API、业务流、能力、Provider、DB、架构规则测试
-```
-
-## 质量门
-
-```bash
-make lint
-make format
-make check
-make hooks
-```
-
-`make check` 覆盖 backend Ruff lint + format check + pytest + frontend `npm run build`。当前基线 `370 passed, 6 skipped`。
-
-`make typecheck` 与 `make clean` 为占位目标，不能作为验证通过。
-
 ## 文档
 
-→ [docs/index.md](docs/index.md) — 完整文档索引（介绍 / 运维 / 开发 三部分）
+| 想看什么 | 去哪儿 |
+|----------|--------|
+| 部署、环境变量、API 契约、运维操作 | [docs/README.md § Part 2 运维](docs/README.md#part-2--运维文档) |
+| 架构设计、施工清单、开发规范 | [docs/README.md § Part 3 开发](docs/README.md#part-3--开发文档) |
+| 项目架构、路线图、需求背景 | [docs/README.md § Part 1 介绍](docs/README.md#part-1--项目介绍) |
+| Admin Console 使用与配置 | [docs/admin/admin-console-design.md](docs/admin/admin-console-design.md) |
+
+质量门禁：`make check`（lint + format + pytest + frontend build），当前基线 `370 passed, 6 skipped`。
 
 ## 可选 Streamlit 入口
 
