@@ -94,6 +94,7 @@ Before commit:
 - `FileTelemetryAdapter` writes `TelemetryEnvelopeDTO` JSONL to `logs/telemetry/events.jsonl`. `JsonlLogQueryAdapter` reads and queries this file for the admin logs page.
 - `AdminUserProvider` is separate from `UserDirectoryProvider` — the former handles admin list/count/role/status operations, the latter handles auth registration/login/current-user resolution.
 - Admin test baseline: `tests/admin/test_admin_auth.py` (auth contracts), `tests/admin/test_admin_settings_contracts.py` (secret redaction), `tests/admin/test_admin_logs_contracts.py` (envelope/query/export), `tests/admin/test_admin_users_contracts.py` (security constraints).
-- Current backend test baseline is 345 passing (up from 306) plus 6 skipped.
+- Admin Settings now supports online editing: LLM multi-model configs stored in `data/llm-configs.json` (CRUD + mutual-exclusion activation), .env editing via `PUT /api/admin/settings/env` with whitelist (LLM_*/BARK_* only, Infra/Auth read-only). `EnvFileProvider` + `EnvFileAdapter` handle atomic .env writes (tmp+rename+backup). API keys never returned in plaintext — `apiKeyConfigured: bool` only.
+- Current backend test baseline is 370 passing (up from 306 original) plus 6 skipped.
 - Do not bypass `.editorconfig`, `.gitignore`, pre-commit, or CI rules.
 - Expand this file only when a stable convention is confirmed by project files or user decision.
