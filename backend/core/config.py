@@ -84,6 +84,19 @@ class Settings(BaseSettings):
     AUTH_PASSWORD_HASH_ROUNDS: int = 12
     AUTH_ENFORCE_ANALYSIS_AUTH: bool = False  # staged rollout flag
 
+    # LLM Provider
+    LLM_PROVIDER: str | None = None
+    LLM_BASE_URL: str | None = None
+    LLM_MODEL: str | None = None
+    LLM_API_KEY: str | None = None
+    LLM_TIMEOUT_SECONDS: int = 30
+
+    # Bark Alert
+    BARK_ENABLED: bool = False
+    BARK_SERVER_URL: str | None = None
+    BARK_DEVICE_KEY: str | None = None
+    BARK_DEFAULT_GROUP: str | None = None
+
     model_config = ConfigDict(env_file=".env", case_sensitive=True)
 
 

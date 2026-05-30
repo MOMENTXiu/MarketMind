@@ -8,18 +8,23 @@ from fastapi import BackgroundTasks
 from backend.core.config import Settings
 from backend.core.errors import InfrastructureError
 from backend.infrastructure.adapters.anthropic_llm_adapter import AnthropicLLMAdapter
+from backend.infrastructure.adapters.bark_alert_adapter import BarkAlertAdapter
 from backend.infrastructure.adapters.composite_infrastructure_health_adapter import (
     CompositeInfrastructureHealthAdapter,
 )
 from backend.infrastructure.adapters.console_telemetry_adapter import ConsoleTelemetryAdapter
 from backend.infrastructure.adapters.csv_dataset_adapter import CsvDatasetAdapter
 from backend.infrastructure.adapters.csv_retail_dataset_adapter import CsvRetailDatasetAdapter
+from backend.infrastructure.adapters.env_settings_inspection_adapter import (
+    EnvSettingsInspectionAdapter,
+)
 from backend.infrastructure.adapters.fastapi_background_analysis_job_adapter import (
     FastApiBackgroundAnalysisJobAdapter,
 )
 from backend.infrastructure.adapters.json_project_repository_adapter import (
     JsonProjectRepositoryAdapter,
 )
+from backend.infrastructure.adapters.jsonl_log_query_adapter import JsonlLogQueryAdapter
 from backend.infrastructure.adapters.jwt_auth_token_adapter import JwtAuthTokenAdapter
 from backend.infrastructure.adapters.local_analysis_artifact_adapter import (
     LocalAnalysisArtifactAdapter,
@@ -58,6 +63,7 @@ from backend.infrastructure.adapters.openai_compatible_llm_adapter import (
 from backend.infrastructure.adapters.passlib_password_hasher_adapter import (
     PasslibPasswordHasherAdapter,
 )
+from backend.infrastructure.adapters.postgres_admin_user_adapter import PostgresAdminUserAdapter
 from backend.infrastructure.adapters.postgres_sse_ticket_adapter import (
     PostgresSseTicketAdapter,
 )
@@ -136,6 +142,18 @@ def create_providers(
         minio_storage=minio_for_health,
     )
 
+    # Admin Console providers
+    settings_inspection = EnvSettingsInspectionAdapter(settings)
+    alert: BarkAlertAdapter | None = None
+    if settings.BARK_ENABLED and settings.BARK_SERVER_URL and settings.BARK_DEVICE_KEY:
+        alert = BarkAlertAdapter(
+            server_url=settings.BARK_SERVER_URL,
+            device_key=settings.BARK_DEVICE_KEY,
+            default_group=settings.BARK_DEFAULT_GROUP,
+        )
+    log_query = JsonlLogQueryAdapter("logs/telemetry/events.jsonl")
+    admin_users = PostgresAdminUserAdapter(session_factory)
+
     return ProvidersContainer(
         repository=JsonProjectRepositoryAdapter("data"),
         storage=LocalProjectFileStorageAdapter("data"),
@@ -161,6 +179,10 @@ def create_providers(
         auth_token=auth_token,
         sse_ticket=sse_ticket,
         health=health,
+        settings_inspection=settings_inspection,
+        alert=alert,
+        log_query=log_query,
+        admin_users=admin_users,
     )
 
 

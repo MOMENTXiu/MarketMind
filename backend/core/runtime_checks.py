@@ -57,7 +57,17 @@ def cmd_check_providers(_args: argparse.Namespace) -> int:
         _emit(f"check-providers: failed: {exc}")
         return 1
 
-    optional_fields = {"user_directory", "sse_ticket"}
+    optional_fields = {
+        "user_directory",
+        "sse_ticket",
+        "password_hasher",
+        "auth_token",
+        "health",
+        "settings_inspection",
+        "alert",
+        "log_query",
+        "admin_users",
+    }
     for container_field in fields(ProvidersContainer):
         value = getattr(providers, container_field.name)
         if value is None and container_field.name not in optional_fields:
