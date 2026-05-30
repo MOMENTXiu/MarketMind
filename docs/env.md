@@ -47,3 +47,48 @@ Frontend source reads Vite variables through `frontend/src/api/client.ts`:
 | `VITE_API_TIMEOUT` | Axios timeout in milliseconds. | `30000` |
 
 Local development can rely on `frontend/vite.config.ts` proxying `/api` and `/outputs` to `http://localhost:8000`. Deployed environments should set `VITE_API_BASE_URL` explicitly when the frontend and API do not share an origin.
+
+### Auth / JWT
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `AUTH_SECRET_KEY` | HS256 JWT signing key | `dev-secret-change-in-production` |
+| `AUTH_ALGORITHM` | JWT algorithm | `HS256` |
+| `AUTH_ACCESS_TOKEN_EXPIRE_MINUTES` | Access token TTL | `60` |
+| `AUTH_SSE_TICKET_EXPIRE_MINUTES` | SSE ticket TTL | `5` |
+| `AUTH_TOKEN_AUDIENCE` | JWT audience claim | `marketmind-api` |
+| `AUTH_TOKEN_ISSUER` | JWT issuer claim | `marketmind` |
+| `AUTH_PASSWORD_HASH_ROUNDS` | Passlib bcrypt rounds | `12` |
+| `AUTH_ENFORCE_ANALYSIS_AUTH` | Require auth for analysis endpoints | `false` (staged rollout) |
+
+### LLM Provider
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `LLM_PROVIDER` | LLM backend (openai/anthropic/deepseek/custom) | (none) |
+| `LLM_BASE_URL` | API base URL | (none) |
+| `LLM_MODEL` | Model name (e.g. gpt-4o) | (none) |
+| `LLM_API_KEY` | API key (never committed) | (none) |
+| `LLM_TIMEOUT_SECONDS` | Request timeout | `30` |
+
+LLM configs can also be managed via Admin Console → Settings → LLM. Multi-model configs are stored in `data/llm-configs.json` and editable through the UI.
+
+### Bark Alert
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `BARK_ENABLED` | Enable Bark push notifications | `false` |
+| `BARK_SERVER_URL` | Bark server URL | (none) |
+| `BARK_DEVICE_KEY` | Device key (never committed) | (none) |
+| `BARK_DEFAULT_GROUP` | Default notification group | (none) |
+
+### Admin Console (shell-only, not read by backend)
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `ADMIN_EMAIL` | Admin user email for `setup-admin.sh` | (none) |
+| `ADMIN_PASSWORD` | Admin user password for `setup-admin.sh` | (none) |
+| `ADMIN_DISPLAY_NAME` | Admin display name | `Admin` |
+| `ADMIN_CONSOLE_URL` | Admin Console URL shown in scripts | `http://localhost:5173/admin` |
+
+These variables are read by `scripts/setup-admin.sh` only, not by the backend `Settings` model (`extra="ignore"` prevents validation errors).

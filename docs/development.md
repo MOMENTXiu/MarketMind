@@ -30,7 +30,7 @@ Current backend test baseline covers API contracts (Retail V2 + data-processing
 chain-native), controller thinness, Retail V2 flows/pipelines, data-processing
 regularization/universal analysis abilities, provider adapters, DB
 infrastructure smoke tests, runtime checks, and architecture import rules.
-The latest local baseline is `306 passed, 6 skipped`; the skipped tests are optional/live-infra paths.
+The latest local baseline is `370 passed, 6 skipped`; the skipped tests are optional/live-infra paths.
 
 The backend runtime now has two analysis chains:
 1. Retail V2 — the existing project-scoped retail pipeline.
@@ -62,6 +62,38 @@ On a fresh named volume, `docker-compose.dev.yml` runs `scripts/postgres-init/01
 ## Retail Worker Runtime
 
 Retail V2 analysis jobs use Redis/RQ through `AnalysisJobQueueProvider`, and workers enter through `backend/workers/retail_analysis_worker.py`. Run `./scripts/start-project.sh` when testing the full local stack. Retail project state is PostgreSQL-backed; generated artifacts and model payloads still remain file-backed and must be accessed through API refs.
+
+## Admin Console
+
+Admin Console lives at `/admin/*` (frontend) and `/api/admin/*` (backend). Only users with `role='admin'` can access it.
+
+### Local setup
+
+```bash
+# Interactive admin setup (writes to .env, bootstraps DB role)
+./scripts/setup-admin.sh
+
+# Or via deploy script
+ADMIN_BOOTSTRAP_EMAIL=admin@example.com ./scripts/deploy-project.sh
+```
+
+### Modules
+
+- `/admin/status` — service health dashboard (30s auto-refresh)
+- `/admin/settings` — LLM multi-model management, Bark config, infra read-only display
+- `/admin/logs` — event/audit log viewer with filters and JSON/CSV export
+- `/admin/users` — user list, role/status management, detail drawer
+
+### Architecture
+
+Follows the same 5-layer pattern as the rest of the backend:
+`API Controller → Pipeline → Ability → Provider → Adapter`
+
+Key admin paths: `backend/api/admin/`, `backend/business/pipelines/admin_*.py`, `backend/abilities/admin/`, `backend/providers/admin_*.py`, `backend/providers/env_file_provider.py`, `backend/infrastructure/adapters/env_file_adapter.py`.
+
+### Settings editing
+
+LLM configs are stored in `data/llm-configs.json` (multi-model, one active at a time). `.env` can be edited via `PUT /api/admin/settings/env` with a whitelist (LLM_* + BARK_* only). Infra/Auth/Algorithm fields are read-only in the admin UI to prevent misconfiguration.
 
 ## Commit Convention
 
