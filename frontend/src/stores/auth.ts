@@ -35,6 +35,7 @@ export const useAuthStore = defineStore('auth', () => {
   const returnTo = ref<string | null>(null)
 
   const isAuthenticated = computed(() => !!accessToken.value && status.value === 'authenticated')
+  const isAdmin = computed(() => user.value?.role === 'admin')
   const isLoading = computed(() => status.value === 'loading')
 
   function setToken(token: string | null) {
@@ -116,6 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
     authError,
     returnTo,
     isAuthenticated,
+    isAdmin,
     isLoading,
     loadMe,
     login,

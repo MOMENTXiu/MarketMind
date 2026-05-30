@@ -16,6 +16,7 @@ export interface UserResponse {
   email: string
   display_name: string | null
   status: string
+  role: 'user' | 'admin'
 }
 
 export interface LoginResponse {

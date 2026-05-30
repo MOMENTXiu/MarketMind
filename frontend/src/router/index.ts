@@ -92,6 +92,37 @@ const router = createRouter({
     {
       path: '/settings',
       redirect: '/me/settings'
+    },
+    {
+      path: '/admin',
+      component: () => import('@/views/admin/AdminLayout.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+      children: [
+        {
+          path: '',
+          redirect: '/admin/status'
+        },
+        {
+          path: 'status',
+          name: 'admin-status',
+          component: () => import('@/views/admin/StatusDashboard.vue'),
+        },
+        {
+          path: 'settings',
+          name: 'admin-settings',
+          component: () => import('@/views/admin/SettingsView.vue'),
+        },
+        {
+          path: 'logs',
+          name: 'admin-logs',
+          component: () => import('@/views/admin/LogsView.vue'),
+        },
+        {
+          path: 'users',
+          name: 'admin-users',
+          component: () => import('@/views/admin/UsersView.vue'),
+        },
+      ]
     }
   ]
 })
@@ -101,6 +132,11 @@ router.beforeEach((to, _from, next) => {
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ path: '/login', query: { redirect: to.fullPath } })
+    return
+  }
+
+  if (to.meta.requiresAdmin && !authStore.isAdmin) {
+    next({ path: '/projects' })
     return
   }
 
