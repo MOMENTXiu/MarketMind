@@ -21,7 +21,7 @@ const currentPath = computed(() => route.path)
     <aside class="admin-sidebar">
       <div class="sidebar-header">
         <button class="back-link" @click="router.push('/projects')">
-          <ArrowLeft :size="16" />
+          <ArrowLeft class="w-3.5 h-3.5" />
           <span>返回</span>
         </button>
         <h2 class="sidebar-title">管理控制台</h2>
@@ -34,7 +34,7 @@ const currentPath = computed(() => route.path)
           class="sidebar-item"
           :class="{ active: currentPath.startsWith(item.path) }"
         >
-          <component :is="item.icon" :size="18" />
+          <component :is="item.icon" class="w-4 h-4" />
           <span>{{ item.label }}</span>
         </RouterLink>
       </nav>
@@ -49,62 +49,46 @@ const currentPath = computed(() => route.path)
 .admin-layout {
   display: flex;
   min-height: calc(100vh - 72px);
-  background: #f8fafc;
-}
-
-html.dark .admin-layout {
-  background: #0f0f14;
+  background: var(--color-bg-base);
 }
 
 .admin-sidebar {
   width: 240px;
   flex-shrink: 0;
-  background: #fff;
-  border-right: 1px solid rgba(15, 23, 42, 0.06);
-  padding: 24px 16px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--border-subtle);
+  padding: 28px 20px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
-}
-
-html.dark .admin-sidebar {
-  background: #1a1a20;
-  border-color: rgba(255, 255, 255, 0.06);
+  gap: 28px;
 }
 
 .sidebar-header {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .back-link {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #6366f1;
+  color: var(--color-accent);
   font-size: 0.85rem;
   font-weight: 500;
   background: none;
   border: none;
   cursor: pointer;
   padding: 0;
-  text-decoration: none;
 }
-
-.back-link:hover {
-  color: #4f46e5;
-}
+.back-link:hover { opacity: 0.8; }
 
 .sidebar-title {
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-primary);
   margin: 0;
-}
-
-html.dark .sidebar-title {
-  color: #f1f5f9;
+  letter-spacing: -0.02em;
 }
 
 .sidebar-nav {
@@ -118,37 +102,28 @@ html.dark .sidebar-title {
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  border-radius: 10px;
-  color: #475569;
+  border-radius: 12px;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   font-weight: 500;
   text-decoration: none;
-  transition: all 160ms ease;
-}
-
-html.dark .sidebar-item {
-  color: #94a3b8;
+  transition: all 0.2s ease;
 }
 
 .sidebar-item:hover {
-  color: #111827;
-  background: rgba(15, 23, 42, 0.04);
-}
-
-html.dark .sidebar-item:hover {
-  color: #f1f5f9;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  background: var(--color-surface-hover);
 }
 
 .sidebar-item.active {
-  color: #4f46e5;
-  background: rgba(99, 102, 241, 0.10);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
   font-weight: 600;
 }
 
 .admin-main {
   flex: 1;
-  padding: 32px;
+  padding: 40px 48px;
   overflow-y: auto;
 }
 </style>
