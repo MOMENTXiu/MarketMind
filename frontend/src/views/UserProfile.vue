@@ -25,10 +25,6 @@
       <el-divider />
 
       <div class="profile-actions">
-        <el-button type="primary" @click="goSettings">
-          <el-icon><Setting /></el-icon>
-          账号设置
-        </el-button>
         <el-button type="danger" plain @click="handleLogout">
           <el-icon><SwitchButton /></el-icon>
           退出登录
@@ -42,7 +38,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Setting, SwitchButton } from '@element-plus/icons-vue'
+import { SwitchButton } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -55,10 +51,6 @@ const avatarLetter = computed(() => {
 const statusText = computed(() => {
   return authStore.user?.status === 'active' ? '正常' : '已禁用'
 })
-
-function goSettings() {
-  router.push('/me/settings')
-}
 
 async function handleLogout() {
   await authStore.logout()
