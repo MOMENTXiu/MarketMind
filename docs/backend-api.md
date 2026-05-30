@@ -393,6 +393,96 @@ Data Processing dataset ref 和 sidecar ref 会包含 `id`、`project_id`、`job
 5. 订阅 `GET /api/analysis/jobs/{job_id}/events?project_id=...`，并用 `GET /api/analysis/jobs/{job_id}?project_id=...` 作为初始快照和兜底刷新。
 6. 完成后读取 outputs、datasets 和 sidecars。
 
+## Admin Console API
+
+Admin API 统一前缀为 `/api/admin`，所有接口需要 admin 角色（通过 `users.role = 'admin'` 授权）。
+
+### 认证方式
+
+所有 `/api/admin/*` 接口需要 Bearer Token（JWT），且 DB 中用户的 `role` 必须为 `"admin"`。
+
+- 未登录 → 401
+- 普通用户（role='user'）→ 403
+- Admin（role='admin'）→ 200
+
+**注意**：授权以 `ResolveCurrentUserPipeline` 查 DB 后返回的 `AuthenticatedUserContext.role` 为准，不信任 JWT payload 中的 role claim。
+
+### 运行状态
+
+```
+GET /api/admin/status/summary
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "overallStatus": "healthy",
+    "services": [
+      {
+        "key": "backend",
+        "name": "Python Backend",
+        "category": "app",
+        "status": "healthy",
+        "latencyMs": 0.5,
+        "checkedAt": "2026-05-30T10:00:00Z",
+        "version": "1.0.0"
+      }
+    ],
+    "generatedAt": "2026-05-30T10:00:00Z"
+  }
+}
+```
+
+### 系统设置
+
+```
+GET  /api/admin/settings           → 全部设置（LLM/Infra/Alert 脱敏）
+POST /api/admin/settings/llm/test  → 测试 LLM 连接
+POST /api/admin/settings/alert/bark/test → 发送测试 Bark 推送
+```
+
+敏感字段（API Key、Password、Device Key）只返回 `*Configured: boolean`，不返回明文。
+
+### 系统日志
+
+```
+GET  /api/admin/logs/events?level=&eventType=&offset=&limit=    → 事件日志列表
+GET  /api/admin/logs/events/{event_id}                          → 单条事件详情
+GET  /api/admin/logs/events/export?format=json|csv              → 导出事件日志
+GET  /api/admin/logs/audit?actorUserId=&offset=&limit=          → 审计日志列表
+GET  /api/admin/logs/audit/{audit_id}                           → 单条审计详情
+GET  /api/admin/logs/audit/export?format=json|csv               → 导出审计日志
+```
+
+审计日志导出自身会写一条 `admin.download_audit_log` 审计记录。
+
+### 用户管理
+
+```
+GET   /api/admin/users?search=&offset=&limit=  → 用户列表
+GET   /api/admin/users/{user_id}               → 用户详情（含项目列表）
+PATCH /api/admin/users/{user_id}/role           → 修改角色 { "role": "admin"|"user" }
+PATCH /api/admin/users/{user_id}/status         → 启用/禁用 { "status": "active"|"disabled" }
+```
+
+安全约束：
+- 不能修改自己的角色
+- 不能禁用自己
+- 不能将最后一个 admin 降级为 user
+- 角色/状态修改写审计日志
+
+### Admin Bootstrap
+
+通过一次性脚本创建初始 admin：
+
+```bash
+ADMIN_BOOTSTRAP_EMAIL=admin@example.com uv run python -m backend.scripts.bootstrap_admin
+```
+
+DB Migration: `alembic/versions/0004_add_user_role.py` 为 `users` 表增加 `role` 列（`String(32)`, `server_default="user"`）。
+
 ## 已退役路由
 
 以下旧路由已不在当前 OpenAPI 中，契约测试要求返回 404。新接入方不要使用这些路径：
