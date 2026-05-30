@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     BARK_DEVICE_KEY: str | None = None
     BARK_DEFAULT_GROUP: str | None = None
 
-    model_config = ConfigDict(env_file=".env", case_sensitive=True)
+    model_config = ConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
 
 settings = Settings()
