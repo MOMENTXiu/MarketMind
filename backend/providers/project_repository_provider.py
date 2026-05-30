@@ -12,7 +12,9 @@ class ProjectRepositoryProvider(Protocol):
     def get_project(self, project_id: str, owner_user_id: str | None = None) -> Project | None:
         """Return one project by id, optionally scoped to an owner."""
 
-    def list_projects(self, skip: int = 0, limit: int = 100, owner_user_id: str | None = None) -> list[Project]:
+    def list_projects(
+        self, skip: int = 0, limit: int = 100, owner_user_id: str | None = None
+    ) -> list[Project]:
         """Return projects sorted using current storage semantics, optionally scoped to an owner."""
 
     def update_project(self, project_id: str, update_data: ProjectUpdate) -> Project | None:

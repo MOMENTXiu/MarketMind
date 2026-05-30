@@ -57,7 +57,9 @@ class PostgresProjectRepositoryAdapter:
         except SQLAlchemyError as exc:
             raise InfrastructureError(f"Failed to get project metadata: {project_id}") from exc
 
-    def list_projects(self, skip: int = 0, limit: int = 100, owner_user_id: str | None = None) -> list[Project]:
+    def list_projects(
+        self, skip: int = 0, limit: int = 100, owner_user_id: str | None = None
+    ) -> list[Project]:
         try:
             with self._session_factory() as session:
                 stmt = (

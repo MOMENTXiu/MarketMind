@@ -16,7 +16,9 @@ class RetailAnalysisStateProvider(Protocol):
     def save_state(self, state: RetailAnalysisProjectStateDTO) -> RetailAnalysisProjectStateDTO:
         """Persist one JSON-safe Retail V2 project state snapshot."""
 
-    def get_state(self, project_id: str, owner_user_id: str | None = None) -> RetailAnalysisProjectStateDTO | None:
+    def get_state(
+        self, project_id: str, owner_user_id: str | None = None
+    ) -> RetailAnalysisProjectStateDTO | None:
         """Return one Retail V2 project state snapshot when it exists, optionally scoped to an owner."""
 
     def save_run_info(
@@ -26,7 +28,9 @@ class RetailAnalysisStateProvider(Protocol):
     ) -> RetailAnalysisProjectStateDTO | None:
         """Persist latest run metadata without exposing storage primitives."""
 
-    def list_projects(self, owner_user_id: str | None = None) -> list[RetailAnalysisProjectSummaryDTO]:
+    def list_projects(
+        self, owner_user_id: str | None = None
+    ) -> list[RetailAnalysisProjectSummaryDTO]:
         """List Retail V2 project summaries newest first, optionally scoped to an owner."""
 
     def delete_project(self, project_id: str, owner_user_id: str | None = None) -> bool:
@@ -43,7 +47,9 @@ class InMemoryRetailAnalysisStateProvider:
         self._states[state.id] = state
         return state
 
-    def get_state(self, project_id: str, owner_user_id: str | None = None) -> RetailAnalysisProjectStateDTO | None:
+    def get_state(
+        self, project_id: str, owner_user_id: str | None = None
+    ) -> RetailAnalysisProjectStateDTO | None:
         state = self._states.get(project_id)
         if state is None:
             return None
@@ -70,7 +76,9 @@ class InMemoryRetailAnalysisStateProvider:
         self._states[project_id] = updated
         return updated
 
-    def list_projects(self, owner_user_id: str | None = None) -> list[RetailAnalysisProjectSummaryDTO]:
+    def list_projects(
+        self, owner_user_id: str | None = None
+    ) -> list[RetailAnalysisProjectSummaryDTO]:
         states = sorted(
             self._states.values(),
             key=lambda state: (state.created_at or "", state.id),

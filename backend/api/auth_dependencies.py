@@ -7,8 +7,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from backend.api.dependencies import get_providers, get_settings
-from backend.core.config import Settings
+from backend.api.dependencies import Settings, get_providers, get_settings
 from backend.business.pipelines.issue_sse_ticket_pipeline import IssueSseTicketPipeline
 from backend.business.pipelines.login_user_pipeline import LoginUserPipeline
 from backend.business.pipelines.register_user_pipeline import RegisterUserPipeline
@@ -63,7 +62,9 @@ async def get_current_user_or_enforce(
 ) -> AuthenticatedUserContext | None:
     user = await get_current_user_optional(credentials, providers)
     if user is None and settings.AUTH_ENFORCE_ANALYSIS_AUTH:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
+        )
     return user
 
 

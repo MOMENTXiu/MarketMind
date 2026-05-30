@@ -136,15 +136,21 @@ def auth_client(isolated_env: IsolatedEnv) -> Iterator[tuple[TestClient, str, st
     from backend.main import app
 
     client = TestClient(app)
-    r = client.post("/api/auth/register", json={
-        "email": "test-user@example.com",
-        "password": "password123",
-    })
+    r = client.post(
+        "/api/auth/register",
+        json={
+            "email": "test-user@example.com",
+            "password": "password123",
+        },
+    )
     assert r.status_code == 201
-    r = client.post("/api/auth/login", json={
-        "email": "test-user@example.com",
-        "password": "password123",
-    })
+    r = client.post(
+        "/api/auth/login",
+        json={
+            "email": "test-user@example.com",
+            "password": "password123",
+        },
+    )
     assert r.status_code == 200
     data = r.json()["data"]
     token = data["access_token"]

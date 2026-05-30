@@ -367,7 +367,11 @@ def test_authenticated_retail_project_lifecycle(client: TestClient) -> None:
     headers = {"Authorization": f"Bearer {token}"}
 
     # Create
-    r = client.post("/api/analysis/projects", json={"name": "Auth Retail", "description": "auth test"}, headers=headers)
+    r = client.post(
+        "/api/analysis/projects",
+        json={"name": "Auth Retail", "description": "auth test"},
+        headers=headers,
+    )
     assert r.status_code == 201
     project = assert_success_payload(r.json())
     project_id = project["id"]

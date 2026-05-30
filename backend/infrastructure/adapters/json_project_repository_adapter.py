@@ -33,7 +33,9 @@ class JsonProjectRepositoryAdapter:
             return None
         return project
 
-    def list_projects(self, skip: int = 0, limit: int = 100, owner_user_id: str | None = None) -> list[Project]:
+    def list_projects(
+        self, skip: int = 0, limit: int = 100, owner_user_id: str | None = None
+    ) -> list[Project]:
         projects = self._storage.list_projects(skip=skip, limit=limit)
         if owner_user_id is not None:
             projects = [p for p in projects if p.owner_user_id == owner_user_id]

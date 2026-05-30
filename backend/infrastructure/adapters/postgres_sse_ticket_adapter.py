@@ -112,4 +112,5 @@ def _to_dto(record: SseTicketRecord, raw_ticket: str) -> SseTicketDTO:
         created_at=record.created_at.isoformat() if record.created_at else None,
     )
 
+
 from typing import Any  # noqa: E402

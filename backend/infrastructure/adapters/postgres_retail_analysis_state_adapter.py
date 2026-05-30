@@ -82,7 +82,9 @@ class PostgresRetailAnalysisStateAdapter:
                 f"Failed to persist Retail Analysis state: {state.id}"
             ) from exc
 
-    def get_state(self, project_id: str, owner_user_id: str | None = None) -> RetailAnalysisProjectStateDTO | None:
+    def get_state(
+        self, project_id: str, owner_user_id: str | None = None
+    ) -> RetailAnalysisProjectStateDTO | None:
         try:
             with self._session_factory() as session:
                 project = session.get(ProjectRecord, project_id)
@@ -132,7 +134,9 @@ class PostgresRetailAnalysisStateAdapter:
         )
         return self.save_state(updated)
 
-    def list_projects(self, owner_user_id: str | None = None) -> list[RetailAnalysisProjectSummaryDTO]:
+    def list_projects(
+        self, owner_user_id: str | None = None
+    ) -> list[RetailAnalysisProjectSummaryDTO]:
         try:
             with self._session_factory() as session:
                 stmt = select(ProjectRecord).order_by(ProjectRecord.created_at.desc())

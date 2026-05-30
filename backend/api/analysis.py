@@ -530,7 +530,9 @@ async def list_recommendations(
     user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.list_recommendations(project_id, customer_id=customer_id, top_k=top_k, user_context=user)
+        result = flow.list_recommendations(
+            project_id, customer_id=customer_id, top_k=top_k, user_context=user
+        )
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)
@@ -574,7 +576,9 @@ async def upload_raw_dataset(
     user: AuthenticatedUserContext | None = Depends(get_current_user_or_enforce),
 ) -> dict:
     try:
-        result = flow.upload_raw_dataset(project_id, job_id, file.filename or "", await file.read(), user_context=user)
+        result = flow.upload_raw_dataset(
+            project_id, job_id, file.filename or "", await file.read(), user_context=user
+        )
     except MarketMindError as exc:
         raise map_internal_error(exc) from exc
     return _success(result)

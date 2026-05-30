@@ -87,4 +87,3 @@ def _to_dto(record: UserRecord) -> UserIdentityDTO:
         created_at=record.created_at.isoformat() if record.created_at else None,
         updated_at=record.updated_at.isoformat() if record.updated_at else None,
     )
-

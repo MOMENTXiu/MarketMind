@@ -99,12 +99,16 @@ class RetailAnalysisFlow:
         owner_id = user_context.user_id if user_context else None
         projects = [
             project_view_from_summary(project)
-            for project in self.providers.retail_analysis_state.list_projects(owner_user_id=owner_id)
+            for project in self.providers.retail_analysis_state.list_projects(
+                owner_user_id=owner_id
+            )
         ]
         projects.sort(key=lambda project: str(project.get("created_at") or ""), reverse=True)
         return {"projects": projects, "total": len(projects)}
 
-    def delete_project(self, project_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def delete_project(
+        self, project_id: str, user_context: AuthenticatedUserContext | None = None
+    ) -> dict[str, Any]:
         self._load_state(project_id, user_context)
         deleted_models = 0
         legacy_model_types = {"retail_analysis_project_state"}
@@ -122,7 +126,13 @@ class RetailAnalysisFlow:
         )
         return {"project_id": project_id, "deleted": deleted, "deleted_models": deleted_models}
 
-    def upload_dataset(self, project_id: str, filename: str, content: bytes, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def upload_dataset(
+        self,
+        project_id: str,
+        filename: str,
+        content: bytes,
+        user_context: AuthenticatedUserContext | None = None,
+    ) -> dict[str, Any]:
         self._validate_csv_upload(filename, content)
         state = self._load_state(project_id, user_context)
         self._prepare_for_dataset_upload(state)
@@ -168,7 +178,9 @@ class RetailAnalysisFlow:
             "quality_summary": state["quality_summary"],
         }
 
-    def start_analysis(self, project_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, str]:
+    def start_analysis(
+        self, project_id: str, user_context: AuthenticatedUserContext | None = None
+    ) -> dict[str, str]:
         state = self._load_state(project_id, user_context)
         if state.get("dataset_ref") is None:
             raise ValidationError("Retail Analysis project has no prepared dataset")
@@ -265,28 +277,44 @@ class RetailAnalysisFlow:
         self._save_state(state, "state_changed")
         return project_view(state)
 
-    def get_project(self, project_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def get_project(
+        self, project_id: str, user_context: AuthenticatedUserContext | None = None
+    ) -> dict[str, Any]:
         return project_view(self._load_state(project_id, user_context))
 
-    def list_artifacts(self, project_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def list_artifacts(
+        self, project_id: str, user_context: AuthenticatedUserContext | None = None
+    ) -> dict[str, Any]:
         state = self._load_state(project_id, user_context)
         return {"project_id": project_id, "artifacts": list(state.get("artifact_refs", []))}
 
-    def get_dataset_ref(self, project_id: str, dataset_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def get_dataset_ref(
+        self, project_id: str, dataset_id: str, user_context: AuthenticatedUserContext | None = None
+    ) -> dict[str, Any]:
         state = self._load_state(project_id, user_context)
         ref = state.get("dataset_ref")
         if not isinstance(ref, dict) or ref.get("id") != dataset_id:
             raise NotFoundError(f"Retail Analysis dataset not found: {dataset_id}")
         return public_ref(ref)
 
-    def get_artifact_ref(self, project_id: str, artifact_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def get_artifact_ref(
+        self,
+        project_id: str,
+        artifact_id: str,
+        user_context: AuthenticatedUserContext | None = None,
+    ) -> dict[str, Any]:
         state = self._load_state(project_id, user_context)
         ref = self._find_artifact_ref(state, artifact_id)
         if ref is None or ref.get("type") == "model":
             raise NotFoundError(f"Retail Analysis artifact not found: {artifact_id}")
         return ref
 
-    def get_artifact_payload(self, project_id: str, artifact_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def get_artifact_payload(
+        self,
+        project_id: str,
+        artifact_id: str,
+        user_context: AuthenticatedUserContext | None = None,
+    ) -> dict[str, Any]:
         state = self._load_state(project_id, user_context)
         ref = self._find_artifact_ref(state, artifact_id)
 
@@ -308,7 +336,13 @@ class RetailAnalysisFlow:
             "content": sanitize(payload.content),
         }
 
-    def get_model_ref(self, project_id: str, model_type: str, version: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def get_model_ref(
+        self,
+        project_id: str,
+        model_type: str,
+        version: str,
+        user_context: AuthenticatedUserContext | None = None,
+    ) -> dict[str, Any]:
         state = self._load_state(project_id, user_context)
         ref = self._find_artifact_ref(state, f"{model_type}:{version}")
         if ref is None or ref.get("type") != "model":
@@ -316,7 +350,11 @@ class RetailAnalysisFlow:
         return ref
 
     def list_recommendations(
-        self, project_id: str, customer_id: str | None = None, top_k: int = 10, user_context: AuthenticatedUserContext | None = None
+        self,
+        project_id: str,
+        customer_id: str | None = None,
+        top_k: int = 10,
+        user_context: AuthenticatedUserContext | None = None,
     ) -> dict[str, Any]:
         state = self._load_state(project_id, user_context)
         recommendations = list(state.get("recommendations", []))
@@ -331,12 +369,16 @@ class RetailAnalysisFlow:
             "recommendations": recommendations[:top_k],
         }
 
-    def get_marketer_insights(self, project_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def get_marketer_insights(
+        self, project_id: str, user_context: AuthenticatedUserContext | None = None
+    ) -> dict[str, Any]:
         state = self._load_state(project_id, user_context)
         insights = dict(state.get("marketer_insights") or empty_marketer_insights())
         return {"project_id": project_id, **insights}
 
-    def _load_state(self, project_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def _load_state(
+        self, project_id: str, user_context: AuthenticatedUserContext | None = None
+    ) -> dict[str, Any]:
         owner_id = user_context.user_id if user_context else None
         payload = self.providers.retail_analysis_state.get_state(project_id, owner_user_id=owner_id)
         if payload is None:

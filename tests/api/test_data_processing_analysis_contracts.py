@@ -333,15 +333,21 @@ def test_artifact_payload_for_dp_project_contract(isolated_env_real_adapter: Any
 
 def _register_and_login(client: TestClient) -> str:
     """Register a test user and return the access token."""
-    r = client.post("/api/auth/register", json={
-        "email": "dp-test@example.com",
-        "password": "password123",
-    })
+    r = client.post(
+        "/api/auth/register",
+        json={
+            "email": "dp-test@example.com",
+            "password": "password123",
+        },
+    )
     assert r.status_code == 201
-    r = client.post("/api/auth/login", json={
-        "email": "dp-test@example.com",
-        "password": "password123",
-    })
+    r = client.post(
+        "/api/auth/login",
+        json={
+            "email": "dp-test@example.com",
+            "password": "password123",
+        },
+    )
     assert r.status_code == 200
     return r.json()["data"]["access_token"]
 
@@ -352,10 +358,14 @@ def test_logged_in_user_dp_chain_native_flow(client: TestClient) -> None:
     headers = {"Authorization": f"Bearer {token}"}
 
     # 1. Create project
-    r = client.post("/api/analysis/projects", json={
-        "name": "Auth DP Flow",
-        "analysis_kind": "data_processing",
-    }, headers=headers)
+    r = client.post(
+        "/api/analysis/projects",
+        json={
+            "name": "Auth DP Flow",
+            "analysis_kind": "data_processing",
+        },
+        headers=headers,
+    )
     assert r.status_code == 201
     project_id = assert_success_payload(r.json())["id"]
 

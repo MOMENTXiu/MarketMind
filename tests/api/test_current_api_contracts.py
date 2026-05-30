@@ -27,10 +27,11 @@ def test_root_and_health_contracts(client: TestClient) -> None:
 
     health_response = client.get("/api/health/")
     assert health_response.status_code == 200
-    assert health_response.json() == {
-        "status": "healthy",
-        "service": "MarketMind Backend",
-    }
+    body = health_response.json()
+    assert body["service"] == "MarketMind Backend"
+    assert body["status"] in ("healthy", "degraded")
+    assert "version" in body
+    assert "components" in body
 
 
 def test_retired_analysis_routes_are_not_public(client: TestClient) -> None:

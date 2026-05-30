@@ -16,11 +16,11 @@ from backend.infrastructure.adapters.fastapi_background_analysis_job_adapter imp
 from backend.infrastructure.adapters.json_project_repository_adapter import (
     JsonProjectRepositoryAdapter,
 )
-from backend.infrastructure.adapters.local_analysis_artifact_adapter import (
-    LocalAnalysisArtifactAdapter,
+from backend.infrastructure.adapters.minio_analysis_artifact_adapter import (
+    MinioAnalysisArtifactAdapter,
 )
-from backend.infrastructure.adapters.local_analysis_model_store_adapter import (
-    LocalAnalysisModelStoreAdapter,
+from backend.infrastructure.adapters.minio_analysis_model_store_adapter import (
+    MinioAnalysisModelStoreAdapter,
 )
 from backend.infrastructure.adapters.openai_compatible_llm_adapter import (
     OpenAICompatibleLLMAdapter,
@@ -49,8 +49,8 @@ def test_provider_factory_creates_default_pg_redis_runtime_container() -> None:
     assert isinstance(providers.analysis_jobs, FastApiBackgroundAnalysisJobAdapter)
     assert isinstance(providers.telemetry, ConsoleTelemetryAdapter)
     assert isinstance(providers.retail_dataset, CsvRetailDatasetAdapter)
-    assert isinstance(providers.analysis_artifacts, LocalAnalysisArtifactAdapter)
-    assert isinstance(providers.analysis_models, LocalAnalysisModelStoreAdapter)
+    assert isinstance(providers.analysis_artifacts, MinioAnalysisArtifactAdapter)
+    assert isinstance(providers.analysis_models, MinioAnalysisModelStoreAdapter)
     assert isinstance(providers.retail_analysis_state, PostgresRetailAnalysisStateAdapter)
     assert isinstance(providers.analysis_job_queue, RedisAnalysisJobQueueAdapter)
     assert isinstance(providers.analysis_event_stream, RedisAnalysisEventStreamAdapter)

@@ -169,7 +169,9 @@ class FakeProjectRepositoryProvider:
             return None
         return project
 
-    def list_projects(self, skip: int = 0, limit: int = 100, owner_user_id: str | None = None) -> list[Project]:
+    def list_projects(
+        self, skip: int = 0, limit: int = 100, owner_user_id: str | None = None
+    ) -> list[Project]:
         items = list(self.projects.values())
         if owner_user_id is not None:
             items = [p for p in items if p.owner_user_id == owner_user_id]

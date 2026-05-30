@@ -54,7 +54,9 @@ class DataProcessingAnalysisFlow:
     def __init__(self, providers: ProvidersContainer) -> None:
         self.providers = providers
 
-    def create_job(self, project_id: str, name: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def create_job(
+        self, project_id: str, name: str, user_context: AuthenticatedUserContext | None = None
+    ) -> dict[str, Any]:
         self._assert_project_access(project_id, user_context)
         clean_name = name.strip()
         if not clean_name:
@@ -64,7 +66,12 @@ class DataProcessingAnalysisFlow:
         return job_view(state)
 
     def upload_raw_dataset(
-        self, project_id: str, job_id: str, filename: str, content: bytes, user_context: AuthenticatedUserContext | None = None
+        self,
+        project_id: str,
+        job_id: str,
+        filename: str,
+        content: bytes,
+        user_context: AuthenticatedUserContext | None = None,
     ) -> dict[str, Any]:
         self._assert_project_access(project_id, user_context)
         self._validate_upload(filename, content)
@@ -81,7 +88,9 @@ class DataProcessingAnalysisFlow:
         self._save_state(state)
         return job_view(state)
 
-    def regularize(self, project_id: str, job_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def regularize(
+        self, project_id: str, job_id: str, user_context: AuthenticatedUserContext | None = None
+    ) -> dict[str, Any]:
         self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
@@ -142,7 +151,9 @@ class DataProcessingAnalysisFlow:
         self._save_state(state)
         return job_view(state)
 
-    def run_analysis(self, project_id: str, job_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def run_analysis(
+        self, project_id: str, job_id: str, user_context: AuthenticatedUserContext | None = None
+    ) -> dict[str, Any]:
         self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
@@ -249,7 +260,13 @@ class DataProcessingAnalysisFlow:
         state["error"] = None
         self._save_state(state)
 
-    def get_dataset_ref(self, project_id: str, job_id: str, dataset_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def get_dataset_ref(
+        self,
+        project_id: str,
+        job_id: str,
+        dataset_id: str,
+        user_context: AuthenticatedUserContext | None = None,
+    ) -> dict[str, Any]:
         self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
@@ -259,7 +276,13 @@ class DataProcessingAnalysisFlow:
             raise NotFoundError(f"Dataset ref not found: {dataset_id}")
         return self._public_ref(ref)
 
-    def get_sidecar_ref(self, project_id: str, job_id: str, sidecar_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def get_sidecar_ref(
+        self,
+        project_id: str,
+        job_id: str,
+        sidecar_id: str,
+        user_context: AuthenticatedUserContext | None = None,
+    ) -> dict[str, Any]:
         self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
@@ -269,7 +292,13 @@ class DataProcessingAnalysisFlow:
             raise NotFoundError(f"Sidecar ref not found: {sidecar_id}")
         return self._public_ref(ref)
 
-    def load_sidecar(self, project_id: str, job_id: str, sidecar_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def load_sidecar(
+        self,
+        project_id: str,
+        job_id: str,
+        sidecar_id: str,
+        user_context: AuthenticatedUserContext | None = None,
+    ) -> dict[str, Any]:
         self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
@@ -280,14 +309,18 @@ class DataProcessingAnalysisFlow:
         payload = self.providers.regularized_dataset.load_sidecar(project_id, job_id, ref)
         return dict(payload) if isinstance(payload, dict) else {"payload": payload}
 
-    def get_job(self, project_id: str, job_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def get_job(
+        self, project_id: str, job_id: str, user_context: AuthenticatedUserContext | None = None
+    ) -> dict[str, Any]:
         self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
             raise ValidationError("Job does not belong to project")
         return job_view(state)
 
-    def list_outputs(self, project_id: str, job_id: str, user_context: AuthenticatedUserContext | None = None) -> dict[str, Any]:
+    def list_outputs(
+        self, project_id: str, job_id: str, user_context: AuthenticatedUserContext | None = None
+    ) -> dict[str, Any]:
         self._assert_project_access(project_id, user_context)
         state = self._load_state(job_id)
         if state["project_id"] != project_id:
@@ -298,15 +331,21 @@ class DataProcessingAnalysisFlow:
             "outputs": list(state.get("output_refs", [])),
         }
 
-    def _assert_project_access(self, project_id: str, user_context: AuthenticatedUserContext | None = None) -> None:
+    def _assert_project_access(
+        self, project_id: str, user_context: AuthenticatedUserContext | None = None
+    ) -> None:
         if user_context is None:
             return
         # V1 repository path (legacy JSON/Postgres metadata)
-        project = self.providers.repository.get_project(project_id, owner_user_id=user_context.user_id)
+        project = self.providers.repository.get_project(
+            project_id, owner_user_id=user_context.user_id
+        )
         if project is not None:
             return
         # V2 retail analysis state path (in-memory / Postgres state adapter)
-        state = self.providers.retail_analysis_state.get_state(project_id, owner_user_id=user_context.user_id)
+        state = self.providers.retail_analysis_state.get_state(
+            project_id, owner_user_id=user_context.user_id
+        )
         if state is not None:
             return
         raise NotFoundError("Project not found")
