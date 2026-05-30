@@ -91,6 +91,7 @@ class FakeAuthTokenProvider(AuthTokenProvider):
             "sub": claims.sub,
             "email": claims.email,
             "display_name": claims.display_name,
+            "role": claims.role,
             "iat": int(now.timestamp()),
             "exp": int(exp.timestamp()),
         }
@@ -107,6 +108,7 @@ class FakeAuthTokenProvider(AuthTokenProvider):
             sub=payload.get("sub", ""),
             email=payload.get("email", ""),
             display_name=payload.get("display_name"),
+            role=payload.get("role", "user"),
             iat=payload.get("iat"),
             exp=payload.get("exp"),
         )

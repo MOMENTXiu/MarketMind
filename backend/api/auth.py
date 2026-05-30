@@ -56,6 +56,7 @@ async def register(
             "id": user.id,
             "email": user.email,
             "display_name": user.display_name,
+            "role": user.role,
         },
     }
 
@@ -82,6 +83,7 @@ async def login(
                 "id": user.id,
                 "email": user.email,
                 "display_name": user.display_name,
+                "role": user.role,
             },
         },
     }
@@ -97,6 +99,7 @@ async def me(
             "id": user.user_id,
             "email": user.email,
             "display_name": user.display_name,
+            "role": user.role,
         },
     }
 

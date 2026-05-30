@@ -83,6 +83,7 @@ def _to_dto(record: UserRecord) -> UserIdentityDTO:
         email=record.email,
         display_name=record.display_name,
         status=record.status,
+        role=record.role,
         password_hash=record.password_hash,
         created_at=record.created_at.isoformat() if record.created_at else None,
         updated_at=record.updated_at.isoformat() if record.updated_at else None,

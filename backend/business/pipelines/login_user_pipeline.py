@@ -28,6 +28,7 @@ class LoginUserPipeline:
             email=user.email,
             display_name=user.display_name,
             auth_token=self.providers.auth_token,
+            role=user.role,
         )
         self.providers.user_directory.update_last_login(user.id)
         return user, token_pair

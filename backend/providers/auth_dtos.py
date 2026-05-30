@@ -11,6 +11,7 @@ class UserIdentityDTO:
     email: str
     display_name: str | None = None
     status: str = "active"
+    role: str = "user"
     password_hash: str = ""
     created_at: str | None = None
     updated_at: str | None = None
@@ -21,6 +22,7 @@ class AuthenticatedUserContext:
     user_id: str
     email: str
     display_name: str | None = None
+    role: str = "user"
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,7 @@ class AuthTokenClaimsDTO:
     sub: str
     email: str
     display_name: str | None = None
+    role: str = "user"
     iat: int | None = None
     exp: int | None = None
     aud: str | None = None

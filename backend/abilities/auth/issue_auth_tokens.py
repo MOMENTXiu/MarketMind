@@ -9,8 +9,9 @@ def issue_access_token(
     email: str,
     display_name: str | None,
     auth_token: AuthTokenProvider,
+    role: str = "user",
 ) -> str:
-    claims = AuthTokenClaimsDTO(sub=user_id, email=email, display_name=display_name)
+    claims = AuthTokenClaimsDTO(sub=user_id, email=email, display_name=display_name, role=role)
     return auth_token.sign_access_token(claims)
 
 
@@ -19,6 +20,7 @@ def issue_auth_token_pair(
     email: str,
     display_name: str | None,
     auth_token: AuthTokenProvider,
+    role: str = "user",
 ) -> AuthTokenPairDTO:
-    access = issue_access_token(user_id, email, display_name, auth_token)
+    access = issue_access_token(user_id, email, display_name, auth_token, role=role)
     return AuthTokenPairDTO(access_token=access, token_type="bearer")
