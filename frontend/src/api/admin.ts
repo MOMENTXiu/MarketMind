@@ -147,6 +147,67 @@ export function testBarkAlert(): Promise<TestResult> {
   return unwrapApiEnvelope(apiClient.post('/api/admin/settings/alert/bark/test'))
 }
 
+// ── Env Edit ──────────────────────────────────────────────────────────────────
+
+export interface EnvSettingsEdit {
+  key: string
+  value: string | null
+  isSensitive?: boolean
+}
+
+export interface EnvUpdateResult {
+  updated: string[]
+  message: string
+}
+
+export function updateEnvSettings(updates: EnvSettingsEdit[]): Promise<EnvUpdateResult> {
+  return unwrapApiEnvelope(apiClient.put('/api/admin/settings/env', { updates }))
+}
+
+// ── LLM Configs ───────────────────────────────────────────────────────────────
+
+export interface LlmConfigItem {
+  id: string
+  name: string
+  provider: 'openai' | 'anthropic' | 'deepseek' | 'custom'
+  baseUrl: string | null
+  apiKeyConfigured: boolean
+  model: string | null
+  timeoutSeconds: number
+  isActive: boolean
+  createdAt: string | null
+}
+
+export interface LlmConfigSaveInput {
+  name: string
+  provider: string
+  baseUrl?: string | null
+  apiKey?: string | null
+  model?: string | null
+  timeoutSeconds?: number
+  isActive?: boolean
+}
+
+export function getLlmConfigs(): Promise<LlmConfigItem[]> {
+  return unwrapApiEnvelope(apiClient.get('/api/admin/settings/llm-configs'))
+}
+
+export function createLlmConfig(data: LlmConfigSaveInput): Promise<LlmConfigItem> {
+  return unwrapApiEnvelope(apiClient.post('/api/admin/settings/llm-configs', data))
+}
+
+export function updateLlmConfig(configId: string, data: LlmConfigSaveInput): Promise<LlmConfigItem> {
+  return unwrapApiEnvelope(apiClient.put(`/api/admin/settings/llm-configs/${configId}`, data))
+}
+
+export function deleteLlmConfig(configId: string): Promise<{ deleted: string }> {
+  return unwrapApiEnvelope(apiClient.delete(`/api/admin/settings/llm-configs/${configId}`))
+}
+
+export function activateLlmConfig(configId: string): Promise<LlmConfigItem> {
+  return unwrapApiEnvelope(apiClient.post(`/api/admin/settings/llm-configs/${configId}/activate`))
+}
+
 // ── Logs ─────────────────────────────────────────────────────────────────────
 
 export interface LogQueryParams {

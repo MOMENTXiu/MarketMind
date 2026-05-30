@@ -18,6 +18,7 @@ from backend.providers.analysis_model_store_provider import AnalysisModelStorePr
 from backend.providers.association_rule_store_provider import AssociationRuleStoreProvider
 from backend.providers.auth_token_provider import AuthTokenProvider
 from backend.providers.dataset_provider import DatasetProvider
+from backend.providers.env_file_provider import EnvFileProvider
 from backend.providers.generated_asset_provider import GeneratedAssetProvider
 from backend.providers.infrastructure_health_provider import InfrastructureHealthProvider
 from backend.providers.llm_provider import LLMProvider
@@ -71,3 +72,4 @@ class ProvidersContainer:
     alert: AlertProvider | None = None
     log_query: LogQueryProvider | None = None
     admin_users: AdminUserProvider | None = None
+    env_file: EnvFileProvider | None = None

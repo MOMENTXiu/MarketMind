@@ -67,6 +67,7 @@ def cmd_check_providers(_args: argparse.Namespace) -> int:
         "alert",
         "log_query",
         "admin_users",
+        "env_file",
     }
     for container_field in fields(ProvidersContainer):
         value = getattr(providers, container_field.name)

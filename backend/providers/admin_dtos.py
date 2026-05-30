@@ -220,3 +220,64 @@ class UpdateRoleDTO:
 @dataclass(frozen=True)
 class UpdateStatusDTO:
     status: UserStatus
+
+
+# ── Settings Edit ─────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class SettingsEditDTO:
+    """A single key=value edit for .env file."""
+
+    key: str
+    value: str | None = None  # None = delete line or preserve sensitive
+    is_sensitive: bool = False
+
+
+@dataclass(frozen=True)
+class EnvSettingsUpdateDTO:
+    """Batch update for .env settings."""
+
+    updates: list[SettingsEditDTO] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class EnvFileInfoDTO:
+    """Read-only info about the .env file."""
+
+    path: str
+    keys: dict[str, str] = field(default_factory=dict)
+
+
+# ── LLM Multi-Model Config ───────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class LlmConfigItemDTO:
+    id: str
+    name: str
+    provider: str  # "openai" | "anthropic" | "deepseek" | "custom"
+    base_url: str | None = None
+    api_key_configured: bool = False
+    model: str | None = None
+    timeout_seconds: int = 30
+    is_active: bool = False
+    created_at: str | None = None
+
+
+@dataclass(frozen=True)
+class LlmConfigListDTO:
+    configs: list[LlmConfigItemDTO] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class LlmConfigSaveDTO:
+    """Input DTO for creating/updating an LLM config."""
+
+    name: str
+    provider: str
+    base_url: str | None = None
+    api_key: str | None = None  # plaintext input; adapter masks before storing
+    model: str | None = None
+    timeout_seconds: int = 30
+    is_active: bool = False

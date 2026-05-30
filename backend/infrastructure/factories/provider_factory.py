@@ -15,6 +15,7 @@ from backend.infrastructure.adapters.composite_infrastructure_health_adapter imp
 from backend.infrastructure.adapters.console_telemetry_adapter import ConsoleTelemetryAdapter
 from backend.infrastructure.adapters.csv_dataset_adapter import CsvDatasetAdapter
 from backend.infrastructure.adapters.csv_retail_dataset_adapter import CsvRetailDatasetAdapter
+from backend.infrastructure.adapters.env_file_adapter import EnvFileAdapter
 from backend.infrastructure.adapters.env_settings_inspection_adapter import (
     EnvSettingsInspectionAdapter,
 )
@@ -153,6 +154,7 @@ def create_providers(
         )
     log_query = JsonlLogQueryAdapter("logs/telemetry/events.jsonl")
     admin_users = PostgresAdminUserAdapter(session_factory)
+    env_file = EnvFileAdapter()
 
     return ProvidersContainer(
         repository=JsonProjectRepositoryAdapter("data"),
@@ -183,6 +185,7 @@ def create_providers(
         alert=alert,
         log_query=log_query,
         admin_users=admin_users,
+        env_file=env_file,
     )
 
 
