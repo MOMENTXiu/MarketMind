@@ -68,10 +68,10 @@ Admin 用户设置：
 
 | 想看什么 | 去哪儿 |
 |----------|--------|
-| 部署、环境变量、API 契约、运维操作 | [docs/README.md § Part 2 运维](docs/README.md#part-2--运维文档) |
-| 架构设计、施工清单、开发规范 | [docs/README.md § Part 3 开发](docs/README.md#part-3--开发文档) |
-| 项目架构、路线图、需求背景 | [docs/README.md § Part 1 介绍](docs/README.md#part-1--项目介绍) |
-| Admin Console 使用与配置 | [docs/admin/admin-console-design.md](docs/admin/admin-console-design.md) |
+| 部署、环境变量、API 契约、运维操作 | [docs/deploy/](docs/README.md#部署与运维-deploy) |
+| 架构设计、施工清单、开发规范 | [docs/develop/](docs/README.md#开发设计-develop) |
+| 项目架构、路线图、需求背景 | [docs/README.md](docs/README.md#项目介绍-docs-根目录) |
+| Admin Console 使用与配置 | [docs/deploy/admin/](docs/deploy/admin/admin-console-design.md) |
 
 质量门禁：`make check`（lint + format + pytest + frontend build），当前基线 `370 passed, 6 skipped`。
 
