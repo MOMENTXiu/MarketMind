@@ -30,7 +30,7 @@ Current backend test baseline covers API contracts (Retail V2 + data-processing
 chain-native), controller thinness, Retail V2 flows/pipelines, data-processing
 regularization/universal analysis abilities, provider adapters, DB
 infrastructure smoke tests, runtime checks, and architecture import rules.
-The latest local baseline is `262 passed, 5 skipped`; the skipped tests are optional/live-infra paths.
+The latest local baseline is `306 passed, 6 skipped`; the skipped tests are optional/live-infra paths.
 
 The backend runtime now has two analysis chains:
 1. Retail V2 — the existing project-scoped retail pipeline.

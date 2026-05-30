@@ -28,7 +28,7 @@ Customer Suggestions 是文本生成链路，入口为 `POST /api/analysis/custo
 
 | 层 | 路径 | 职责 | 禁止事项 |
 | --- | --- | --- | --- |
-| API Controller | `backend/api/` | 解析 HTTP 输入、调用单个 flow/pipeline、映射错误。 | 不写算法、存储细节、SDK 调用。 |
+| API Controller | `backend/api/` | 解析 HTTP 输入、调用单个 flow/pipeline、映射错误。`dependencies.py` 是 API 层唯一可直接 import `backend.core.config` 的模块；其他 API 模块通过它获取 `Settings` 类型和 `get_settings()`。 | 不写算法、存储细节、SDK 调用；不直接 import `backend.core.config`。 |
 | Business Orchestration | `backend/business/flows/`, `backend/business/pipelines/` | 编排状态机、阶段顺序和副作用。 | 不直接 import DB/SDK/本地路径实现。 |
 | Ability Atom | `backend/abilities/` | 执行可测试的原子分析能力。 | 不依赖 FastAPI request/response。 |
 | Provider Boundary | `backend/providers/` | Protocol、DTO、`ProvidersContainer`。 | 不放具体基础设施实现。 |
@@ -190,7 +190,7 @@ make check
 make hooks
 ```
 
-`make check` 运行 backend Ruff lint、backend Ruff format check、pytest、frontend `npm run build`。当前测试基线为 `262 passed, 5 skipped`。`make typecheck` 与 `make clean` 是占位目标。
+`make check` 运行 backend Ruff lint、backend Ruff format check、pytest、frontend `npm run build`。当前测试基线为 `306 passed, 6 skipped`。`make typecheck` 与 `make clean` 是占位目标。
 
 Runtime smoke checks：
 

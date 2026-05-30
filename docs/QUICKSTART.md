@@ -113,7 +113,7 @@ make build
 
 当前基线：
 
-- Backend tests: `268 collected` (`262 passed, 5 skipped`)。
+- Backend tests: `312 collected` (`306 passed, 6 skipped`)。
 - Backend lint/format: Ruff。
 - Frontend build/type validation: `cd frontend && npm run build`。
 - `make typecheck` 和 `make clean` 是占位目标，不能作为验证证据。
