@@ -73,7 +73,12 @@ jobs:
               print('Bucket already exists')
           "
       - name: Upload sample files
-        run: uv run python scripts/init-samples-to-minio.py
+        run: |
+          mkdir -p data/samples
+          echo "id,name,price,quantity,date" > data/samples/marketmind_sample_analysis_data.csv
+          echo "1,item-a,10.5,100,2024-01-01" >> data/samples/marketmind_sample_analysis_data.csv
+          echo "2,item-b,20.0,50,2024-01-02" >> data/samples/marketmind_sample_analysis_data.csv
+          uv run python scripts/init-samples-to-minio.py
       - name: Test backend
         run: make backend-test
 
