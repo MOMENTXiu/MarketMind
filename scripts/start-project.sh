@@ -340,12 +340,24 @@ echo -e "${CYAN}╚════════════════════�
 echo ""
 echo -e "${GREEN}Access Points:${NC}"
 echo -e "  Frontend:     ${BLUE}http://localhost:5173${NC}"
+echo -e "  Admin Console:${BLUE}http://localhost:5173/admin${NC}"
 echo -e "  Backend API:  ${BLUE}http://localhost:8000/api${NC}"
 echo -e "  API Docs:     ${BLUE}http://localhost:8000/api/docs${NC}"
 echo -e "  Postgres:     ${BLUE}localhost:5432${NC}"
 echo -e "  Redis:        ${BLUE}localhost:6379${NC}"
 echo -e "  MinIO API:    ${BLUE}http://localhost:9000${NC}"
 echo -e "  MinIO Console:${BLUE}http://localhost:9001${NC}"
+echo ""
+
+ADMIN_EMAIL="${ADMIN_BOOTSTRAP_EMAIL:-}"
+if [ -n "$ADMIN_EMAIL" ]; then
+    echo -e "${GREEN}Admin credentials (if bootstrapped):${NC}"
+    echo -e "  Email: ${CYAN}${ADMIN_EMAIL}${NC}"
+    echo -e "  Role:  ${CYAN}admin${NC}"
+    echo -e "  URL:   ${CYAN}http://localhost:5173/admin${NC}"
+else
+    echo -e "${YELLOW}Tip: Set ADMIN_BOOTSTRAP_EMAIL in deploy-project.sh to bootstrap an admin user.${NC}"
+fi
 echo ""
 echo -e "${GREEN}Log Files:${NC}"
 echo -e "  Backend:  ${CYAN}logs/backend.log${NC}"
