@@ -139,20 +139,13 @@ make check
 make hooks
 ```
 
-`make check` 覆盖 backend Ruff lint + format check + pytest + frontend `npm run build`。当前基线 `262 passed, 5 skipped`。
+`make check` 覆盖 backend Ruff lint + format check + pytest + frontend `npm run build`。当前基线 `370 passed, 6 skipped`。
 
 `make typecheck` 与 `make clean` 为占位目标，不能作为验证通过。
 
-## 主要文档
+## 文档
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 当前架构与分层说明
-- [docs/backend-api.md](docs/backend-api.md) — 后端 API 接口参考
-- [docs/QUICKSTART.md](docs/QUICKSTART.md) — 快速启动与验收
-- [docs/USAGE_GUIDE.md](docs/USAGE_GUIDE.md) — 功能使用指南
-- [docs/env.md](docs/env.md) — 环境变量约定
-- [docs/development.md](docs/development.md) — 开发环境与工具链
-- [docs/intro/INTRO_PAGE_BRIEF.md](docs/intro/INTRO_PAGE_BRIEF.md) — Intro 页面内容蓝本
-- [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) — 项目路线图
+→ [docs/index.md](docs/index.md) — 完整文档索引（介绍 / 运维 / 开发 三部分）
 
 ## 可选 Streamlit 入口
 
