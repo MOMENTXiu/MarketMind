@@ -153,18 +153,6 @@ echo -e "${BLUE}  Uploading sample files to MinIO...${NC}"
 uv run python scripts/init-samples-to-minio.py || echo -e "${YELLOW}  Sample upload failed or skipped${NC}"
 echo -e "${GREEN}  Sample files ready${NC}"
 
-# Admin bootstrap
-ADMIN_EMAIL="${ADMIN_BOOTSTRAP_EMAIL:-}"
-if [ -n "$ADMIN_EMAIL" ]; then
-    echo -e "${BLUE}  Bootstrapping admin user...${NC}"
-    ADMIN_BOOTSTRAP_EMAIL="$ADMIN_EMAIL" uv run python -m backend.scripts.bootstrap_admin || echo -e "${YELLOW}  Admin bootstrap skipped (user may not exist yet)${NC}"
-    echo -e "${GREEN}  Admin user: ${ADMIN_EMAIL}${NC}"
-else
-    echo -e "${YELLOW}  ADMIN_BOOTSTRAP_EMAIL not set — skipping admin bootstrap${NC}"
-    echo -e "${YELLOW}  Set it to promote an existing user to admin after registration:${NC}"
-    echo -e "${YELLOW}    ADMIN_BOOTSTRAP_EMAIL=admin@example.com ./scripts/deploy-project.sh${NC}"
-fi
-
 # Create required local directories
 mkdir -p logs
 mkdir -p outputs/charts
@@ -185,17 +173,8 @@ echo -e "${CYAN}╚════════════════════�
 echo ""
 echo -e "${GREEN}Environment prepared. Infrastructure will be started by start-project.sh.${NC}"
 echo ""
-
-if [ -n "$ADMIN_EMAIL" ]; then
-    echo -e "${GREEN}Admin Console credentials:${NC}"
-    echo -e "  Email:  ${CYAN}${ADMIN_EMAIL}${NC}"
-    echo -e "  Role:   ${CYAN}admin${NC}"
-    echo -e "  URL:    ${CYAN}http://localhost:5173/admin${NC}"
-    echo -e "  ${YELLOW}Note: Register this email first, then re-run deploy to bootstrap admin role.${NC}"
-else
-    echo -e "${YELLOW}Tip: Set ADMIN_BOOTSTRAP_EMAIL to create an admin user:${NC}"
-    echo -e "  ${CYAN}ADMIN_BOOTSTRAP_EMAIL=admin@example.com ./scripts/deploy-project.sh${NC}"
-fi
+echo -e "${YELLOW}Setup admin user (after registration):${NC}"
+echo -e "  ${CYAN}./scripts/setup-admin.sh${NC}"
 echo ""
 echo -e "${GREEN}Next step:${NC}"
 echo -e "  ${CYAN}./scripts/start-project.sh${NC}"
