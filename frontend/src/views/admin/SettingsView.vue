@@ -38,6 +38,14 @@ const formError = ref<string | null>(null)
 const envSaving = ref(false)
 const envMessage = ref<string | null>(null)
 
+// Bark edit state
+const barkEnabled = ref('false')
+const barkServerUrl = ref('')
+const barkDeviceKey = ref('')
+const barkDefaultGroup = ref('')
+const barkSaving = ref(false)
+const barkEnvMessage = ref<string | null>(null)
+
 const boolIcon = (v: boolean) => v ? CheckCircle : XCircle
 const boolColor = (v: boolean) => v ? '#10B981' : '#EF4444'
 
@@ -120,6 +128,20 @@ async function testBark() {
   try { barkTestResult.value = await testBarkAlert() }
   catch (e: any) { barkTestResult.value = { success: false, message: e?.message || '测试失败' } }
   finally { barkTesting.value = false }
+}
+
+async function saveBarkEnv() {
+  barkSaving.value = true; barkEnvMessage.value = null
+  try {
+    const result = await updateEnvSettings([
+      { key: 'BARK_ENABLED', value: barkEnabled.value },
+      { key: 'BARK_SERVER_URL', value: barkServerUrl.value || '' },
+      { key: 'BARK_DEFAULT_GROUP', value: barkDefaultGroup.value || '' },
+      { key: 'BARK_DEVICE_KEY', value: barkDeviceKey.value || null, isSensitive: true },
+    ])
+    barkEnvMessage.value = result.message
+  } catch (e: any) { barkEnvMessage.value = e?.message || '保存失败' }
+  finally { barkSaving.value = false }
 }
 
 async function saveEnv() {
@@ -258,6 +280,7 @@ onMounted(fetchData)
 
       <!-- ═══ Alert Tab ═══ -->
       <div v-if="activeTab === 'alert' && settings.alert" class="tab-content">
+        <!-- Read-only status -->
         <section class="setting-card">
           <h3>Bark 通知设置</h3>
           <div class="field-grid">
@@ -275,11 +298,43 @@ onMounted(fetchData)
             <span v-if="barkTestResult.latencyMs != null">({{ barkTestResult.latencyMs }}ms)</span>
           </div>
         </section>
+
+        <!-- Edit section -->
+        <section class="setting-card">
+          <h3>编辑 Bark 配置</h3>
+          <p class="card-desc">修改后点击「同步到 .env」，重启后端生效。</p>
+          <div class="field-grid">
+            <div class="field">
+              <label class="field-label">BARK_ENABLED</label>
+              <select v-model="barkEnabled" class="form-input">
+                <option value="false">禁用</option>
+                <option value="true">启用</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label">BARK_SERVER_URL</label>
+              <input v-model="barkServerUrl" placeholder="https://api.day.app" class="form-input mono" />
+            </div>
+            <div class="field">
+              <label class="field-label">BARK_DEVICE_KEY</label>
+              <input v-model="barkDeviceKey" type="password" placeholder="留空保留现有 Key" class="form-input mono" />
+            </div>
+            <div class="field">
+              <label class="field-label">BARK_DEFAULT_GROUP</label>
+              <input v-model="barkDefaultGroup" placeholder="MarketMind" class="form-input" />
+            </div>
+          </div>
+          <button class="btn-action" :disabled="barkSaving" @click="saveBarkEnv">
+            <Loader2 v-if="barkSaving" class="w-3.5 h-3.5 animate-spin" />同步到 .env
+          </button>
+          <div v-if="barkEnvMessage" class="test-result" :class="barkEnvMessage.includes('失败') ? 'fail' : 'success'">{{ barkEnvMessage }}</div>
+        </section>
       </div>
     </template>
 
     <!-- ═══ Form Modal ═══ -->
-    <div v-if="showForm" class="modal-overlay" @click.self="closeForm">
+    <Transition name="fade">
+      <div v-if="showForm" class="modal-overlay" @click.self="closeForm">
       <div class="modal">
         <h2 class="modal-title">{{ editingId ? '编辑模型' : '新增模型' }}</h2>
         <div class="form-body">
@@ -313,6 +368,7 @@ onMounted(fetchData)
         </div>
       </div>
     </div>
+    </Transition>
   </div>
 </template>
 
@@ -397,9 +453,12 @@ onMounted(fetchData)
 .action-btn.del:hover { background: rgba(239,68,68,0.06); color: #dc2626; border-color: rgba(239,68,68,0.15); }
 .action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 .btn-cancel {
+  display: inline-flex; align-items: center; justify-content: center;
   height: 42px; padding: 0 20px; border-radius: 20px; border: 1px solid var(--border-subtle);
   background: transparent; color: var(--text-secondary); font-size: 0.85rem; font-weight: 500; cursor: pointer;
+  transition: background 0.15s;
 }
+.btn-cancel:hover { background: var(--color-surface-hover); }
 
 /* ─── test ─── */
 .test-row { margin-top: 16px; }
@@ -434,4 +493,26 @@ select.form-input { cursor: pointer; }
 .loading-state { display: flex; justify-content: center; padding: 60px 0; }
 .spinner { width: 36px; height: 36px; border: 3px solid var(--border-subtle); border-radius: 50%; border-top-color: #6366F1; animation: spin 0.8s linear infinite; }
 .error-state { text-align: center; padding: 60px 0; color: #EF4444; font-size: 0.9rem; }
+
+/* ─── transitions ─── */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-active .modal,
+.fade-leave-active .modal {
+  transition: opacity 0.2s ease, transform 0.25s var(--ease-spring, cubic-bezier(0.175, 0.885, 0.32, 1.15));
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+.fade-enter-from .modal {
+  opacity: 0;
+  transform: scale(0.95) translateY(8px);
+}
+.fade-leave-to .modal {
+  opacity: 0;
+  transform: scale(0.97);
+}
 </style>
