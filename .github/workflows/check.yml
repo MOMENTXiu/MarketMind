@@ -21,9 +21,29 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: marketmind
+          MINIO_ROOT_PASSWORD: marketmind_dev_password
+        ports:
+          - 9000:9000
+        options: >-
+          server /data
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql+psycopg://marketmind:marketmind_dev_password@localhost:5432/marketmind_test
       TEST_DATABASE_URL: postgresql+psycopg://marketmind:marketmind_dev_password@localhost:5432/marketmind_test
+      OBJECT_STORAGE_BACKEND: minio
+      OBJECT_STORAGE_ENDPOINT: http://localhost:9000
+      OBJECT_STORAGE_ACCESS_KEY: marketmind
+      OBJECT_STORAGE_SECRET_KEY: marketmind_dev_password
+      OBJECT_STORAGE_BUCKET: marketmind-dev
+      OBJECT_STORAGE_SECURE: false
+      OBJECT_STORAGE_REGION: us-east-1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,6 +61,21 @@ jobs:
           uv run alembic upgrade head
           uv run alembic downgrade base
           uv run alembic upgrade head
+      - name: Init MinIO bucket
+        run: |
+          uv run python -c "
+          from minio import Minio
+          from minio.error import S3Error
+          client = Minio('localhost:9000', access_key='marketmind', secret_key='marketmind_dev_password', secure=False)
+          try:
+              if not client.bucket_exists('marketmind-dev'):
+                  client.make_bucket('marketmind-dev')
+                  print('Bucket created')
+              else:
+                  print('Bucket already exists')
+          except S3Error as e:
+              print(f'MinIO init warning: {e}')
+          "
       - name: Test backend
         run: make backend-test
 
