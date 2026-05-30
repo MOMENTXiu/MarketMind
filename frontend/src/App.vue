@@ -66,7 +66,15 @@ onMounted(() => {
         <div v-if="authStore.isAuthenticated" class="nav-links">
           <RouterLink to="/" class="nav-item" :class="{ active: isHome }">主页</RouterLink>
           <RouterLink to="/projects" class="nav-item" :class="{ active: isProjectsActive }">我的项目</RouterLink>
-          <RouterLink v-if="authStore.isAdmin" to="/admin" class="nav-item" :class="{ active: route.path.startsWith('/admin') }">管理</RouterLink>
+          <div v-if="authStore.isAdmin" class="nav-dropdown" :class="{ active: route.path.startsWith('/admin') }">
+            <span class="nav-item dropdown-trigger">管理</span>
+            <div class="dropdown-menu">
+              <RouterLink to="/admin/status" class="dropdown-item">运行状态</RouterLink>
+              <RouterLink to="/admin/settings" class="dropdown-item">系统设置</RouterLink>
+              <RouterLink to="/admin/logs" class="dropdown-item">系统日志</RouterLink>
+              <RouterLink to="/admin/users" class="dropdown-item">用户管理</RouterLink>
+            </div>
+          </div>
         </div>
 
         <div class="nav-actions">
@@ -222,6 +230,71 @@ html.dark .nav-item:hover {
   background: rgba(99, 102, 241, 0.10);
   font-weight: 600;
   box-shadow: none;
+}
+
+/* ─── Admin dropdown ─── */
+.nav-dropdown {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.nav-dropdown.active .dropdown-trigger {
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.10);
+  font-weight: 600;
+}
+
+.dropdown-trigger {
+  cursor: default;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 160px;
+  padding: 6px;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.10), 0 2px 8px rgba(15, 23, 42, 0.04);
+  opacity: 0;
+  visibility: hidden;
+  transform-origin: top center;
+  transition: opacity 0.18s ease, visibility 0.18s ease, transform 0.22s var(--ease-spring, cubic-bezier(0.175, 0.885, 0.32, 1.15));
+  z-index: 200;
+}
+
+.nav-dropdown:hover .dropdown-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.dropdown-item:hover {
+  color: var(--text-primary);
+  background: var(--color-surface-hover);
+}
+
+.dropdown-item.router-link-active {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  font-weight: 600;
 }
 
 .nav-actions {
