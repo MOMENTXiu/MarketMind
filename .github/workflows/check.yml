@@ -48,7 +48,7 @@ jobs:
           uv run alembic upgrade head
           uv run alembic downgrade base
           uv run alembic upgrade head
-      - name: Start MinIO
+      - name: Start MinIO & init
         run: |
           docker run -d --name minio \
             -p 9000:9000 \
@@ -72,6 +72,8 @@ jobs:
           else:
               print('Bucket already exists')
           "
+      - name: Upload sample files
+        run: uv run python scripts/init-samples-to-minio.py
       - name: Test backend
         run: make backend-test
 
