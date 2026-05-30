@@ -28,11 +28,6 @@ jobs:
           MINIO_ROOT_PASSWORD: marketmind_dev_password
         ports:
           - 9000:9000
-        options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
     env:
       DATABASE_URL: postgresql+psycopg://marketmind:marketmind_dev_password@localhost:5432/marketmind_test
       TEST_DATABASE_URL: postgresql+psycopg://marketmind:marketmind_dev_password@localhost:5432/marketmind_test
@@ -60,20 +55,25 @@ jobs:
           uv run alembic upgrade head
           uv run alembic downgrade base
           uv run alembic upgrade head
-      - name: Init MinIO bucket
+      - name: Wait for MinIO & init bucket
         run: |
+          echo "Waiting for MinIO to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:9000/minio/health/live > /dev/null 2>&1; then
+              echo "MinIO is ready"
+              break
+            fi
+            echo "  attempt $i/30..."
+            sleep 2
+          done
           uv run python -c "
           from minio import Minio
-          from minio.error import S3Error
           client = Minio('localhost:9000', access_key='marketmind', secret_key='marketmind_dev_password', secure=False)
-          try:
-              if not client.bucket_exists('marketmind-dev'):
-                  client.make_bucket('marketmind-dev')
-                  print('Bucket created')
-              else:
-                  print('Bucket already exists')
-          except S3Error as e:
-              print(f'MinIO init warning: {e}')
+          if not client.bucket_exists('marketmind-dev'):
+              client.make_bucket('marketmind-dev')
+              print('Bucket marketmind-dev created')
+          else:
+              print('Bucket marketmind-dev already exists')
           "
       - name: Test backend
         run: make backend-test
